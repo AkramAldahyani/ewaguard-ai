@@ -1,0 +1,16 @@
+.git
+**/node_modules
+**/dist
+**/coverage
+**/.env
+**/.env.*
+!**/.env.example
+**/logs
+**/*.log
+**/uploads
+**/tmp
+**/temp
+**/secrets
+**/*.pem
+**/*.key
+.cache

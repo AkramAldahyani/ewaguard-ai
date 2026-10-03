@@ -1,0 +1,74 @@
+import assert from 'node:assert/strict';
+import { once } from 'node:events';
+import { test } from 'node:test';
+import { createApp } from '../src/app.js';
+import { databaseUrl, parseConfig } from '../src/config/env.js';
+import { errorHandler } from '../src/middleware/error-handler.js';
+
+test('configuration accepts defaults and rejects invalid deployment settings', () => {
+  assert.equal(parseConfig({}).port, 5000);
+  assert.equal(parseConfig({}).host, '127.0.0.1');
+  assert.equal(parseConfig({ PORT: '5432', FRONTEND_URL: 'https://example.com/' }).frontendUrl, 'https://example.com');
+  for (const env of [
+    { PORT: '' }, { PORT: '0' }, { PORT: '65536' }, { PORT: '5e3' }, { PORT: '5000x' },
+    { NODE_ENV: 'invalid' }, { HOST: 'example.com' }, { FRONTEND_URL: '*' },
+    { FRONTEND_URL: 'https://user:secret@example.com' }, { FRONTEND_URL: 'https://example.com/path' },
+    { FRONTEND_URL: 'https://example.com?secret=value' }, { FRONTEND_URL: 'ftp://example.com' },
+    { NODE_ENV: 'production', FRONTEND_URL: 'http://example.com' },
+  ]) assert.throws(() => parseConfig(env));
+  assert.equal(parseConfig({ NODE_ENV: 'production', FRONTEND_URL: 'https://example.com' }).nodeEnv, 'production');
+});
+
+test('Prisma URL validation requires PostgreSQL and never reflects credentials', () => {
+  const url = 'postgresql://USER:PASSWORD@localhost:5432/ewaguard';
+  assert.equal(databaseUrl({ DATABASE_URL: url }), url);
+  for (const value of [undefined, '', 'mysql://user:secret@localhost/db', 'postgresql://localhost']) {
+    assert.throws(() => databaseUrl({ DATABASE_URL: value }), {
+      message: 'DATABASE_URL must be a PostgreSQL connection URL with a database name.',
+    });
+  }
+});
+
+test('HTTP foundation: health, CORS, security headers, 404, malformed and oversized JSON', async (t) => {
+  const server = createApp(parseConfig({})).listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const health = await fetch(`${base}/api/health`, { headers: { Origin: 'http://localhost:5173' } });
+  assert.equal(health.status, 200);
+  assert.deepEqual(await health.json(), { status: 'ok', service: 'ewaguard-api' });
+  assert.equal(health.headers.get('cache-control'), 'no-store');
+  assert.equal(health.headers.get('x-powered-by'), null);
+  assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
+  assert.equal(health.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+  const foreign = await fetch(`${base}/api/health`, { headers: { Origin: 'https://untrusted.example' } });
+  assert.notEqual(foreign.headers.get('access-control-allow-origin'), 'https://untrusted.example');
+  assert.notEqual(foreign.headers.get('access-control-allow-origin'), '*');
+  const missing = await fetch(`${base}/api/missing`);
+  assert.equal(missing.status, 404);
+  assert.deepEqual(await missing.json(), { error: { code: 'NOT_FOUND', message: 'API route not found.' } });
+  const malformed = await fetch(`${base}/api/health`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"secret":"DO_NOT_REFLECT",',
+  });
+  assert.equal(malformed.status, 400);
+  assert.deepEqual(await malformed.json(), { error: { code: 'INVALID_JSON', message: 'Request body must contain valid JSON.' } });
+  const oversized = await fetch(`${base}/api/health`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ value: 'x'.repeat(33000) }),
+  });
+  assert.equal(oversized.status, 413);
+  assert.equal((await oversized.json()).error.code, 'PAYLOAD_TOO_LARGE');
+});
+
+test('unexpected errors disclose neither stack nor sensitive payload in response or log', (t) => {
+  const logger = t.mock.method(console, 'error', () => {});
+  const response = {
+    headersSent: false,
+    status(code) { this.statusCode = code; return this; },
+    json(body) { this.body = body; },
+  };
+  errorHandler(new Error('secret://private-database'), {}, response, () => assert.fail('Unexpected next'));
+  assert.equal(response.statusCode, 500);
+  assert.deepEqual(response.body, { error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred.' } });
+  assert.equal(logger.mock.callCount(), 1);
+  assert.equal(JSON.stringify(logger.mock.calls).includes('secret://private-database'), false);
+});

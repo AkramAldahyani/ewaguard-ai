@@ -1,0 +1,5 @@
+// Phase 0 configures the provider only. Models and migrations belong to Phase 2.
+// A client generator will be added with the first database-backed feature.
+datasource db {
+  provider = "postgresql"
+}
