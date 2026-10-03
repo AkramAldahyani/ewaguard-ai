@@ -24,7 +24,7 @@ export function createAuthRouter({ database, config }) {
     try {
       const input = validateLogin(req.body);
       if (!input) return invalidCredentials(res);
-      const user = await authenticateCredentials(database, input.identifier, input.password);
+      const user = await authenticateCredentials(database, input.email, input.password);
       if (!user) {
         console.warn(JSON.stringify({ level: 'WARN', event: 'login_failed' }));
         return invalidCredentials(res);
@@ -58,14 +58,14 @@ export function createAuthRouter({ database, config }) {
 
 function validateLogin(body) {
   if (!body || typeof body !== 'object' || Array.isArray(body)) return null;
-  if (!Object.keys(body).every((key) => ['identifier', 'password'].includes(key))) return null;
-  if (typeof body.identifier !== 'string' || typeof body.password !== 'string') return null;
-  const identifier = body.identifier.trim();
-  if (!identifier || identifier.length > 254 || body.password.length < 1 || body.password.length > 128) return null;
-  return { identifier, password: body.password };
+  if (!Object.keys(body).every((key) => ['email', 'password'].includes(key))) return null;
+  if (typeof body.email !== 'string' || typeof body.password !== 'string') return null;
+  const email = body.email.trim();
+  if (!/^[^\s@]+@[^\s@]+$/.test(email) || email.length > 254 || body.password.length < 1 || body.password.length > 128) return null;
+  return { email, password: body.password };
 }
 
 function invalidCredentials(res) {
   res.set('Cache-Control', 'no-store');
-  return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'Email/employee ID or password is incorrect.' } });
+  return res.status(401).json({ error: { code: 'INVALID_CREDENTIALS', message: 'Email or password is incorrect.' } });
 }

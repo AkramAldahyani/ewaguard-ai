@@ -6,7 +6,7 @@ export function BrandLogo({ compact = false, className = '' }) {
       <img
         src={logo}
         alt="EWAGuard AI"
-        className={compact ? 'h-12 w-auto max-w-full object-contain' : 'h-12 w-auto max-w-52 object-contain'}
+        className={compact ? 'h-20 w-auto max-w-full object-contain' : 'h-12 w-auto max-w-52 object-contain'}
       />
     </span>
   );

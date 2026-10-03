@@ -37,9 +37,9 @@ export function AuthProvider({ children }) {
     return () => window.clearTimeout(timer);
   }, [expiresAt, clearSession]);
 
-  const login = useCallback(async (identifier, password) => {
+  const login = useCallback(async (email, password) => {
     const payload = await apiRequest('/api/auth/login', {
-      method: 'POST', body: JSON.stringify({ identifier, password }),
+      method: 'POST', body: JSON.stringify({ email, password }),
     });
     setUser(payload.user);
     setExpiresAt(payload.session.expiresAt);

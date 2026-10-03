@@ -40,8 +40,8 @@ test('authentication lifecycle and security boundaries', async (t) => {
     ...options,
     headers: { Origin: ORIGIN, ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}), ...options.headers },
   });
-  const login = (identifier, suppliedPassword) => request('/api/auth/login', {
-    method: 'POST', body: JSON.stringify({ identifier, password: suppliedPassword }),
+  const login = (email, suppliedPassword) => request('/api/auth/login', {
+    method: 'POST', body: JSON.stringify({ email, password: suppliedPassword }),
   });
 
   await t.test('anonymous protected endpoint is rejected', async () => {
@@ -86,6 +86,11 @@ test('authentication lifecycle and security boundaries', async (t) => {
     assert.equal(missing.status, 401);
     assert.deepEqual(await wrong.json(), await missing.json());
   });
+  await t.test('employee identifier is not accepted as a login method', async () => {
+    const response = await login(user.employeeIdentifier, password);
+    assert.equal(response.status, 401);
+    assert.equal((await response.json()).error.code, 'INVALID_CREDENTIALS');
+  });
   await t.test('inactive account cannot authenticate and is not disclosed', async () => {
     await database.user.update({ where: { id: user.id }, data: { status: 'SUSPENDED' } });
     const inactive = await login(user.email, password);
@@ -105,7 +110,7 @@ test('authentication lifecycle and security boundaries', async (t) => {
   await t.test('untrusted browser origin is rejected', async () => {
     const response = await fetch(`${base}/api/auth/login`, {
       method: 'POST', headers: { Origin: 'https://attacker.example', 'Content-Type': 'application/json' },
-      body: JSON.stringify({ identifier: user.email, password }),
+      body: JSON.stringify({ email: user.email, password }),
     });
     assert.equal(response.status, 403);
     assert.equal((await response.json()).error.code, 'UNTRUSTED_ORIGIN');
@@ -146,7 +151,7 @@ test('login rate limiter blocks repeated failures', async (t) => {
     await database.$disconnect();
   });
   const url = `http://127.0.0.1:${server.address().port}/api/auth/login`;
-  const options = { method: 'POST', headers: { Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ identifier: 'nobody@example.invalid', password: 'invalid' }) };
+  const options = { method: 'POST', headers: { Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'nobody@example.invalid', password: 'invalid' }) };
   assert.equal((await fetch(url, options)).status, 401);
   assert.equal((await fetch(url, options)).status, 401);
   const limited = await fetch(url, options);

@@ -20,12 +20,9 @@ export async function hashPassword(password) {
   return bcrypt.hash(password, BCRYPT_ROUNDS);
 }
 
-export async function authenticateCredentials(database, identifier, password) {
-  const normalized = identifier.trim();
-  const user = await database.user.findFirst({
-    where: normalized.includes('@')
-      ? { email: normalized.toLowerCase() }
-      : { employeeIdentifier: normalized },
+export async function authenticateCredentials(database, email, password) {
+  const user = await database.user.findUnique({
+    where: { email: email.trim().toLowerCase() },
     include: { role: true, department: true },
   });
   const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? await dummyHash);

@@ -6,8 +6,8 @@ and administrator MFA belong to Phase 3B.
 
 ## Request flow
 
-`POST /api/auth/login` accepts `identifier` (email or employee identifier) and a
-password. The server validates bounded input, normalizes email case, retrieves the
+`POST /api/auth/login` accepts an `email` and a password. The server validates
+bounded input, normalizes email case, retrieves the
 account through Prisma and always performs a bcrypt comparison. Missing accounts,
 wrong passwords, INVITED/SUSPENDED/DEACTIVATED accounts, and accounts with a
 deactivation timestamp receive the same 401 response. Successful responses contain
@@ -77,13 +77,13 @@ branding/design-system components.
 ## Development accounts
 
 The idempotent development-only account seed refuses `NODE_ENV=production`. It
-reads two 14–128 character passwords from ignored local environment variables,
+reads two 8–128 character passwords from ignored local environment variables,
 hashes them, and creates or rotates these fake accounts:
 
 | Account | Employee ID | Role | Department |
 | --- | --- | --- | --- |
-| `employee@ewaguard.local` | `DEV-EMP-001` | EMPLOYEE | Operations |
-| `admin@ewaguard.local` | `DEV-ADM-001` | IT_SECURITY_ADMIN | IT |
+| `employee@ewa.bh` | `DEV-EMP-001` | EMPLOYEE | Operations |
+| `admin@ewa.bh` | `DEV-ADM-001` | IT_SECURITY_ADMIN | IT |
 
 Set `DEV_EMPLOYEE_PASSWORD` and `DEV_ADMIN_PASSWORD` only in ignored `.env` or the
 current shell, then run `npm.cmd run db:seed:auth`. The repository contains no

@@ -41,7 +41,7 @@ const navSections = [
 function SidebarContent({ onNavigate }) {
   return (
     <>
-      <div className="relative flex h-20 items-center px-6">
+      <div className="relative flex h-24 items-center px-6">
         <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-brand-400 via-brand-500 to-danger-500" />
         <NavLink
           to="/"

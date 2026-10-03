@@ -32,7 +32,7 @@ npm.cmd run dev
 
 Before seeding accounts, replace placeholders in ignored `.env`, generate a unique
 JWT secret of at least 32 random characters, and set strong local-only
-`DEV_EMPLOYEE_PASSWORD` and `DEV_ADMIN_PASSWORD` values (14–128 characters). Do
+`DEV_EMPLOYEE_PASSWORD` and `DEV_ADMIN_PASSWORD` values (8–128 characters). Do
 not add these development passwords to `.env.example`. Copy the example only if
 `.env` does not already exist.
 
