@@ -9,6 +9,7 @@ import analyzeConcern from '../assets/illustrations/analyze-a-concern.png';
 import askEwaguard from '../assets/illustrations/ask-ewaguard-ai.png';
 import continueLearning from '../assets/illustrations/continue-learning.png';
 import { Badge, Button, Card } from '../components/ui/index.jsx';
+import { useAuth } from '../context/auth-context.js';
 
 const quickActions = [
   {
@@ -43,6 +44,7 @@ function PreviewLabel() {
 
 export function HomePage() {
   const [apiState, setApiState] = useState('checking');
+  const { user } = useAuth();
 
   useEffect(() => {
     const controller = new AbortController();
@@ -60,7 +62,7 @@ export function HomePage() {
       <header className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="mb-2 text-[0.68rem] font-extrabold uppercase tracking-[0.18em] text-brand-700">Employee security workspace</p>
-          <h1 className="text-3xl font-bold tracking-[-0.04em] text-slate-950 sm:text-[2.25rem] sm:leading-tight">Good morning, Akram</h1>
+          <h1 className="text-3xl font-bold tracking-[-0.04em] text-slate-950 sm:text-[2.25rem] sm:leading-tight">Welcome, {user.firstName}</h1>
           <p className="mt-2 text-sm leading-6 text-slate-600 sm:text-[0.95rem]">Stay informed, analyze concerns, and build stronger security habits.</p>
         </div>
         <Badge tone={apiState === 'online' ? 'success' : apiState === 'offline' ? 'danger' : 'neutral'} className="w-fit">

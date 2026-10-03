@@ -22,7 +22,7 @@ export function parseConfig(env = process.env) {
   }
   let origin;
   try {
-    origin = new URL(env.FRONTEND_URL ?? 'http://localhost:5173');
+    origin = new URL(env.FRONTEND_URL ?? 'http://127.0.0.1:5173');
   } catch {
     throw new Error('FRONTEND_URL must be a valid HTTP(S) origin.');
   }
@@ -33,7 +33,25 @@ export function parseConfig(env = process.env) {
   if (nodeEnv === 'production' && origin.protocol !== 'https:') {
     throw new Error('FRONTEND_URL must use HTTPS in production.');
   }
-  return Object.freeze({ nodeEnv, port, host, frontendUrl: origin.origin });
+  const jwtSecret = env.JWT_SECRET;
+  if (typeof jwtSecret !== 'string' || jwtSecret.length < 32 || jwtSecret === 'CHANGE_ME') {
+    throw new Error('JWT_SECRET must contain at least 32 characters and must not use the placeholder.');
+  }
+  const accessTokenTtlSeconds = positiveInteger(env.JWT_ACCESS_TTL_SECONDS ?? '900', 'JWT_ACCESS_TTL_SECONDS', 60, 3600);
+  const loginRateLimitWindowMinutes = positiveInteger(env.LOGIN_RATE_LIMIT_WINDOW_MINUTES ?? '15', 'LOGIN_RATE_LIMIT_WINDOW_MINUTES', 1, 60);
+  const loginRateLimitMax = positiveInteger(env.LOGIN_RATE_LIMIT_MAX ?? '10', 'LOGIN_RATE_LIMIT_MAX', 1, 100);
+  return Object.freeze({
+    nodeEnv, port, host, frontendUrl: origin.origin, jwtSecret,
+    accessTokenTtlSeconds, loginRateLimitWindowMinutes, loginRateLimitMax,
+  });
+}
+
+function positiveInteger(raw, name, minimum, maximum) {
+  const value = Number(raw);
+  if (!/^\d+$/.test(raw) || !Number.isInteger(value) || value < minimum || value > maximum) {
+    throw new Error(`${name} must be an integer between ${minimum} and ${maximum}.`);
+  }
+  return value;
 }
 
 export function databaseUrl(env = process.env) {

@@ -13,9 +13,16 @@
     "build": "npm run build --workspace frontend",
     "lint": "eslint .",
     "test": "npm run test --workspace backend",
-    "check:backend": "node --check backend/src/server.js && node --check backend/src/app.js && node --check backend/src/config/env.js && node --check backend/src/middleware/error-handler.js",
+    "check:backend": "node --check backend/src/server.js && node --check backend/src/app.js && node --check backend/src/config/env.js && node --check backend/src/config/database.js && node --check backend/src/auth/auth-token.js && node --check backend/src/auth/auth-service.js && node --check backend/src/middleware/authenticate.js && node --check backend/src/middleware/trusted-origin.js && node --check backend/src/routes/auth.js",
     "prisma:format": "prisma format --config backend/prisma.config.js",
-    "prisma:validate": "prisma validate --config backend/prisma.config.js"
+    "prisma:validate": "prisma validate --config backend/prisma.config.js",
+    "prisma:generate": "prisma generate --config backend/prisma.config.js",
+    "db:migrate": "prisma migrate deploy --config backend/prisma.config.js",
+    "db:status": "prisma migrate status --config backend/prisma.config.js",
+    "db:seed": "prisma db seed --config backend/prisma.config.js",
+    "db:seed:auth": "node backend/prisma/seed-auth.js",
+    "test:database": "node --test backend/tests/database.integration.js",
+    "test:vector": "node --test backend/tests/vector.integration.js"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.0",

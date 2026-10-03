@@ -1,9 +1,12 @@
 import { Route, Routes } from 'react-router';
 import { ToastProvider } from './components/ui/ToastProvider.jsx';
+import { AuthProvider } from './context/auth.jsx';
+import { ProtectedRoute, PublicOnlyRoute } from './components/auth/ProtectedRoute.jsx';
 import { AppShell } from './layouts/AppShell.jsx';
 import { DesignSystemPage } from './pages/DesignSystemPage.jsx';
 import { HomePage } from './pages/HomePage.jsx';
 import { PlaceholderPage } from './pages/PlaceholderPage.jsx';
+import { LoginPage } from './pages/LoginPage.jsx';
 
 const placeholders = [
   ['/assistant', 'EWAGuard AI'],
@@ -19,17 +22,18 @@ const placeholders = [
 
 export default function App() {
   return (
-    <ToastProvider>
+    <ToastProvider><AuthProvider>
       <Routes>
-        <Route element={<AppShell />}>
+        <Route path="login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
+        <Route element={<ProtectedRoute />}><Route element={<AppShell />}>
           <Route index element={<HomePage />} />
           {placeholders.map(([path, title]) => (
             <Route key={path} path={path} element={<PlaceholderPage title={title} />} />
           ))}
           <Route path="design-system" element={<DesignSystemPage />} />
           <Route path="*" element={<PlaceholderPage title="Page not found" description="The requested route is not part of the current application shell." />} />
-        </Route>
+        </Route></Route>
       </Routes>
-    </ToastProvider>
+    </AuthProvider></ToastProvider>
   );
 }

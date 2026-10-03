@@ -2,12 +2,14 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet } from 'react-router';
 import {
   Bell, Bot, ChevronRight, FileSearch, GraduationCap, Home, KeyRound,
-  Link2, Menu, MessageSquareText, Search, ShieldAlert, Upload, X,
+  Link2, LogOut, Menu, MessageSquareText, Search, ShieldAlert, Upload, X,
 } from 'lucide-react';
 import { BrandLogo } from '../components/BrandLogo.jsx';
 import { IconButton, Tooltip } from '../components/ui/index.jsx';
 import { cn } from '../lib/cn.js';
 import userAvatar from '../assets/illustrations/user_avatar.png';
+import adminAvatar from '../assets/illustrations/admin_avatar.png';
+import { useAuth } from '../context/auth-context.js';
 
 const navSections = [
   {
@@ -39,14 +41,18 @@ const navSections = [
 function SidebarContent({ onNavigate }) {
   return (
     <>
-      <div className="relative flex h-24 items-center border-b border-white/8 px-5">
+      <div className="relative flex h-20 items-center px-6">
         <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-brand-400 via-brand-500 to-danger-500" />
-        <NavLink to="/" onClick={onNavigate} className="flex w-full items-center rounded-xl bg-white px-3 py-2.5 shadow-sm ring-1 ring-white/20">
+        <NavLink
+          to="/"
+          onClick={onNavigate}
+          className="flex max-w-full items-center rounded-lg outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-4 focus-visible:ring-offset-navy-950"
+        >
           <BrandLogo compact />
         </NavLink>
       </div>
 
-      <nav aria-label="Primary navigation" className="flex-1 overflow-y-auto px-3 py-5">
+      <nav aria-label="Primary navigation" className="flex-1 overflow-y-auto px-3 pb-5 pt-3">
         {navSections.map((section) => (
           <div key={section.label} className="mb-6 last:mb-0">
             <p className="mb-2 px-3 text-[0.65rem] font-bold uppercase tracking-[0.19em] text-slate-500">{section.label}</p>
@@ -94,7 +100,16 @@ function SidebarContent({ onNavigate }) {
 
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
   const mobileCloseRef = useRef(null);
+  const { user, logout } = useAuth();
+  const avatar = user.role === 'IT_SECURITY_ADMIN' ? adminAvatar : userAvatar;
+  const roleLabel = user.role === 'IT_SECURITY_ADMIN' ? 'IT / Security Administrator' : 'Employee';
+
+  async function handleLogout() {
+    setLoggingOut(true);
+    try { await logout(); } finally { setLoggingOut(false); }
+  }
 
   useEffect(() => {
     if (!mobileOpen) return undefined;
@@ -130,7 +145,7 @@ export function AppShell() {
         <header className="sticky top-0 z-30 flex h-[4.75rem] items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 shadow-[0_1px_0_rgb(15_23_42/0.02)] backdrop-blur-xl sm:px-6 lg:px-8">
           <IconButton label="Open navigation" onClick={() => setMobileOpen(true)} className="lg:hidden"><Menu className="size-5" /></IconButton>
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-slate-900">Employee Security Portal</p>
+            <p className="truncate text-sm font-bold text-slate-900">EWAGuard AI Security Portal</p>
             <p className="hidden text-xs text-slate-500 sm:block">Electricity &amp; Water Authority</p>
           </div>
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
@@ -138,9 +153,10 @@ export function AppShell() {
             <Tooltip label="Notifications"><IconButton label="Notifications"><Bell className="size-[1.1rem]" /></IconButton></Tooltip>
             <span className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
             <NavLink to="/profile" className="flex items-center gap-3 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-100">
-              <img src={userAvatar} alt="Akram Aldahyani profile avatar" className="size-9 rounded-full border border-slate-200 bg-white object-cover shadow-sm" />
-              <span className="hidden text-left xl:block"><span className="block text-sm font-bold text-slate-800">Akram Aldahyani</span><span className="block text-[0.7rem] text-slate-500">Employee preview</span></span>
+              <img src={avatar} alt="" className="size-9 rounded-full border border-slate-200 bg-white object-cover shadow-sm" />
+              <span className="hidden text-left xl:block"><span className="block text-sm font-bold text-slate-800">{user.firstName} {user.lastName}</span><span className="block text-[0.7rem] text-slate-500">{roleLabel}</span></span>
             </NavLink>
+            <Tooltip label={loggingOut ? 'Signing out' : 'Sign out'}><IconButton label="Sign out" disabled={loggingOut} onClick={handleLogout}><LogOut className="size-[1.1rem]" /></IconButton></Tooltip>
           </div>
         </header>
         <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-[96rem] px-4 py-6 sm:px-6 lg:px-8 lg:py-8"><Outlet /></main>

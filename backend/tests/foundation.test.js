@@ -5,18 +5,23 @@ import { createApp } from '../src/app.js';
 import { databaseUrl, parseConfig } from '../src/config/env.js';
 import { errorHandler } from '../src/middleware/error-handler.js';
 
+const validSecret = 'test-secret-that-is-at-least-32-characters-long';
+const configEnv = (overrides = {}) => ({ JWT_SECRET: validSecret, ...overrides });
+
 test('configuration accepts defaults and rejects invalid deployment settings', () => {
-  assert.equal(parseConfig({}).port, 5000);
-  assert.equal(parseConfig({}).host, '127.0.0.1');
-  assert.equal(parseConfig({ PORT: '5432', FRONTEND_URL: 'https://example.com/' }).frontendUrl, 'https://example.com');
+  assert.equal(parseConfig(configEnv()).port, 5000);
+  assert.equal(parseConfig(configEnv()).host, '127.0.0.1');
+  assert.equal(parseConfig(configEnv({ PORT: '5432', FRONTEND_URL: 'https://example.com/' })).frontendUrl, 'https://example.com');
   for (const env of [
     { PORT: '' }, { PORT: '0' }, { PORT: '65536' }, { PORT: '5e3' }, { PORT: '5000x' },
     { NODE_ENV: 'invalid' }, { HOST: 'example.com' }, { FRONTEND_URL: '*' },
     { FRONTEND_URL: 'https://user:secret@example.com' }, { FRONTEND_URL: 'https://example.com/path' },
     { FRONTEND_URL: 'https://example.com?secret=value' }, { FRONTEND_URL: 'ftp://example.com' },
     { NODE_ENV: 'production', FRONTEND_URL: 'http://example.com' },
-  ]) assert.throws(() => parseConfig(env));
-  assert.equal(parseConfig({ NODE_ENV: 'production', FRONTEND_URL: 'https://example.com' }).nodeEnv, 'production');
+    { JWT_SECRET: 'short' }, { JWT_SECRET: validSecret, JWT_ACCESS_TTL_SECONDS: '59' },
+    { JWT_SECRET: validSecret, LOGIN_RATE_LIMIT_MAX: '0' },
+  ]) assert.throws(() => parseConfig(configEnv(env)));
+  assert.equal(parseConfig(configEnv({ NODE_ENV: 'production', FRONTEND_URL: 'https://example.com' })).nodeEnv, 'production');
 });
 
 test('Prisma URL validation requires PostgreSQL and never reflects credentials', () => {
@@ -30,17 +35,18 @@ test('Prisma URL validation requires PostgreSQL and never reflects credentials',
 });
 
 test('HTTP foundation: health, CORS, security headers, 404, malformed and oversized JSON', async (t) => {
-  const server = createApp(parseConfig({})).listen(0, '127.0.0.1');
+  const config = parseConfig(configEnv());
+  const server = createApp(config, { database: {} }).listen(0, '127.0.0.1');
   await once(server, 'listening');
   t.after(() => new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve())));
   const base = `http://127.0.0.1:${server.address().port}`;
-  const health = await fetch(`${base}/api/health`, { headers: { Origin: 'http://localhost:5173' } });
+  const health = await fetch(`${base}/api/health`, { headers: { Origin: config.frontendUrl } });
   assert.equal(health.status, 200);
   assert.deepEqual(await health.json(), { status: 'ok', service: 'ewaguard-api' });
   assert.equal(health.headers.get('cache-control'), 'no-store');
   assert.equal(health.headers.get('x-powered-by'), null);
   assert.equal(health.headers.get('x-content-type-options'), 'nosniff');
-  assert.equal(health.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+  assert.equal(health.headers.get('access-control-allow-origin'), config.frontendUrl);
   const foreign = await fetch(`${base}/api/health`, { headers: { Origin: 'https://untrusted.example' } });
   assert.notEqual(foreign.headers.get('access-control-allow-origin'), 'https://untrusted.example');
   assert.notEqual(foreign.headers.get('access-control-allow-origin'), '*');

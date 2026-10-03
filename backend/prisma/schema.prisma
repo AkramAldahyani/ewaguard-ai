@@ -1,5 +1,932 @@
-// Phase 0 configures the provider only. Models and migrations belong to Phase 2.
-// A client generator will be added with the first database-backed feature.
+// Phase 2: relational architecture only. Authorization lives in later backend services.
+generator client {
+  provider               = "prisma-client"
+  output                 = "../src/generated/prisma"
+  moduleFormat           = "esm"
+  generatedFileExtension = "ts"
+  importFileExtension    = "ts"
+}
+
 datasource db {
   provider = "postgresql"
+}
+
+enum RoleName {
+  EMPLOYEE
+  IT_SECURITY_ADMIN
+}
+
+enum AccountStatus {
+  INVITED
+  ACTIVE
+  SUSPENDED
+  DEACTIVATED
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  TOOL
+}
+
+enum AnalysisStatus {
+  PENDING
+  COMPLETED
+  ERROR
+}
+
+enum Severity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum ScanStatus {
+  NOT_SCANNED
+  UNAVAILABLE
+  ERROR
+  NO_KNOWN_DETECTION
+  DETECTED
+}
+
+enum IncidentStatus {
+  NEW
+  UNDER_INVESTIGATION
+  CONTAINED
+  RESOLVED
+  FALSE_POSITIVE
+  CLOSED
+}
+
+enum IncidentType {
+  PHISHING
+  MALWARE
+  CREDENTIAL_COMPROMISE
+  DATA_EXPOSURE
+  SUSPICIOUS_ACTIVITY
+  OTHER
+}
+
+enum DetectionSource {
+  EMAIL_ANALYSIS
+  URL_ANALYSIS
+  FILE_ANALYSIS
+  INCIDENT_ASSISTANCE
+  MANUAL_REPORT
+}
+
+enum IncidentEventType {
+  CREATED
+  STATUS_CHANGED
+  ASSIGNED
+  SEVERITY_CHANGED
+  EVIDENCE_ADDED
+  RESOLUTION_UPDATED
+}
+
+enum CommentVisibility {
+  SECURITY_TEAM
+  REPORTER
+}
+
+enum NotificationType {
+  INCIDENT_ALERT
+  INCIDENT_UPDATE
+  TRAINING_ASSIGNED
+  QUIZ_PUBLISHED
+  COMMUNITY_MODERATED
+}
+
+enum DocumentKind {
+  PDPL
+  COMPANY_POLICY
+}
+
+enum ApprovalStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  ARCHIVED
+}
+
+enum IndexingStatus {
+  NOT_INDEXED
+  PENDING
+  INDEXED
+  ERROR
+}
+
+enum TrainingStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+enum QuizKind {
+  COURSE
+  MONTHLY
+}
+
+enum PublicationStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum QuestionType {
+  MULTIPLE_CHOICE
+  TRUE_FALSE
+}
+
+enum ContentOrigin {
+  HUMAN
+  AI_DRAFT
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  ABANDONED
+}
+
+enum CommunityStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
+  REMOVED
+}
+
+enum CommunityCategory {
+  PHISHING
+  SUSPICIOUS_EMAIL
+  SUSPICIOUS_LINK
+  SUSPICIOUS_FILE
+  SECURITY_TIP
+  SECURITY_WARNING
+  EDUCATIONAL_CONTENT
+}
+
+enum ModerationDecision {
+  APPROVED
+  REJECTED
+  REMOVED
+}
+
+enum DisclaimerContext {
+  EMAIL_ANALYSIS
+  URL_ANALYSIS
+  FILE_ANALYSIS
+  CHAT
+  COMMUNITY_POST
+  COMMUNITY_ATTACHMENT
+}
+
+enum AuditOutcome {
+  SUCCESS
+  FAILURE
+  DENIED
+}
+
+model Role {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      RoleName @unique
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime @updatedAt @db.Timestamptz(3)
+  users     User[]   @relation("User_role")
+
+  @@map("roles")
+}
+
+model Department {
+  id                  String                  @id @default(uuid()) @db.Uuid
+  name                String                  @unique @db.VarChar(120)
+  code                String                  @unique @db.VarChar(30)
+  active              Boolean                 @default(true)
+  createdAt           DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                @updatedAt @db.Timestamptz(3)
+  users               User[]                  @relation("User_department")
+  incidents           Incident[]              @relation("Incident_department")
+  trainingAssignments TrainingAssignment[]    @relation("TrainingAssignment_department")
+  monthlyAssignments  MonthlyQuizAssignment[] @relation("MonthlyQuizAssignment_department")
+
+  @@map("departments")
+}
+
+model User {
+  id                     String                      @id @default(uuid()) @db.Uuid
+  employeeIdentifier     String?                     @unique @db.VarChar(80)
+  firstName              String                      @db.VarChar(100)
+  lastName               String                      @db.VarChar(100)
+  email                  String                      @unique @db.VarChar(254)
+  passwordHash           String?                     @db.VarChar(255)
+  status                 AccountStatus               @default(INVITED)
+  deactivatedAt          DateTime?                   @db.Timestamptz(3)
+  createdAt              DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                    @updatedAt @db.Timestamptz(3)
+  roleId                 String                      @db.Uuid
+  departmentId           String?                     @db.Uuid
+  role                   Role                        @relation("User_role", fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  department             Department?                 @relation("User_department", fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  chatSessions           ChatSession[]               @relation("ChatSession_owner")
+  acknowledgements       DisclaimerAcknowledgement[] @relation("DisclaimerAcknowledgement_user")
+  emailAnalysisRecords   EmailAnalysis[]             @relation("EmailAnalysis_user")
+  urlAnalysisRecords     UrlAnalysis[]               @relation("UrlAnalysis_user")
+  fileAnalysisRecords    FileAnalysis[]              @relation("FileAnalysis_user")
+  reportedIncidents      Incident[]                  @relation("Incident_reporter")
+  assignedIncidents      Incident[]                  @relation("Incident_assignee")
+  incidentEvents         IncidentEvent[]             @relation("IncidentEvent_actor")
+  incidentComments       IncidentComment[]           @relation("IncidentComment_author")
+  notifications          Notification[]              @relation("Notification_recipient")
+  uploadedDocuments      KnowledgeDocument[]         @relation("KnowledgeDocument_uploadedBy")
+  approvedDocuments      KnowledgeDocument[]         @relation("KnowledgeDocument_approvedBy")
+  createdTrainings       TrainingProgram[]           @relation("TrainingProgram_createdBy")
+  reviewedTrainings      TrainingProgram[]           @relation("TrainingProgram_reviewedBy")
+  trainingAssignments    TrainingAssignment[]        @relation("TrainingAssignment_employee")
+  assignedTrainings      TrainingAssignment[]        @relation("TrainingAssignment_assignedBy")
+  createdQuizzes         Quiz[]                      @relation("Quiz_createdBy")
+  approvedQuizzes        Quiz[]                      @relation("Quiz_approvedBy")
+  monthlyAssignments     MonthlyQuizAssignment[]     @relation("MonthlyQuizAssignment_employee")
+  assignedMonthlyQuizzes MonthlyQuizAssignment[]     @relation("MonthlyQuizAssignment_assignedBy")
+  reviewedQuestions      QuizQuestion[]              @relation("QuizQuestion_reviewedBy")
+  quizAttempts           QuizAttempt[]               @relation("QuizAttempt_employee")
+  posts                  CommunityPost[]             @relation("CommunityPost_author")
+  moderationActions      PostModerationAction[]      @relation("PostModerationAction_moderator")
+  auditLogs              AuditLog[]                  @relation("AuditLog_actor")
+
+  @@index([status])
+  @@index([roleId])
+  @@index([departmentId])
+  @@map("users")
+}
+
+model ChatSession {
+  id        String        @id @default(uuid()) @db.Uuid
+  title     String?       @db.VarChar(160)
+  expiresAt DateTime      @db.Timestamptz(3)
+  closedAt  DateTime?     @db.Timestamptz(3)
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime      @updatedAt @db.Timestamptz(3)
+  ownerId   String        @db.Uuid
+  owner     User          @relation("ChatSession_owner", fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  messages  ChatMessage[] @relation("ChatMessage_session")
+
+  @@index([expiresAt])
+  @@index([ownerId])
+  @@map("chat_sessions")
+}
+
+model ChatMessage {
+  id        String      @id @default(uuid()) @db.Uuid
+  role      MessageRole
+  // Only user-approved, redacted content; no system prompts or credential payloads.
+  content   String      @db.Text
+  sequence  Int
+  expiresAt DateTime    @db.Timestamptz(3)
+  createdAt DateTime    @default(now()) @db.Timestamptz(3)
+  sessionId String      @db.Uuid
+  session   ChatSession @relation("ChatMessage_session", fields: [sessionId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([sessionId, sequence])
+  @@index([expiresAt])
+  @@index([sessionId])
+  @@map("chat_messages")
+}
+
+model DisclaimerAcknowledgement {
+  id                   String                    @id @default(uuid()) @db.Uuid
+  version              String                    @db.VarChar(40)
+  context              DisclaimerContext
+  createdAt            DateTime                  @default(now()) @db.Timestamptz(3)
+  userId               String                    @db.Uuid
+  user                 User                      @relation("DisclaimerAcknowledgement_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  emailAnalysisRecords EmailAnalysis[]           @relation("EmailAnalysis_acknowledgement")
+  urlAnalysisRecords   UrlAnalysis[]             @relation("UrlAnalysis_acknowledgement")
+  fileAnalysisRecords  FileAnalysis[]            @relation("FileAnalysis_acknowledgement")
+  posts                CommunityPost[]           @relation("CommunityPost_acknowledgement")
+  attachments          CommunityPostAttachment[] @relation("CommunityPostAttachment_acknowledgement")
+
+  @@index([userId, context, createdAt])
+  @@index([userId])
+  @@map("disclaimer_acknowledgements")
+}
+
+model EmailAnalysis {
+  id                String                    @id @default(uuid()) @db.Uuid
+  status            AnalysisStatus            @default(PENDING)
+  evidence          Json                      @default("{}")
+  riskScore         Int?
+  severity          Severity?
+  riskRuleVersion   String?                   @db.VarChar(40)
+  analyzedAt        DateTime?                 @db.Timestamptz(3)
+  expiresAt         DateTime                  @db.Timestamptz(3)
+  // Minimized indicators only; no raw email body or complete headers.
+  senderDomain      String?                   @db.VarChar(253)
+  replyToDomain     String?                   @db.VarChar(253)
+  createdAt         DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                  @updatedAt @db.Timestamptz(3)
+  userId            String                    @db.Uuid
+  acknowledgementId String                    @db.Uuid
+  user              User                      @relation("EmailAnalysis_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  acknowledgement   DisclaimerAcknowledgement @relation("EmailAnalysis_acknowledgement", fields: [acknowledgementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  incidentEvidence  IncidentEvidence[]        @relation("IncidentEvidence_emailAnalysis")
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([userId])
+  @@index([acknowledgementId])
+  @@map("email_analyses")
+}
+
+model UrlAnalysis {
+  id                String                    @id @default(uuid()) @db.Uuid
+  status            AnalysisStatus            @default(PENDING)
+  evidence          Json                      @default("{}")
+  riskScore         Int?
+  severity          Severity?
+  riskRuleVersion   String?                   @db.VarChar(40)
+  analyzedAt        DateTime?                 @db.Timestamptz(3)
+  expiresAt         DateTime                  @db.Timestamptz(3)
+  // Never store URL credentials, query strings, or fragments here.
+  hostname          String                    @db.VarChar(253)
+  urlSha256         String                    @db.Char(64)
+  createdAt         DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                  @updatedAt @db.Timestamptz(3)
+  userId            String                    @db.Uuid
+  acknowledgementId String                    @db.Uuid
+  user              User                      @relation("UrlAnalysis_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  acknowledgement   DisclaimerAcknowledgement @relation("UrlAnalysis_acknowledgement", fields: [acknowledgementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  incidentEvidence  IncidentEvidence[]        @relation("IncidentEvidence_urlAnalysis")
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
+  @@index([userId])
+  @@index([acknowledgementId])
+  @@map("url_analyses")
+}
+
+model FileAnalysis {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  status              AnalysisStatus            @default(PENDING)
+  evidence            Json                      @default("{}")
+  riskScore           Int?
+  severity            Severity?
+  riskRuleVersion     String?                   @db.VarChar(40)
+  analyzedAt          DateTime?                 @db.Timestamptz(3)
+  expiresAt           DateTime                  @db.Timestamptz(3)
+  sha256              String                    @db.Char(64)
+  sizeBytes           BigInt
+  detectedMime        String                    @db.VarChar(120)
+  extension           String                    @db.VarChar(20)
+  // Opaque randomized storage key, never an original filename or absolute path.
+  storageKey          String?                   @unique @db.VarChar(200)
+  clamavStatus        ScanStatus                @default(NOT_SCANNED)
+  yaraStatus          ScanStatus                @default(NOT_SCANNED)
+  deletedAt           DateTime?                 @db.Timestamptz(3)
+  createdAt           DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                  @updatedAt @db.Timestamptz(3)
+  userId              String                    @db.Uuid
+  acknowledgementId   String                    @db.Uuid
+  user                User                      @relation("FileAnalysis_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  acknowledgement     DisclaimerAcknowledgement @relation("FileAnalysis_acknowledgement", fields: [acknowledgementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  incidentEvidence    IncidentEvidence[]        @relation("IncidentEvidence_fileAnalysis")
+  communityAttachment CommunityPostAttachment?  @relation("CommunityPostAttachment_fileAnalysis")
+
+  @@index([userId, createdAt])
+  @@index([sha256])
+  @@index([expiresAt])
+  @@index([userId])
+  @@index([acknowledgementId])
+  @@map("file_analyses")
+}
+
+model Incident {
+  id                 String             @id @default(uuid()) @db.Uuid
+  number             Int                @unique @default(autoincrement())
+  title              String             @db.VarChar(200)
+  description        String             @db.Text
+  severity           Severity
+  riskScore          Int
+  riskRuleVersion    String             @db.VarChar(40)
+  type               IncidentType
+  detectionSource    DetectionSource
+  status             IncidentStatus     @default(NEW)
+  aiSummary          String?            @db.Text
+  indicators         Json               @default("[]")
+  recommendedActions Json               @default("[]")
+  mitreTechniqueIds  String[]           @default([])
+  resolution         String?            @db.Text
+  resolvedAt         DateTime?          @db.Timestamptz(3)
+  closedAt           DateTime?          @db.Timestamptz(3)
+  retentionUntil     DateTime?          @db.Timestamptz(3)
+  legalHold          Boolean            @default(false)
+  createdAt          DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime           @updatedAt @db.Timestamptz(3)
+  reporterId         String             @db.Uuid
+  assigneeId         String?            @db.Uuid
+  departmentId       String?            @db.Uuid
+  reporter           User               @relation("Incident_reporter", fields: [reporterId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignee           User?              @relation("Incident_assignee", fields: [assigneeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  department         Department?        @relation("Incident_department", fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  evidence           IncidentEvidence[] @relation("IncidentEvidence_incident")
+  events             IncidentEvent[]    @relation("IncidentEvent_incident")
+  comments           IncidentComment[]  @relation("IncidentComment_incident")
+  notifications      Notification[]     @relation("Notification_incident")
+
+  @@index([status, severity, createdAt])
+  @@index([reporterId, createdAt])
+  @@index([departmentId, createdAt])
+  @@index([reporterId])
+  @@index([assigneeId])
+  @@index([departmentId])
+  @@map("incidents")
+}
+
+model IncidentEvidence {
+  id              String         @id @default(uuid()) @db.Uuid
+  // Minimized evidence snapshot survives permitted source purging.
+  summary         String         @db.Text
+  snapshot        Json
+  capturedAt      DateTime       @default(now()) @db.Timestamptz(3)
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  incidentId      String         @db.Uuid
+  emailAnalysisId String?        @db.Uuid
+  urlAnalysisId   String?        @db.Uuid
+  fileAnalysisId  String?        @db.Uuid
+  incident        Incident       @relation("IncidentEvidence_incident", fields: [incidentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  emailAnalysis   EmailAnalysis? @relation("IncidentEvidence_emailAnalysis", fields: [emailAnalysisId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  urlAnalysis     UrlAnalysis?   @relation("IncidentEvidence_urlAnalysis", fields: [urlAnalysisId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  fileAnalysis    FileAnalysis?  @relation("IncidentEvidence_fileAnalysis", fields: [fileAnalysisId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([incidentId])
+  @@index([emailAnalysisId])
+  @@index([urlAnalysisId])
+  @@index([fileAnalysisId])
+  @@map("incident_evidence")
+}
+
+model IncidentEvent {
+  id         String            @id @default(uuid()) @db.Uuid
+  type       IncidentEventType
+  // Allow-listed transition metadata, never whole request bodies.
+  details    Json              @default("{}")
+  createdAt  DateTime          @default(now()) @db.Timestamptz(3)
+  incidentId String            @db.Uuid
+  actorId    String?           @db.Uuid
+  incident   Incident          @relation("IncidentEvent_incident", fields: [incidentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  actor      User?             @relation("IncidentEvent_actor", fields: [actorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([incidentId, createdAt])
+  @@index([incidentId])
+  @@index([actorId])
+  @@map("incident_events")
+}
+
+model IncidentComment {
+  id         String            @id @default(uuid()) @db.Uuid
+  body       String            @db.Text
+  visibility CommentVisibility @default(SECURITY_TEAM)
+  redactedAt DateTime?         @db.Timestamptz(3)
+  createdAt  DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime          @updatedAt @db.Timestamptz(3)
+  incidentId String            @db.Uuid
+  authorId   String            @db.Uuid
+  incident   Incident          @relation("IncidentComment_incident", fields: [incidentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  author     User              @relation("IncidentComment_author", fields: [authorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([incidentId, createdAt])
+  @@index([incidentId])
+  @@index([authorId])
+  @@map("incident_comments")
+}
+
+model Notification {
+  id          String           @id @default(uuid()) @db.Uuid
+  type        NotificationType
+  title       String           @db.VarChar(160)
+  message     String           @db.VarChar(500)
+  readAt      DateTime?        @db.Timestamptz(3)
+  deliveredAt DateTime?        @db.Timestamptz(3)
+  expiresAt   DateTime         @db.Timestamptz(3)
+  createdAt   DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime         @updatedAt @db.Timestamptz(3)
+  recipientId String           @db.Uuid
+  incidentId  String?          @db.Uuid
+  recipient   User             @relation("Notification_recipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  incident    Incident?        @relation("Notification_incident", fields: [incidentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([recipientId, readAt, createdAt])
+  @@index([expiresAt])
+  @@index([recipientId])
+  @@index([incidentId])
+  @@map("notifications")
+}
+
+model KnowledgeDocument {
+  id             String          @id @default(uuid()) @db.Uuid
+  // One versioned document model avoids duplicate PDPL/company pipelines.
+  kind           DocumentKind
+  documentKey    String          @db.VarChar(100)
+  version        Int             @default(1)
+  title          String          @db.VarChar(240)
+  source         String          @db.VarChar(1000)
+  storageKey     String?         @unique @db.VarChar(200)
+  contentSha256  String?         @db.Char(64)
+  status         ApprovalStatus  @default(DRAFT)
+  active         Boolean         @default(false)
+  indexingStatus IndexingStatus  @default(NOT_INDEXED)
+  approvedAt     DateTime?       @db.Timestamptz(3)
+  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
+  uploadedById   String          @db.Uuid
+  approvedById   String?         @db.Uuid
+  uploadedBy     User            @relation("KnowledgeDocument_uploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  approvedBy     User?           @relation("KnowledgeDocument_approvedBy", fields: [approvedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  chunks         DocumentChunk[] @relation("DocumentChunk_document")
+
+  @@unique([kind, documentKey, version])
+  @@index([kind, status, active, indexingStatus])
+  @@index([uploadedById])
+  @@index([approvedById])
+  @@map("knowledge_documents")
+}
+
+model DocumentChunk {
+  id             String                       @id @default(uuid()) @db.Uuid
+  position       Int
+  content        String                       @db.Text
+  metadata       Json                         @default("{}")
+  embeddingModel String?                      @db.VarChar(100)
+  // Populated only after the explicit pgvector migration.
+  embedding      Unsupported("vector(1536)")?
+  createdAt      DateTime                     @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime                     @updatedAt @db.Timestamptz(3)
+  documentId     String                       @db.Uuid
+  document       KnowledgeDocument            @relation("DocumentChunk_document", fields: [documentId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([documentId, position])
+  @@index([documentId])
+  @@map("document_chunks")
+}
+
+model TrainingProgram {
+  id                 String               @id @default(uuid()) @db.Uuid
+  title              String               @db.VarChar(200)
+  description        String               @db.Text
+  topic              String               @db.VarChar(100)
+  version            Int                  @default(1)
+  learningObjectives String[]
+  estimatedMinutes   Int                  @default(6)
+  content            Json
+  status             TrainingStatus       @default(DRAFT)
+  origin             ContentOrigin        @default(HUMAN)
+  reviewedAt         DateTime?            @db.Timestamptz(3)
+  publishedAt        DateTime?            @db.Timestamptz(3)
+  requiresQuiz       Boolean              @default(true)
+  createdAt          DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime             @updatedAt @db.Timestamptz(3)
+  createdById        String               @db.Uuid
+  reviewedById       String?              @db.Uuid
+  createdBy          User                 @relation("TrainingProgram_createdBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reviewedBy         User?                @relation("TrainingProgram_reviewedBy", fields: [reviewedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignments        TrainingAssignment[] @relation("TrainingAssignment_training")
+  quiz               TrainingQuiz?        @relation("TrainingQuiz_training")
+  communityPosts     CommunityPost[]      @relation("CommunityPost_training")
+
+  @@index([status, topic])
+  @@index([createdById])
+  @@index([reviewedById])
+  @@map("training_programs")
+}
+
+model TrainingAssignment {
+  id           String            @id @default(uuid()) @db.Uuid
+  dueAt        DateTime?         @db.Timestamptz(3)
+  revokedAt    DateTime?         @db.Timestamptz(3)
+  createdAt    DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime          @updatedAt @db.Timestamptz(3)
+  trainingId   String            @db.Uuid
+  employeeId   String            @db.Uuid
+  assignedById String            @db.Uuid
+  departmentId String?           @db.Uuid
+  training     TrainingProgram   @relation("TrainingAssignment_training", fields: [trainingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  employee     User              @relation("TrainingAssignment_employee", fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignedBy   User              @relation("TrainingAssignment_assignedBy", fields: [assignedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  department   Department?       @relation("TrainingAssignment_department", fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  progress     TrainingProgress? @relation("TrainingProgress_assignment")
+  attempts     QuizAttempt[]     @relation("QuizAttempt_trainingAssignment")
+
+  @@unique([trainingId, employeeId])
+  @@index([employeeId, dueAt])
+  @@index([trainingId])
+  @@index([employeeId])
+  @@index([assignedById])
+  @@index([departmentId])
+  @@map("training_assignments")
+}
+
+model TrainingProgress {
+  id                   String             @id @default(uuid()) @db.Uuid
+  status               ProgressStatus     @default(NOT_STARTED)
+  progressPercent      Int                @default(0)
+  completedSectionKeys String[]           @default([])
+  startedAt            DateTime?          @db.Timestamptz(3)
+  lastActivityAt       DateTime?          @db.Timestamptz(3)
+  materialCompletedAt  DateTime?          @db.Timestamptz(3)
+  completedAt          DateTime?          @db.Timestamptz(3)
+  createdAt            DateTime           @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime           @updatedAt @db.Timestamptz(3)
+  assignmentId         String             @unique @db.Uuid
+  qualifyingAttemptId  String?            @unique @db.Uuid
+  assignment           TrainingAssignment @relation("TrainingProgress_assignment", fields: [assignmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  qualifyingAttempt    QuizAttempt?       @relation("TrainingProgress_qualifyingAttempt", fields: [qualifyingAttemptId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  certificate          Certificate?       @relation("Certificate_progress")
+
+  @@map("training_progress")
+}
+
+model Quiz {
+  id             String            @id @default(uuid()) @db.Uuid
+  // Shared immutable question/attempt engine; course and monthly bindings below.
+  kind           QuizKind
+  title          String            @db.VarChar(200)
+  version        Int               @default(1)
+  status         PublicationStatus @default(DRAFT)
+  origin         ContentOrigin     @default(HUMAN)
+  passingPercent Int               @default(80)
+  maxAttempts    Int?
+  approvedAt     DateTime?         @db.Timestamptz(3)
+  publishedAt    DateTime?         @db.Timestamptz(3)
+  createdAt      DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt      DateTime          @updatedAt @db.Timestamptz(3)
+  createdById    String            @db.Uuid
+  approvedById   String?           @db.Uuid
+  createdBy      User              @relation("Quiz_createdBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  approvedBy     User?             @relation("Quiz_approvedBy", fields: [approvedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  trainingQuiz   TrainingQuiz?     @relation("TrainingQuiz_quiz")
+  monthlyQuiz    MonthlyQuiz?      @relation("MonthlyQuiz_quiz")
+  questions      QuizQuestion[]    @relation("QuizQuestion_quiz")
+  attempts       QuizAttempt[]     @relation("QuizAttempt_quiz")
+
+  @@index([kind, status])
+  @@index([createdById])
+  @@index([approvedById])
+  @@map("quizzes")
+}
+
+model TrainingQuiz {
+  id         String          @id @default(uuid()) @db.Uuid
+  createdAt  DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime        @updatedAt @db.Timestamptz(3)
+  trainingId String          @unique @db.Uuid
+  quizId     String          @unique @db.Uuid
+  training   TrainingProgram @relation("TrainingQuiz_training", fields: [trainingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  quiz       Quiz            @relation("TrainingQuiz_quiz", fields: [quizId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@map("training_quizzes")
+}
+
+model MonthlyQuiz {
+  id          String                  @id @default(uuid()) @db.Uuid
+  // First day of the calendar month.
+  period      DateTime                @unique @db.Date
+  opensAt     DateTime                @db.Timestamptz(3)
+  closesAt    DateTime                @db.Timestamptz(3)
+  createdAt   DateTime                @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime                @updatedAt @db.Timestamptz(3)
+  quizId      String                  @unique @db.Uuid
+  quiz        Quiz                    @relation("MonthlyQuiz_quiz", fields: [quizId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignments MonthlyQuizAssignment[] @relation("MonthlyQuizAssignment_monthlyQuiz")
+
+  @@map("monthly_quizzes")
+}
+
+model MonthlyQuizAssignment {
+  id            String        @id @default(uuid()) @db.Uuid
+  revokedAt     DateTime?     @db.Timestamptz(3)
+  createdAt     DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime      @updatedAt @db.Timestamptz(3)
+  monthlyQuizId String        @db.Uuid
+  employeeId    String        @db.Uuid
+  assignedById  String        @db.Uuid
+  departmentId  String?       @db.Uuid
+  monthlyQuiz   MonthlyQuiz   @relation("MonthlyQuizAssignment_monthlyQuiz", fields: [monthlyQuizId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  employee      User          @relation("MonthlyQuizAssignment_employee", fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  assignedBy    User          @relation("MonthlyQuizAssignment_assignedBy", fields: [assignedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  department    Department?   @relation("MonthlyQuizAssignment_department", fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  attempts      QuizAttempt[] @relation("QuizAttempt_monthlyAssignment")
+
+  @@unique([monthlyQuizId, employeeId])
+  @@index([monthlyQuizId])
+  @@index([employeeId])
+  @@index([assignedById])
+  @@index([departmentId])
+  @@map("monthly_quiz_assignments")
+}
+
+model QuizQuestion {
+  id           String        @id @default(uuid()) @db.Uuid
+  text         String        @db.Text
+  type         QuestionType
+  explanation  String        @db.Text
+  topic        String        @db.VarChar(100)
+  points       Int           @default(1)
+  position     Int
+  origin       ContentOrigin @default(HUMAN)
+  reviewedAt   DateTime?     @db.Timestamptz(3)
+  createdAt    DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime      @updatedAt @db.Timestamptz(3)
+  quizId       String        @db.Uuid
+  reviewedById String?       @db.Uuid
+  quiz         Quiz          @relation("QuizQuestion_quiz", fields: [quizId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  reviewedBy   User?         @relation("QuizQuestion_reviewedBy", fields: [reviewedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  options      QuizOption[]  @relation("QuizOption_question")
+  answers      QuizAnswer[]  @relation("QuizAnswer_question")
+
+  @@unique([quizId, position])
+  @@index([quizId])
+  @@index([reviewedById])
+  @@map("quiz_questions")
+}
+
+model QuizOption {
+  id         String       @id @default(uuid()) @db.Uuid
+  text       String       @db.VarChar(1000)
+  position   Int
+  // Server-only grading data; never serialize Prisma records directly to employees.
+  isCorrect  Boolean      @default(false)
+  createdAt  DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime     @updatedAt @db.Timestamptz(3)
+  questionId String       @db.Uuid
+  question   QuizQuestion @relation("QuizOption_question", fields: [questionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  answers    QuizAnswer[] @relation("QuizAnswer_selectedOption")
+
+  @@unique([questionId, position])
+  @@index([questionId])
+  @@map("quiz_options")
+}
+
+model QuizAttempt {
+  id                   String                 @id @default(uuid()) @db.Uuid
+  attemptNumber        Int
+  status               AttemptStatus          @default(IN_PROGRESS)
+  startedAt            DateTime               @default(now()) @db.Timestamptz(3)
+  submittedAt          DateTime?              @db.Timestamptz(3)
+  // Snapshots preserve the grading policy and result for historical analytics.
+  passingPercent       Int
+  earnedPoints         Int?
+  possiblePoints       Int?
+  scorePercent         Decimal?               @db.Decimal(5, 2)
+  passed               Boolean?
+  createdAt            DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime               @updatedAt @db.Timestamptz(3)
+  quizId               String                 @db.Uuid
+  employeeId           String                 @db.Uuid
+  trainingAssignmentId String?                @db.Uuid
+  monthlyAssignmentId  String?                @db.Uuid
+  qualifiedProgress    TrainingProgress?      @relation("TrainingProgress_qualifyingAttempt")
+  quiz                 Quiz                   @relation("QuizAttempt_quiz", fields: [quizId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  employee             User                   @relation("QuizAttempt_employee", fields: [employeeId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  trainingAssignment   TrainingAssignment?    @relation("QuizAttempt_trainingAssignment", fields: [trainingAssignmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  monthlyAssignment    MonthlyQuizAssignment? @relation("QuizAttempt_monthlyAssignment", fields: [monthlyAssignmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  answers              QuizAnswer[]           @relation("QuizAnswer_attempt")
+
+  @@unique([quizId, employeeId, attemptNumber])
+  @@index([employeeId, submittedAt])
+  @@index([quizId])
+  @@index([employeeId])
+  @@index([trainingAssignmentId])
+  @@index([monthlyAssignmentId])
+  @@map("quiz_attempts")
+}
+
+model QuizAnswer {
+  id               String       @id @default(uuid()) @db.Uuid
+  awardedPoints    Int?
+  createdAt        DateTime     @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime     @updatedAt @db.Timestamptz(3)
+  attemptId        String       @db.Uuid
+  questionId       String       @db.Uuid
+  selectedOptionId String       @db.Uuid
+  attempt          QuizAttempt  @relation("QuizAnswer_attempt", fields: [attemptId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  question         QuizQuestion @relation("QuizAnswer_question", fields: [questionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  selectedOption   QuizOption   @relation("QuizAnswer_selectedOption", fields: [selectedOptionId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@index([attemptId])
+  @@index([questionId])
+  @@index([selectedOptionId])
+  @@map("quiz_answers")
+}
+
+model Certificate {
+  id                String           @id @default(uuid()) @db.Uuid
+  certificateNumber String           @unique @default(uuid()) @db.Uuid
+  issuedAt          DateTime         @default(now()) @db.Timestamptz(3)
+  completedAt       DateTime         @db.Timestamptz(3)
+  employeeName      String           @db.VarChar(210)
+  trainingTitle     String           @db.VarChar(200)
+  scorePercent      Decimal?         @db.Decimal(5, 2)
+  storageKey        String?          @unique @db.VarChar(200)
+  revokedAt         DateTime?        @db.Timestamptz(3)
+  revocationReason  String?          @db.VarChar(500)
+  createdAt         DateTime         @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime         @updatedAt @db.Timestamptz(3)
+  progressId        String           @unique @db.Uuid
+  progress          TrainingProgress @relation("Certificate_progress", fields: [progressId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@map("certificates")
+}
+
+model CommunityPost {
+  id                String                    @id @default(uuid()) @db.Uuid
+  title             String                    @db.VarChar(200)
+  body              String                    @db.Text
+  category          CommunityCategory
+  status            CommunityStatus           @default(PENDING_REVIEW)
+  submittedAt       DateTime?                 @db.Timestamptz(3)
+  approvedAt        DateTime?                 @db.Timestamptz(3)
+  removedAt         DateTime?                 @db.Timestamptz(3)
+  createdAt         DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                  @updatedAt @db.Timestamptz(3)
+  authorId          String                    @db.Uuid
+  acknowledgementId String                    @db.Uuid
+  trainingId        String?                   @db.Uuid
+  author            User                      @relation("CommunityPost_author", fields: [authorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  acknowledgement   DisclaimerAcknowledgement @relation("CommunityPost_acknowledgement", fields: [acknowledgementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  training          TrainingProgram?          @relation("CommunityPost_training", fields: [trainingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  attachments       CommunityPostAttachment[] @relation("CommunityPostAttachment_post")
+  moderationActions PostModerationAction[]    @relation("PostModerationAction_post")
+
+  @@index([status, category, createdAt])
+  @@index([authorId, createdAt])
+  @@index([authorId])
+  @@index([acknowledgementId])
+  @@index([trainingId])
+  @@map("community_posts")
+}
+
+model CommunityPostAttachment {
+  id                String                    @id @default(uuid()) @db.Uuid
+  caption           String?                   @db.VarChar(200)
+  createdAt         DateTime                  @default(now()) @db.Timestamptz(3)
+  postId            String                    @db.Uuid
+  fileAnalysisId    String                    @unique @db.Uuid
+  acknowledgementId String                    @db.Uuid
+  post              CommunityPost             @relation("CommunityPostAttachment_post", fields: [postId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  fileAnalysis      FileAnalysis              @relation("CommunityPostAttachment_fileAnalysis", fields: [fileAnalysisId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  acknowledgement   DisclaimerAcknowledgement @relation("CommunityPostAttachment_acknowledgement", fields: [acknowledgementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([postId])
+  @@index([acknowledgementId])
+  @@map("community_post_attachments")
+}
+
+model PostModerationAction {
+  id             String             @id @default(uuid()) @db.Uuid
+  decision       ModerationDecision
+  previousStatus CommunityStatus
+  reason         String             @db.VarChar(1000)
+  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
+  postId         String             @db.Uuid
+  moderatorId    String             @db.Uuid
+  post           CommunityPost      @relation("PostModerationAction_post", fields: [postId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  moderator      User               @relation("PostModerationAction_moderator", fields: [moderatorId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([postId, createdAt])
+  @@index([postId])
+  @@index([moderatorId])
+  @@map("post_moderation_actions")
+}
+
+model AuditLog {
+  id             String       @id @default(uuid()) @db.Uuid
+  action         String       @db.VarChar(100)
+  resourceType   String       @db.VarChar(80)
+  resourceId     String?      @db.VarChar(100)
+  outcome        AuditOutcome
+  correlationId  String?      @db.Uuid
+  // Allow-listed metadata only; no prompts, passwords, tokens, or request bodies.
+  metadata       Json         @default("{}")
+  retentionUntil DateTime     @db.Timestamptz(3)
+  createdAt      DateTime     @default(now()) @db.Timestamptz(3)
+  actorId        String?      @db.Uuid
+  actor          User?        @relation("AuditLog_actor", fields: [actorId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([actorId, createdAt])
+  @@index([resourceType, resourceId, createdAt])
+  @@index([action, createdAt])
+  @@index([retentionUntil])
+  @@index([actorId])
+  @@map("audit_logs")
 }
