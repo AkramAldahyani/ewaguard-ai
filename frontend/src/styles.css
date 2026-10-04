@@ -57,7 +57,8 @@
   body { margin: 0; min-width: 320px; background: #f5f8fb; color: #0f172a; font-family: var(--font-sans); font-synthesis: none; text-rendering: optimizeLegibility; }
   button, input, select, textarea { font: inherit; }
   button:not(:disabled), select:not(:disabled) { cursor: pointer; }
-  button:disabled, input:disabled { cursor: not-allowed; opacity: 0.55; }
+  button:disabled { cursor: not-allowed; opacity: 0.55; }
+  input:disabled, textarea:disabled { cursor: not-allowed; background: #f8fafc; color: #64748b; }
   :focus-visible { outline: 3px solid rgb(14 165 233 / 0.38); outline-offset: 2px; }
   ::selection { background: #bae6fd; color: #082f49; }
 }
@@ -81,11 +82,51 @@
   .login-hero-card { animation: login-hero-enter 650ms cubic-bezier(0.22, 1, 0.36, 1) both; }
   .login-capability { transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease; }
   .login-capability:hover { transform: translateY(-2px); border-color: rgb(165 243 252 / 0.28); background: rgb(255 255 255 / 0.11); }
+  .portal-link:focus-visible { outline: 3px solid #087fba; outline-offset: 4px; }
+  .portal-navigation { position: fixed; inset: 0 auto 0 0; margin: 0; padding: 0; border: 0; width: min(19rem, 88vw); height: 100dvh; max-height: 100dvh; max-width: none; background: #061526; color: white; }
+  .portal-navigation::backdrop { background: rgb(6 21 38 / 0.65); backdrop-filter: blur(3px); }
 }
 
 @keyframes login-hero-enter {
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: translateY(0); }
+}
+
+/* Assistant motion is brief and interaction-led, not continuous decoration. */
+.chat-welcome {
+  background: radial-gradient(ellipse at 50% 0%, rgb(185 232 255 / 0.22), transparent 65%);
+  border-radius: 1rem;
+}
+.chat-emblem {
+  background: linear-gradient(145deg, #113753, #087fba);
+  box-shadow: 0 8px 20px rgb(8 127 186 / 0.16), 0 0 0 7px rgb(223 243 255 / 0.65);
+}
+.chat-prompt {
+  animation: chat-arrive 320ms ease-out both;
+  animation-delay: var(--chat-delay, 0ms);
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+.chat-prompt:hover, .chat-prompt:focus-visible {
+  border-color: #7bd6ff;
+  box-shadow: 0 6px 18px rgb(17 55 83 / 0.07);
+}
+.chat-prompt-icon, .chat-prompt-arrow { transition: background-color 180ms ease, color 180ms ease, transform 180ms ease; }
+.chat-prompt:hover .chat-prompt-icon, .chat-prompt:focus-visible .chat-prompt-icon { background: #dff3ff; }
+.chat-prompt:hover .chat-prompt-arrow, .chat-prompt:focus-visible .chat-prompt-arrow { color: #096595; }
+.chat-message-enter { animation: chat-arrive 240ms ease-out both; }
+.chat-composer-box {
+  background: white;
+  box-shadow: 0 3px 14px rgb(17 55 83 / 0.05);
+  transition: box-shadow 180ms ease, border-color 180ms ease;
+}
+.chat-composer-box:focus-within { box-shadow: 0 0 0 3px rgb(10 162 223 / 0.10), 0 6px 20px rgb(17 55 83 / 0.07); }
+@keyframes chat-arrive {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .chat-prompt:hover { transform: translateY(-2px); }
+  .chat-prompt:hover .chat-prompt-arrow { transform: translate(2px, -2px); }
 }
 
 @media (prefers-reduced-motion: reduce) {

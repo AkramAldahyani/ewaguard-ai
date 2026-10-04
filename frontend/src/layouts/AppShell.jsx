@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { NavLink, Outlet } from 'react-router';
+import { NavLink, Outlet, useLocation } from 'react-router';
 import {
-  Bell, Bot, ChevronRight, FileSearch, GraduationCap, Home, KeyRound,
-  Link2, LogOut, Menu, MessageSquareText, Search, ShieldAlert, Upload, X,
+  Award, Bell, Bot, CalendarDays, ChevronRight, FileSearch, GraduationCap, Home, KeyRound,
+  Link2, LogOut, Menu, MessageSquareText, Search, ShieldAlert, Upload, UserRound, X,
 } from 'lucide-react';
 import { BrandLogo } from '../components/BrandLogo.jsx';
 import { IconButton, Tooltip } from '../components/ui/index.jsx';
@@ -16,26 +16,31 @@ const navSections = [
     label: 'Workspace',
     items: [
       { label: 'Home', to: '/', icon: Home },
-      { label: 'EWAGuard AI', to: '/assistant', icon: Bot },
+      { label: 'Ask EWAGuard AI', to: '/assistant', icon: Bot },
     ],
   },
   {
     label: 'Security tools',
     items: [
-      { label: 'Email analyzer', to: '/analyze/email', icon: MessageSquareText },
-      { label: 'URL analyzer', to: '/analyze/url', icon: Link2 },
-      { label: 'File analyzer', to: '/analyze/file', icon: Upload },
-      { label: 'Password security', to: '/password-security', icon: KeyRound },
+      { label: 'Analyze Email', to: '/analyze/email', icon: MessageSquareText },
+      { label: 'Analyze URL', to: '/analyze/url', icon: Link2 },
+      { label: 'Analyze File', to: '/analyze/file', icon: Upload },
+      { label: 'Password Security', to: '/password-security', icon: KeyRound },
+      { label: 'My Incidents', to: '/incidents', icon: ShieldAlert },
     ],
   },
   {
-    label: 'My security',
+    label: 'Security Awareness',
     items: [
-      { label: 'My incidents', to: '/incidents', icon: ShieldAlert },
-      { label: 'Security awareness', to: '/training', icon: GraduationCap },
-      { label: 'Security community', to: '/community', icon: FileSearch },
+      { label: 'My Training', to: '/training', icon: GraduationCap },
+      { label: 'Monthly Quiz', to: '/monthly-quiz', icon: CalendarDays },
+      { label: 'Certificates', to: '/certificates', icon: Award },
     ],
   },
+  { label: 'Connect', items: [
+    { label: 'Security Community', to: '/community', icon: FileSearch },
+    { label: 'Profile', to: '/profile', icon: UserRound },
+  ] },
 ];
 
 function SidebarContent({ onNavigate }) {
@@ -45,7 +50,7 @@ function SidebarContent({ onNavigate }) {
     : navSections;
   return (
     <>
-      <div className="relative flex h-24 items-center px-6">
+      <div className="relative flex h-24 shrink-0 items-center px-6">
         <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-brand-400 via-brand-500 to-danger-500" />
         <NavLink
           to={user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/'}
@@ -58,8 +63,8 @@ function SidebarContent({ onNavigate }) {
 
       <nav aria-label="Primary navigation" className="flex-1 overflow-y-auto px-3 pb-5 pt-3">
         {sections.map((section) => (
-          <div key={section.label} className="mb-6 last:mb-0">
-            <p className="mb-2 px-3 text-[0.65rem] font-bold uppercase tracking-[0.19em] text-slate-500">{section.label}</p>
+          <div key={section.label} className="mb-5 last:mb-0">
+            <p className="mb-2 px-3 text-[0.65rem] font-bold uppercase tracking-[0.19em] text-slate-400">{section.label}</p>
             <ul className="space-y-1">
               {section.items.map(({ label, to, icon: Icon }) => (
                 <li key={to}>
@@ -89,11 +94,7 @@ function SidebarContent({ onNavigate }) {
         ))}
       </nav>
 
-      <div className="p-3">
-        <div className="mb-3 rounded-2xl border border-white/8 bg-white/[0.035] p-3.5">
-          <div className="flex items-center gap-2 text-xs font-bold text-slate-200"><span className="size-2 rounded-full bg-emerald-400 shadow-[0_0_0_4px_rgb(52_211_153/0.08)]" />Workspace protected</div>
-          <p className="mt-2 text-[0.7rem] leading-5 text-slate-500">Security tools detect. Risk logic evaluates. AI explains.</p>
-        </div>
+      <div className="shrink-0 border-t border-white/10 p-3">
         <NavLink to="/design-system" onClick={onNavigate} className={({ isActive }) => cn('flex items-center justify-between rounded-xl px-3.5 py-3 text-xs font-semibold transition-colors', isActive ? 'bg-white/10 text-white' : 'text-slate-500 hover:bg-white/5 hover:text-slate-300')}>
           <span>Interface system</span><ChevronRight className="size-3.5" />
         </NavLink>
@@ -105,28 +106,47 @@ function SidebarContent({ onNavigate }) {
 export function AppShell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
-  const mobileCloseRef = useRef(null);
+  const mobileDialogRef = useRef(null);
+  const mainRef = useRef(null);
+  const { pathname } = useLocation();
+  const isAssistant = pathname === '/assistant';
+  const previousPath = useRef(pathname);
   const { user, logout } = useAuth();
   const avatar = user.role === 'IT_SECURITY_ADMIN' ? adminAvatar : userAvatar;
   const roleLabel = user.role === 'IT_SECURITY_ADMIN' ? 'IT / Security Administrator' : 'Employee';
 
   async function handleLogout() {
     setLoggingOut(true);
-    try { await logout(); } finally { setLoggingOut(false); }
+    try { await logout(); } catch { /* AuthProvider clears local state; returning to login is safe. */ }
+    finally { setLoggingOut(false); }
   }
 
   useEffect(() => {
-    if (!mobileOpen) return undefined;
-    mobileCloseRef.current?.focus();
-    const onKeyDown = (event) => { if (event.key === 'Escape') setMobileOpen(false); };
-    document.addEventListener('keydown', onKeyDown);
+    const dialog = mobileDialogRef.current;
+    if (!mobileOpen) { if (dialog.open) dialog.close(); return undefined; }
+    if (!dialog.open) dialog.showModal();
     const previous = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => {
-      document.removeEventListener('keydown', onKeyDown);
-      document.body.style.overflow = previous;
-    };
+    return () => { document.body.style.overflow = previous; };
   }, [mobileOpen]);
+
+  useEffect(() => {
+    const desktop = window.matchMedia('(min-width: 64rem)');
+    const closeOnDesktop = () => { if (desktop.matches) setMobileOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, []);
+
+  useEffect(() => {
+    const page = navSections.flatMap((section) => section.items).find((item) => item.to === pathname)?.label;
+    document.title = `${page ?? (pathname === '/admin' ? 'Administrator workspace' : 'Workspace')} | EWAGuard AI`;
+    if (previousPath.current !== pathname) {
+      if (mobileDialogRef.current.open) mobileDialogRef.current.close();
+      mainRef.current?.focus();
+      window.scrollTo({ top: 0, behavior: 'instant' });
+      previousPath.current = pathname;
+    }
+  }, [pathname]);
 
   return (
     <div className="app-surface min-h-screen text-slate-900">
@@ -135,35 +155,35 @@ export function AppShell() {
         <SidebarContent />
       </aside>
 
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden">
-          <button type="button" className="absolute inset-0 bg-navy-950/65 backdrop-blur-sm" onClick={() => setMobileOpen(false)} aria-label="Close navigation overlay" />
-          <aside className="relative flex h-full w-[min(19rem,88vw)] flex-col bg-navy-950 shadow-float" aria-label="Mobile navigation" role="dialog" aria-modal="true">
-            <button ref={mobileCloseRef} type="button" onClick={() => setMobileOpen(false)} className="absolute right-3 top-3 z-10 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-900" aria-label="Close navigation"><X className="size-5" /></button>
+      <dialog ref={mobileDialogRef} id="mobile-navigation" className="portal-navigation" aria-label="Mobile navigation" onCancel={() => setMobileOpen(false)} onClose={() => setMobileOpen(false)} onClick={(event) => { if (event.target === event.currentTarget) setMobileOpen(false); }}>
+          <div className="relative flex h-full flex-col bg-navy-950 shadow-float">
+            <button type="button" onClick={() => setMobileOpen(false)} className="absolute right-2 top-2 z-10 rounded-lg p-2 text-slate-300 hover:bg-slate-100 hover:text-slate-900" aria-label="Close navigation"><X className="size-5" /></button>
             <SidebarContent onNavigate={() => setMobileOpen(false)} />
-          </aside>
-        </div>
-      )}
+          </div>
+      </dialog>
 
       <div className="lg:pl-72">
         <header className="sticky top-0 z-30 flex h-[4.75rem] items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 shadow-[0_1px_0_rgb(15_23_42/0.02)] backdrop-blur-xl sm:px-6 lg:px-8">
-          <IconButton label="Open navigation" onClick={() => setMobileOpen(true)} className="lg:hidden"><Menu className="size-5" /></IconButton>
+          <IconButton label="Open navigation" aria-expanded={mobileOpen} aria-controls="mobile-navigation" onClick={() => setMobileOpen(true)} className="shrink-0 lg:hidden"><Menu className="size-5" /></IconButton>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-slate-900">EWAGuard AI Security Portal</p>
             <p className="hidden text-xs text-slate-500 sm:block">Electricity &amp; Water Authority</p>
           </div>
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
-            <Tooltip label="Search will be available in a later phase"><IconButton label="Search unavailable" aria-disabled="true"><Search className="size-[1.1rem]" /></IconButton></Tooltip>
-            <Tooltip label="Notifications"><IconButton label="Notifications"><Bell className="size-[1.1rem]" /></IconButton></Tooltip>
+            <span className="hidden sm:inline-flex"><Tooltip label="Search will be available in a later phase"><IconButton label="Search unavailable" disabled><Search className="size-[1.1rem]" /></IconButton></Tooltip></span>
+            <span className="hidden sm:inline-flex"><Tooltip label="Notifications are not connected yet"><IconButton label="Notifications unavailable" disabled><Bell className="size-[1.1rem]" /></IconButton></Tooltip></span>
             <span className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
-            <NavLink to={user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/profile'} className="flex items-center gap-3 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-100">
+            <NavLink aria-label={user.role === 'IT_SECURITY_ADMIN' ? 'Administrator workspace' : 'Your profile'} to={user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/profile'} className="flex items-center gap-3 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-100">
               <img src={avatar} alt="" className="size-9 rounded-full border border-slate-200 bg-white object-cover shadow-sm" />
               <span className="hidden text-left xl:block"><span className="block text-sm font-bold text-slate-800">{user.firstName} {user.lastName}</span><span className="block text-[0.7rem] text-slate-500">{roleLabel}</span></span>
             </NavLink>
             <Tooltip label={loggingOut ? 'Signing out' : 'Sign out'}><IconButton label="Sign out" disabled={loggingOut} onClick={handleLogout}><LogOut className="size-[1.1rem]" /></IconButton></Tooltip>
           </div>
         </header>
-        <main id="main-content" tabIndex={-1} className="mx-auto w-full max-w-[96rem] px-4 py-6 sm:px-6 lg:px-8 lg:py-8"><Outlet /></main>
+        <main ref={mainRef} id="main-content" tabIndex={-1} className={cn(
+          'mx-auto w-full min-w-0 max-w-[96rem] px-4 sm:px-6 lg:px-8',
+          isAssistant ? 'h-[calc(100dvh-4.75rem)] overflow-hidden py-4 lg:py-5' : 'py-6 lg:py-8',
+        )}><Outlet /></main>
       </div>
     </div>
   );

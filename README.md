@@ -8,10 +8,19 @@ Enterprise cybersecurity and Bahrain PDPL assistant prototype for threat analysi
 incident triage, and security awareness.
 
 **Current implementation: Phase 0–2B foundation, design system and verified
-PostgreSQL/pgvector architecture, plus Phase 3A authentication and Phase 3B RBAC/MFA.**
+PostgreSQL/pgvector architecture, Phase 3A authentication, Phase 3B RBAC/MFA,
+the Phase 4A employee portal, and Phase 4B chat interface.**
 Employees sign in using short-lived HTTP-only JWT cookies. Administrators must
 enroll and verify TOTP before receiving an authenticated session. See
 [RBAC and MFA operations](docs/rbac-mfa.md) for enrollment and key configuration.
+
+The employee portal includes dedicated tool, awareness, incident, community, and
+profile pages. Only session/profile data and API liveness are live; the assistant
+supports memory-only messages with fixed preview notices, not AI responses. Later
+feature submissions remain disabled and explicitly labeled as previews. See
+[employee portal scope and verification](docs/employee-portal.md).
+
+See [chat interface architecture and preview boundaries](docs/chat-interface.md).
 
 See [database architecture and setup](docs/database.md) for the 32 tables,
 relationships, privacy boundaries, validation commands and pgvector prerequisite.
@@ -62,6 +71,8 @@ The home page displays the actual result or an unavailable message.
 | `npm run lint` | Lint frontend, backend, tests, and configuration |
 | `npm run check:backend` | Check backend entry/configuration syntax |
 | `npm test` | Run foundation and authentication API tests |
+| `npm run test:portal` | Render employee routes, role boundaries, profile and preview controls without a browser |
+| `npm run test:chat` | Check chat state, keyboard decisions and safe structured presentation |
 | `npm run prisma:format` | Format the PostgreSQL datasource schema |
 | `npm run prisma:validate` | Validate the MVP schema |
 | `npm run prisma:generate` | Generate the ignored Prisma Client |
