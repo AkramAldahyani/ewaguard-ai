@@ -38,11 +38,28 @@ export function parseConfig(env = process.env) {
     throw new Error('JWT_SECRET must contain at least 32 characters and must not use the placeholder.');
   }
   const accessTokenTtlSeconds = positiveInteger(env.JWT_ACCESS_TTL_SECONDS ?? '900', 'JWT_ACCESS_TTL_SECONDS', 60, 3600);
+  const mfaEncryptionKey = env.MFA_ENCRYPTION_KEY || null;
+  if (mfaEncryptionKey && !/^[a-f0-9]{64}$/i.test(mfaEncryptionKey)) {
+    throw new Error('MFA_ENCRYPTION_KEY must be a dedicated 32-byte hexadecimal key.');
+  }
+  const mfaIssuer = env.MFA_TOTP_ISSUER ?? 'EWAGuard AI';
+  if (!mfaIssuer.trim() || mfaIssuer.length > 80 || [...mfaIssuer].some((char) => char === ':' || char.charCodeAt(0) < 32)) throw new Error('Invalid MFA issuer.');
+  const mfaChallengeTtlSeconds = positiveInteger(env.MFA_CHALLENGE_TTL_SECONDS ?? '300', 'MFA_CHALLENGE_TTL_SECONDS', 60, 600);
   const loginRateLimitWindowMinutes = positiveInteger(env.LOGIN_RATE_LIMIT_WINDOW_MINUTES ?? '15', 'LOGIN_RATE_LIMIT_WINDOW_MINUTES', 1, 60);
   const loginRateLimitMax = positiveInteger(env.LOGIN_RATE_LIMIT_MAX ?? '10', 'LOGIN_RATE_LIMIT_MAX', 1, 100);
+  const trustedOrigins = [origin.origin];
+  // Vite's same-origin proxy supports either loopback hostname during development.
+  // Preserve the configured scheme/port; never expand production or remote origins.
+  if (nodeEnv === 'development' && ['localhost', '127.0.0.1'].includes(origin.hostname)) {
+    const alias = new URL(origin.origin);
+    alias.hostname = origin.hostname === 'localhost' ? '127.0.0.1' : 'localhost';
+    trustedOrigins.push(alias.origin);
+  }
   return Object.freeze({
     nodeEnv, port, host, frontendUrl: origin.origin, jwtSecret,
+    trustedOrigins: Object.freeze(trustedOrigins),
     accessTokenTtlSeconds, loginRateLimitWindowMinutes, loginRateLimitMax,
+    mfaEncryptionKey, mfaIssuer, mfaChallengeTtlSeconds,
   });
 }
 

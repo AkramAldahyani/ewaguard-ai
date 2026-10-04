@@ -12,6 +12,7 @@ const safeUserSelect = {
   email: true,
   status: true,
   deactivatedAt: true,
+  mfaEnabledAt: true,
   role: { select: { name: true } },
   department: { select: { id: true, name: true, code: true } },
 };
@@ -27,12 +28,13 @@ export async function authenticateCredentials(database, email, password) {
   });
   const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? await dummyHash);
   if (!user || !passwordMatches || user.status !== 'ACTIVE' || user.deactivatedAt) return null;
-  return toSafeUser(user);
+  return { user: toSafeUser(user), credentialHash: user.passwordHash };
 }
 
-export async function findActiveUser(database, id) {
+export async function findActiveUser(database, id, mfaProof) {
   const user = await database.user.findUnique({ where: { id }, select: safeUserSelect });
   if (!user || user.status !== 'ACTIVE' || user.deactivatedAt) return null;
+  if (user.role.name === 'IT_SECURITY_ADMIN' && (!user.mfaEnabledAt || mfaProof !== user.mfaEnabledAt.toISOString())) return null;
   return toSafeUser(user);
 }
 

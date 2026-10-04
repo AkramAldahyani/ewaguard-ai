@@ -41,6 +41,15 @@ export function AuthProvider({ children }) {
     const payload = await apiRequest('/api/auth/login', {
       method: 'POST', body: JSON.stringify({ email, password }),
     });
+    if (payload.mfaRequired) { clearSession(false); return payload; }
+    setUser(payload.user);
+    setExpiresAt(payload.session.expiresAt);
+    setSessionExpired(false);
+    return payload.user;
+  }, [clearSession]);
+
+  const verifyMfa = useCallback(async (code) => {
+    const payload = await apiRequest('/api/auth/mfa/verify', { method: 'POST', body: JSON.stringify({ code }) });
     setUser(payload.user);
     setExpiresAt(payload.session.expiresAt);
     setSessionExpired(false);
@@ -52,7 +61,7 @@ export function AuthProvider({ children }) {
     finally { clearSession(false); }
   }, [clearSession]);
 
-  const value = useMemo(() => ({ user, loading, sessionExpired, login, logout }),
-    [user, loading, sessionExpired, login, logout]);
+  const value = useMemo(() => ({ user, loading, sessionExpired, login, logout, verifyMfa }),
+    [user, loading, sessionExpired, login, logout, verifyMfa]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

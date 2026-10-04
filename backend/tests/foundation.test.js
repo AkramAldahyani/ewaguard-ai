@@ -24,6 +24,31 @@ test('configuration accepts defaults and rejects invalid deployment settings', (
   assert.equal(parseConfig(configEnv({ NODE_ENV: 'production', FRONTEND_URL: 'https://example.com' })).nodeEnv, 'production');
 });
 
+test('development loopback aliases share CORS and CSRF allowlists without broadening production', async (t) => {
+  const config = parseConfig(configEnv());
+  assert.deepEqual(config.trustedOrigins, ['http://127.0.0.1:5173', 'http://localhost:5173']);
+  assert.deepEqual(parseConfig(configEnv({ FRONTEND_URL: 'http://localhost:5173' })).trustedOrigins,
+    ['http://localhost:5173', 'http://127.0.0.1:5173']);
+  assert.deepEqual(parseConfig(configEnv({ NODE_ENV: 'production', FRONTEND_URL: 'https://127.0.0.1:5173' })).trustedOrigins,
+    ['https://127.0.0.1:5173']);
+  assert.deepEqual(parseConfig(configEnv({ FRONTEND_URL: 'https://example.com' })).trustedOrigins, ['https://example.com']);
+  const server = createApp(config, { database: {} }).listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise((resolve) => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  for (const origin of [...config.trustedOrigins, 'http://localhost:5174', 'https://localhost:5173', 'http://localhost.attacker.example:5173']) {
+    const allowed = config.trustedOrigins.includes(origin);
+    const response = await fetch(`${base}/api/auth/login`, { method: 'POST',
+      headers: { Origin: origin, 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' }, body: '{}' });
+    assert.equal(response.status, allowed ? 401 : 403);
+    assert.equal(response.headers.get('access-control-allow-origin'), allowed ? origin : null);
+    assert.equal((await response.json()).error.code, allowed ? 'INVALID_CREDENTIALS' : 'UNTRUSTED_ORIGIN');
+  }
+  const crossSite = await fetch(`${base}/api/auth/logout`, { method: 'POST',
+    headers: { Origin: 'http://localhost:5173', 'Sec-Fetch-Site': 'cross-site' } });
+  assert.equal(crossSite.status, 403);
+});
+
 test('Prisma URL validation requires PostgreSQL and never reflects credentials', () => {
   const url = 'postgresql://USER:PASSWORD@localhost:5432/ewaguard';
   assert.equal(databaseUrl({ DATABASE_URL: url }), url);

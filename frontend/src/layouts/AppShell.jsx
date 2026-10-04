@@ -39,12 +39,16 @@ const navSections = [
 ];
 
 function SidebarContent({ onNavigate }) {
+  const { user } = useAuth();
+  const sections = user.role === 'IT_SECURITY_ADMIN'
+    ? [{ label: 'Administration', items: [{ label: 'Administrator workspace', to: '/admin', icon: ShieldAlert }] }]
+    : navSections;
   return (
     <>
       <div className="relative flex h-24 items-center px-6">
         <div className="absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-brand-400 via-brand-500 to-danger-500" />
         <NavLink
-          to="/"
+          to={user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/'}
           onClick={onNavigate}
           className="flex max-w-full items-center rounded-lg outline-none transition-opacity hover:opacity-90 focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-4 focus-visible:ring-offset-navy-950"
         >
@@ -53,7 +57,7 @@ function SidebarContent({ onNavigate }) {
       </div>
 
       <nav aria-label="Primary navigation" className="flex-1 overflow-y-auto px-3 pb-5 pt-3">
-        {navSections.map((section) => (
+        {sections.map((section) => (
           <div key={section.label} className="mb-6 last:mb-0">
             <p className="mb-2 px-3 text-[0.65rem] font-bold uppercase tracking-[0.19em] text-slate-500">{section.label}</p>
             <ul className="space-y-1">
@@ -152,7 +156,7 @@ export function AppShell() {
             <Tooltip label="Search will be available in a later phase"><IconButton label="Search unavailable" aria-disabled="true"><Search className="size-[1.1rem]" /></IconButton></Tooltip>
             <Tooltip label="Notifications"><IconButton label="Notifications"><Bell className="size-[1.1rem]" /></IconButton></Tooltip>
             <span className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
-            <NavLink to="/profile" className="flex items-center gap-3 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-100">
+            <NavLink to={user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/profile'} className="flex items-center gap-3 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-100">
               <img src={avatar} alt="" className="size-9 rounded-full border border-slate-200 bg-white object-cover shadow-sm" />
               <span className="hidden text-left xl:block"><span className="block text-sm font-bold text-slate-800">{user.firstName} {user.lastName}</span><span className="block text-[0.7rem] text-slate-500">{roleLabel}</span></span>
             </NavLink>

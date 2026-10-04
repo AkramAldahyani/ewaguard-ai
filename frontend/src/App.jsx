@@ -7,6 +7,7 @@ import { DesignSystemPage } from './pages/DesignSystemPage.jsx';
 import { HomePage } from './pages/HomePage.jsx';
 import { PlaceholderPage } from './pages/PlaceholderPage.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
+import { AdminWorkspace, UnauthorizedPage } from './pages/AccessPages.jsx';
 
 const placeholders = [
   ['/assistant', 'EWAGuard AI'],
@@ -26,10 +27,16 @@ export default function App() {
       <Routes>
         <Route path="login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
         <Route element={<ProtectedRoute />}><Route element={<AppShell />}>
+          <Route element={<ProtectedRoute roles={['EMPLOYEE']} />}>
           <Route index element={<HomePage />} />
           {placeholders.map(([path, title]) => (
             <Route key={path} path={path} element={<PlaceholderPage title={title} />} />
           ))}
+          </Route>
+          <Route element={<ProtectedRoute roles={['IT_SECURITY_ADMIN']} />}>
+            <Route path="admin" element={<AdminWorkspace />} />
+          </Route>
+          <Route path="unauthorized" element={<UnauthorizedPage />} />
           <Route path="design-system" element={<DesignSystemPage />} />
           <Route path="*" element={<PlaceholderPage title="Page not found" description="The requested route is not part of the current application shell." />} />
         </Route></Route>

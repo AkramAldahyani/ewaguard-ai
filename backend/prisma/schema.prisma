@@ -230,6 +230,14 @@ model User {
   lastName               String                      @db.VarChar(100)
   email                  String                      @unique @db.VarChar(254)
   passwordHash           String?                     @db.VarChar(255)
+  mfaSecretEncrypted     String?                     @db.Text
+  mfaEnabledAt           DateTime?                   @db.Timestamptz(3)
+  mfaLastCounter         BigInt?
+  mfaChallengeHash       String?                     @db.VarChar(64)
+  mfaChallengeExpiresAt  DateTime?                   @db.Timestamptz(3)
+  mfaChallengeAttempts   Int                         @default(0)
+  mfaPendingSecret       String?                     @db.Text
+  mfaChallengeCredential String?                     @db.VarChar(64)
   status                 AccountStatus               @default(INVITED)
   deactivatedAt          DateTime?                   @db.Timestamptz(3)
   createdAt              DateTime                    @default(now()) @db.Timestamptz(3)

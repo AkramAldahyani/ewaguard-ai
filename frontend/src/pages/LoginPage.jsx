@@ -5,6 +5,7 @@ import building from '../assets/branding/ewa_building.png';
 import loginLogo from '../assets/branding/ewa_logo_wide.png';
 import { Button, Field, Input } from '../components/ui/index.jsx';
 import { useAuth } from '../context/auth-context.js';
+import { MfaForm } from '../components/auth/MfaForm.jsx';
 
 export function LoginPage() {
   const { login, sessionExpired } = useAuth();
@@ -15,15 +16,24 @@ export function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const [challenge, setChallenge] = useState(null);
+
+  function finishLogin(user) {
+    const destination = location.state?.from?.pathname;
+    const fallback = user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/';
+    const internal = typeof destination === 'string' && destination.startsWith('/') && !destination.startsWith('//') && !destination.includes('\\');
+    navigate(internal ? destination : fallback, { replace: true });
+  }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setError('');
     setSubmitting(true);
     try {
-      await login(email, password);
-      const destination = location.state?.from?.pathname;
-      navigate(typeof destination === 'string' && destination.startsWith('/') ? destination : '/', { replace: true });
+      const result = await login(email, password);
+      setPassword('');
+      if (result.mfaRequired) setChallenge(result);
+      else finishLogin(result);
     } catch (requestError) {
       setError(requestError.status === 429
         ? 'Too many sign-in attempts. Please wait and try again.'
@@ -68,7 +78,7 @@ export function LoginPage() {
           <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-slate-600">Stay secure, stay informed, and respond with confidence.</p>
         </div>
         <div className="rounded-3xl border border-slate-200/70 bg-white p-7 shadow-[0_12px_40px_-16px_rgb(15_23_42/0.18)] sm:p-9">
-          <div className="mb-7">
+          {challenge ? <MfaForm challenge={challenge} onComplete={finishLogin} onCancel={() => setChallenge(null)} /> : <><div className="mb-7">
             <p className="flex items-center gap-2 text-[0.65rem] font-bold uppercase tracking-[0.16em] text-brand-700"><LockKeyhole className="size-4" aria-hidden="true" />Protected access</p>
             <h2 className="mt-4 text-2xl font-bold tracking-tight text-slate-950">Welcome to EWAGuard AI</h2>
             <p className="mt-2 text-sm leading-6 text-slate-500">Sign in with your organization-provided email address.</p>
@@ -80,6 +90,7 @@ export function LoginPage() {
             <Field id="password" label="Password" required>{(field) => <div className="relative"><Input {...field} type={showPassword ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} placeholder="************" className="pr-12" /><button type="button" onClick={() => setShowPassword((value) => !value)} className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label={showPassword ? 'Hide password' : 'Show password'}>{showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}</button></div>}</Field>
             <Button type="submit" size="lg" className="w-full" disabled={submitting || !email.trim() || !password}>{submitting ? 'Signing in…' : 'Sign in securely'}</Button>
           </form>
+          </>}
           <p className="mt-6 border-t border-slate-100 pt-5 text-xs leading-5 text-slate-500">Access is limited to authorized users. Contact your IT/security administrator if you cannot access your provisioned account.</p>
         </div>
         <p className="mt-6 text-center text-xs text-slate-500">Electricity &amp; Water Authority · EWAGuard AI</p>

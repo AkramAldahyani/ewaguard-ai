@@ -21,7 +21,7 @@ export async function apiRequest(path, options = {}) {
       payload?.error?.code ?? 'REQUEST_FAILED',
       payload?.error?.message ?? 'The request could not be completed.',
     );
-    if (response.status === 401 && path !== '/api/auth/login' && path !== '/api/auth/me') {
+    if (response.status === 401 && path !== '/api/auth/login' && path !== '/api/auth/me' && path !== '/api/auth/mfa/verify') {
       window.dispatchEvent(new CustomEvent('ewaguard:session-expired'));
     }
     throw error;

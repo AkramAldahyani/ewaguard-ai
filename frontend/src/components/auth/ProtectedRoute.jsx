@@ -2,18 +2,19 @@ import { Navigate, Outlet, useLocation } from 'react-router';
 import { BrandLogo } from '../BrandLogo.jsx';
 import { useAuth } from '../../context/auth-context.js';
 
-export function ProtectedRoute() {
+export function ProtectedRoute({ roles }) {
   const { user, loading } = useAuth();
   const location = useLocation();
   if (loading) return <SessionLoading />;
   if (!user) return <Navigate to="/login" replace state={{ from: location }} />;
+  if (roles && !roles.includes(user.role)) return <Navigate to={location.pathname === '/' && user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/unauthorized'} replace />;
   return <Outlet />;
 }
 
 export function PublicOnlyRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) return <SessionLoading />;
-  return user ? <Navigate to="/" replace /> : children;
+  return user ? <Navigate to={user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/'} replace /> : children;
 }
 
 function SessionLoading() {

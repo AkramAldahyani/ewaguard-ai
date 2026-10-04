@@ -8,9 +8,10 @@ Enterprise cybersecurity and Bahrain PDPL assistant prototype for threat analysi
 incident triage, and security awareness.
 
 **Current implementation: Phase 0–2B foundation, design system and verified
-PostgreSQL/pgvector architecture, plus Phase 3A authentication.** Provisioned active
-accounts can sign in through a protected React shell using short-lived HTTP-only
-JWT cookies. Full RBAC and administrator MFA remain Phase 3B.
+PostgreSQL/pgvector architecture, plus Phase 3A authentication and Phase 3B RBAC/MFA.**
+Employees sign in using short-lived HTTP-only JWT cookies. Administrators must
+enroll and verify TOTP before receiving an authenticated session. See
+[RBAC and MFA operations](docs/rbac-mfa.md) for enrollment and key configuration.
 
 See [database architecture and setup](docs/database.md) for the 32 tables,
 relationships, privacy boundaries, validation commands and pgvector prerequisite.
@@ -37,6 +38,9 @@ not add these development passwords to `.env.example`. Copy the example only if
 `.env` does not already exist.
 
 Open <http://127.0.0.1:5173>. Vite forwards `/api` to the backend on port 5000.
+In development, <http://localhost:5173> also works: CORS and CSRF checks accept
+both loopback hostnames at the configured scheme and port. Production accepts only
+the configured `FRONTEND_URL`. Cookies remain separate for each hostname.
 `GET http://127.0.0.1:5000/api/health` returns:
 
 ```json

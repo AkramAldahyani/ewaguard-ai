@@ -1,4 +1,8 @@
-# Phase 3A authentication architecture
+# Authentication architecture
+
+Phase 3B extends this foundation with [RBAC and administrator MFA](rbac-mfa.md).
+The following describes the original Phase 3A session design; Phase 3B now enforces
+role authorization and requires TOTP before issuing administrator sessions.
 
 EWAGuard AI uses provisioned organizational accounts. There is no public
 registration endpoint. Phase 3A supplies authentication only; role authorization

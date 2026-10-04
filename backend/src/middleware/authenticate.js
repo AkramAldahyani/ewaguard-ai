@@ -12,9 +12,9 @@ export function createAuthenticate({ database, config }) {
       if (typeof claims.sub !== 'string' || !UUID.test(claims.sub) || typeof claims.exp !== 'number') {
         return unauthorized(res);
       }
-      const user = await findActiveUser(database, claims.sub);
+      const user = await findActiveUser(database, claims.sub, claims.mfa);
       if (!user) return unauthorized(res);
-      req.auth = Object.freeze({ userId: user.id, expiresAt: new Date(claims.exp * 1000).toISOString() });
+      req.auth = Object.freeze({ userId: user.id, mfaVerified: Boolean(claims.mfa), expiresAt: new Date(claims.exp * 1000).toISOString() });
       req.user = Object.freeze(user);
       return next();
     } catch (error) {
