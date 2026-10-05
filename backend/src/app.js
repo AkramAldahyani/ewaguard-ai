@@ -4,6 +4,7 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { createDatabaseClient } from './config/database.js';
 import { createAuthRouter } from './routes/auth.js';
+import { createDisclaimerRouter } from './routes/disclaimers.js';
 import { healthRouter } from './routes/health.js';
 import { createAuthenticate } from './middleware/authenticate.js';
 import { requireRole } from './middleware/authorize.js';
@@ -20,6 +21,7 @@ export function createApp(config, dependencies = {}) {
   app.use(cookieParser());
   app.use('/api/health', healthRouter);
   app.use('/api/auth', createAuthRouter({ database, config }));
+  app.use('/api/disclaimers', createDisclaimerRouter({ database, config }));
   const authenticate = createAuthenticate({ database, config });
   const workspace = (area) => (_req, res) => res.set('Cache-Control', 'no-store').json({ area });
   app.get('/api/employee/workspace', authenticate, requireRole('EMPLOYEE'), workspace('employee'));

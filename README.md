@@ -9,8 +9,8 @@ incident triage, and security awareness.
 
 **Current implementation: Phase 0–2B foundation, design system and verified
 PostgreSQL/pgvector architecture, Phase 3A authentication, Phase 3B RBAC/MFA,
-the Phase 4A employee portal, Phase 4B chat interface, and Phase 5A local password
-security.**
+the Phase 4A employee portal, Phase 4B chat interface, Phase 5A local password
+security, and Phase 5B sensitive-information acknowledgement.**
 Employees sign in using short-lived HTTP-only JWT cookies. Administrators must
 enroll and verify TOTP before receiving an authenticated session. See
 [RBAC and MFA operations](docs/rbac-mfa.md) for enrollment and key configuration.
@@ -24,6 +24,9 @@ feature submissions remain disabled and explicitly labeled as previews. See
 
 See [chat interface architecture and preview boundaries](docs/chat-interface.md).
 See [password security architecture and privacy controls](docs/password-security.md).
+See [sensitive-information disclaimer architecture](docs/disclaimers.md).
+Phase 6A1 adds an internal bounded email parser and evidence library; email submission
+is not enabled yet. See [email analyzer scope and privacy boundaries](docs/email-analyzer.md).
 
 See [database architecture and setup](docs/database.md) for the 32 tables,
 relationships, privacy boundaries, validation commands and pgvector prerequisite.
@@ -77,6 +80,8 @@ The home page displays the actual result or an unavailable message.
 | `npm run test:portal` | Render employee routes, role boundaries, profile and preview controls without a browser |
 | `npm run test:chat` | Check chat state, keyboard decisions and safe structured presentation |
 | `npm run test:password` | Check password strength, policy, secure generation and privacy boundaries |
+| `npm run test:disclaimer` | Check disclaimer UI, authorization, metadata minimization and verification |
+| `npm run test:email` | Check bounded email parsing, deterministic indicators and privacy minimization |
 | `npm run prisma:format` | Format the PostgreSQL datasource schema |
 | `npm run prisma:validate` | Validate the MVP schema |
 | `npm run prisma:generate` | Generate the ignored Prisma Client |

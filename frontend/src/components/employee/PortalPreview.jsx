@@ -13,11 +13,11 @@ export function PreviewPage({ title, description, section = 'Employee workspace'
   return <><PageHeader eyebrow={section} title={title} description={description} breadcrumbs={[title]} actions={actions ?? <Badge>Coming later</Badge>} /><PreviewNotice />{children}</>;
 }
 
-export function PrivacyReminder() {
+export function PrivacyReminder({ context = 'general' }) {
   return <aside className="rounded-xl border border-warning-200 bg-warning-50 p-5">
     <div className="flex items-center gap-2 text-warning-900"><LockKeyhole className="size-4" aria-hidden="true" /><h2 className="text-sm font-bold">Keep sensitive information private</h2></div>
     <p className="mt-2 text-sm leading-6 text-warning-900">Do not submit confidential or restricted company information, passwords, credentials, secrets, or sensitive personal information. Use your organization’s approved reporting channel for restricted material.</p>
-    <p className="mt-3 text-xs leading-5 text-warning-800">Notice preview only. The active acknowledgement flow will be added before submissions are enabled.</p>
+    <p className="mt-3 text-xs leading-5 text-warning-800">{context === 'url' ? 'URL analysis will use a proportionate warning before submission. No address can be submitted in this preview.' : 'An active acknowledgement will be required before supported content or attachments can be submitted.'}</p>
   </aside>;
 }
 
