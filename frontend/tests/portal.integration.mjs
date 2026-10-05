@@ -29,14 +29,23 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
   await t.test('only the local assistant composer accepts preview text; file selection never exists', () => {
     for (const [path] of pages.filter(([path]) => path !== '/profile')) {
       const html = render(path);
-      assert.match(html, /Preview only/);
+      if (path !== '/password-security') assert.match(html, /Preview only/);
       for (const control of html.matchAll(/<(?:input|textarea)\b[^>]*>/g)) {
         if (path === '/assistant') assert.match(control[0], /id="chat-message"/);
-        else assert.match(control[0], /disabled=""/);
+        else if (path !== '/password-security') assert.match(control[0], /disabled=""/);
       }
       assert.doesNotMatch(html, /type="file"/);
     }
     assert.doesNotMatch(render('/'), /68%|Representative only/);
+  });
+  await t.test('password security is operational, local-only, and employee restricted', () => {
+    const html = render('/password-security');
+    assert.match(html, /Private by design/);
+    assert.match(html, /id="password-analysis"/);
+    assert.match(html, /id="password-length"/);
+    assert.match(html, /Generate password/);
+    assert.match(html, /no backend endpoint/i);
+    assert.doesNotMatch(html, /Preview only|coming later/);
   });
   await t.test('assistant has labeled controls, suggestions and an employee-only showcase', () => {
     const html = render('/assistant');

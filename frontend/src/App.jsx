@@ -10,7 +10,8 @@ import { LoginPage } from './pages/LoginPage.jsx';
 import { AdminWorkspace, UnauthorizedPage } from './pages/AccessPages.jsx';
 import { AnalysisPage } from './pages/employee/AnalysisPages.jsx';
 import { CertificatesPage, MonthlyQuizPage, TrainingPage } from './pages/employee/AwarenessPages.jsx';
-import { CommunityPage, IncidentsPage, PasswordSecurityPage, ProfilePage } from './pages/employee/WorkspacePages.jsx';
+import { CommunityPage, IncidentsPage, ProfilePage } from './pages/employee/WorkspacePages.jsx';
+import { PasswordSecurityPage } from './features/password/PasswordSecurityPage.jsx';
 import { AssistantPage } from './features/chat/AssistantPage.jsx';
 import { ChatShowcase } from './features/chat/ChatShowcase.jsx';
 

@@ -1,19 +1,10 @@
 import { useState } from 'react';
-import { KeyRound, LockKeyhole, MessageSquareText, ShieldAlert, ShieldCheck, UserRound } from 'lucide-react';
-import { Badge, Button, Card, Field, Input, StatePanel } from '../../components/ui/index.jsx';
+import { MessageSquareText, ShieldAlert, ShieldCheck, UserRound } from 'lucide-react';
+import { Badge, Button, Card, StatePanel } from '../../components/ui/index.jsx';
 import { Modal } from '../../components/ui/Dialog.jsx';
 import { PageHeader } from '../../components/PageHeader.jsx';
 import { FeatureOutline, PreviewPage, PrivacyReminder } from '../../components/employee/PortalPreview.jsx';
 import { useAuth } from '../../context/auth-context.js';
-
-
-export function PasswordSecurityPage() {
-  return <PreviewPage title="Password Security" description="A private space for assessing password strength and generating policy-compliant passwords when Phase 5A is available.">
-    <div className="grid gap-6 lg:grid-cols-2"><Card className="p-6"><KeyRound className="size-7 text-brand-700" aria-hidden="true" /><h2 className="mt-4 text-lg font-bold">Check password strength</h2><p className="mb-6 mt-2 text-sm leading-6 text-slate-600">Local analysis will explain predictable patterns and organizational policy requirements.</p><Field id="password-preview" label="Password" hint="Entry is disabled. This preview does not collect a password.">{(field) => <Input {...field} disabled type="password" autoComplete="off" placeholder="Available in Phase 5A" />}</Field><Button disabled className="mt-5">Check strength — coming later</Button></Card>
-      <Card className="p-6"><LockKeyhole className="size-7 text-brand-700" aria-hidden="true" /><h2 className="mt-4 text-lg font-bold">Generate a password</h2><p className="mb-6 mt-2 text-sm leading-6 text-slate-600">Secure generation will use cryptographic randomness and your organization’s configured policy.</p><div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-5 text-sm text-slate-500">No password has been generated.</div><Button disabled className="mt-5">Generate — coming later</Button></Card></div>
-    <div className="mt-6 rounded-xl border border-brand-200 bg-brand-50 p-5"><h2 className="font-bold text-brand-900">Designed for privacy</h2><p className="mt-2 text-sm leading-6 text-brand-900">The planned tools will keep password analysis and generation in your browser. Passwords must never be sent to AI, stored in the database, logged, or included in analytics.</p></div>
-  </PreviewPage>;
-}
 
 export function IncidentsPage() {
   return <PreviewPage title="My Incidents" description="A future view of security reports you are authorized to follow, with clear status and next steps.">

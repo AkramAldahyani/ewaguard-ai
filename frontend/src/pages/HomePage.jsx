@@ -10,7 +10,7 @@ const tools = [
   { title: 'Analyze Email', icon: Mail, to: '/analyze/email', description: 'A future workspace for suspicious messages and headers.' },
   { title: 'Analyze URL', icon: Link2, to: '/analyze/url', description: 'Explore how link evidence will be presented.' },
   { title: 'Analyze File', icon: Upload, to: '/analyze/file', description: 'Preview permitted file checks and their limitations.' },
-  { title: 'Password Security', icon: KeyRound, to: '/password-security', description: 'Preview private strength checks and secure generation.' },
+  { title: 'Password Security', icon: KeyRound, to: '/password-security', description: 'Check strength locally and create a policy-compliant password.' },
 ];
 
 export function HomePage() {
