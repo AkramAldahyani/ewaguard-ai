@@ -18,6 +18,8 @@
     "test:password": "node --test frontend/tests/password-security.test.mjs",
     "test:disclaimer": "node --test backend/tests/disclaimer.integration.test.js frontend/tests/disclaimer.test.mjs",
     "test:email": "node --test backend/tests/email-analyzer.test.js",
+    "test:email:api": "node --test backend/tests/email-api.integration.test.js",
+    "test:email:ui": "node --test frontend/tests/email.test.mjs",
     "check:backend": "node --check backend/src/server.js && node --check backend/src/app.js && node --check backend/src/config/env.js && node --check backend/src/config/database.js && node --check backend/src/auth/auth-token.js && node --check backend/src/auth/auth-service.js && node --check backend/src/disclaimers/disclaimer-service.js && node --check backend/src/middleware/authenticate.js && node --check backend/src/middleware/trusted-origin.js && node --check backend/src/routes/auth.js && node --check backend/src/routes/disclaimers.js",
     "prisma:format": "prisma format --config backend/prisma.config.js",
     "prisma:validate": "prisma validate --config backend/prisma.config.js",
@@ -40,6 +42,7 @@
   },
   "overrides": {
     "deepmerge-ts": "8.0.2",
+    "shell-quote": "1.12.0",
     "mysql2": "3.24.5"
   }
 }

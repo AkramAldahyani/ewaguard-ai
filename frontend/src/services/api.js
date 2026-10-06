@@ -11,7 +11,7 @@ export async function apiRequest(path, options = {}) {
   const response = await fetch(path, {
     credentials: 'include',
     ...options,
-    headers: { ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
+    headers: { ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
   });
   if (response.status === 204) return null;
   const payload = await response.json().catch(() => null);

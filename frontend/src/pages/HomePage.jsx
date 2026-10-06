@@ -7,7 +7,7 @@ import { PortalLinkCard, PreviewNotice } from '../components/employee/PortalPrev
 import { useAuth } from '../context/auth-context.js';
 
 const tools = [
-  { title: 'Analyze Email', icon: Mail, to: '/analyze/email', description: 'A future workspace for suspicious messages and headers.' },
+  { title: 'Analyze Email', icon: Mail, to: '/analyze/email', description: 'Review suspicious messages, headers, and .eml files.' },
   { title: 'Analyze URL', icon: Link2, to: '/analyze/url', description: 'Explore how link evidence will be presented.' },
   { title: 'Analyze File', icon: Upload, to: '/analyze/file', description: 'Preview permitted file checks and their limitations.' },
   { title: 'Password Security', icon: KeyRound, to: '/password-security', description: 'Check strength locally and create a policy-compliant password.' },
@@ -44,6 +44,6 @@ export function HomePage() {
     <section className="mt-8 grid gap-4 lg:grid-cols-2" aria-label="Reports and shared awareness"><PortalLinkCard icon={ShieldAlert} title="My Incidents" to="/incidents" description="No live incident data connected yet. Preview the space for your authorized reports and updates." /><PortalLinkCard icon={MessageSquareText} title="Security Community" to="/community" description="Approved posts are not connected yet. Preview a community where every submission is reviewed." /></section>
 
     <aside className="my-6 flex items-start gap-4 rounded-2xl border border-brand-200 bg-white p-5 sm:p-6"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><ShieldCheck className="size-5" aria-hidden="true" /></span><div><h2 className="font-bold text-slate-950">Pause before you act</h2><p className="mt-1 text-sm leading-6 text-slate-600">Unexpected request for a password or payment? Verify it through a known, approved channel before responding. For an urgent concern, use your organization’s IT/security reporting process.</p></div></aside>
-    <PreviewNotice>Tools, incidents, awareness records, and community content are not connected yet. Your name and department come from your authenticated session.</PreviewNotice>
+    <PreviewNotice>Email analysis and local password tools are available. URL/file analysis, incidents, awareness records, and community content remain previews. Your name and department come from your authenticated session.</PreviewNotice>
   </>;
 }
