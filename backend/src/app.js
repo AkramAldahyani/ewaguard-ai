@@ -6,6 +6,7 @@ import { createDatabaseClient } from './config/database.js';
 import { createAuthRouter } from './routes/auth.js';
 import { createDisclaimerRouter } from './routes/disclaimers.js';
 import { createEmailAnalysisRouter } from './routes/email-analysis.js';
+import { createUrlAnalysisRouter } from './routes/url-analysis.js';
 import { healthRouter } from './routes/health.js';
 import { createAuthenticate } from './middleware/authenticate.js';
 import { requireRole } from './middleware/authorize.js';
@@ -21,6 +22,7 @@ export function createApp(config, dependencies = {}) {
   app.use(cookieParser());
   // Email has its own bounded parser after authentication and acknowledgement.
   app.use('/api/analysis/email', createEmailAnalysisRouter({ database, config, ...dependencies.emailAnalysis }));
+  app.use('/api/analysis/url', createUrlAnalysisRouter({ database, config, ...dependencies.urlAnalysis }));
   app.use(express.json({ limit: '32kb', strict: true }));
   app.use('/api/health', healthRouter);
   app.use('/api/auth', createAuthRouter({ database, config }));

@@ -9,6 +9,7 @@ import { PlaceholderPage } from './pages/PlaceholderPage.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { AdminWorkspace, UnauthorizedPage } from './pages/AccessPages.jsx';
 import { AnalysisPage } from './pages/employee/AnalysisPages.jsx';
+import { UrlAnalyzerPage } from './features/url/UrlAnalyzerPage.jsx';
 import { CertificatesPage, MonthlyQuizPage, TrainingPage } from './pages/employee/AwarenessPages.jsx';
 import { CommunityPage, IncidentsPage, ProfilePage } from './pages/employee/WorkspacePages.jsx';
 import { PasswordSecurityPage } from './features/password/PasswordSecurityPage.jsx';
@@ -31,7 +32,7 @@ export function AppRoutes() {
             <Route path="assistant" element={<AssistantPage />} />
             <Route path="design-system/chat" element={<ChatShowcase />} />
             <Route path="analyze/email" element={<EmailAnalyzerPage />} />
-            <Route path="analyze/url" element={<AnalysisPage kind="url" />} />
+            <Route path="analyze/url" element={<UrlAnalyzerPage />} />
             <Route path="analyze/file" element={<AnalysisPage kind="file" />} />
             <Route path="password-security" element={<PasswordSecurityPage />} />
             <Route path="incidents" element={<IncidentsPage />} />

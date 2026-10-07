@@ -29,11 +29,11 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
   await t.test('only the local assistant composer accepts preview text; file selection never exists', () => {
     for (const [path] of pages.filter(([path]) => path !== '/profile')) {
       const html = render(path);
-      if (!['/password-security', '/analyze/email'].includes(path)) assert.match(html, /Preview only/);
+      if (!['/password-security', '/analyze/email', '/analyze/url'].includes(path)) assert.match(html, /Preview only/);
       for (const control of html.matchAll(/<(?:input|textarea)\b[^>]*>/g)) {
         if (path === '/assistant') assert.match(control[0], /id="chat-message"/);
-        else if (path !== '/password-security' && !['/analyze/email', '/analyze/file'].includes(path)) assert.match(control[0], /disabled=""/);
-        else if (['/analyze/email', '/analyze/file'].includes(path)) {
+        else if (path !== '/password-security' && !['/analyze/email', '/analyze/file', '/analyze/url'].includes(path)) assert.match(control[0], /disabled=""/);
+        else if (['/analyze/email', '/analyze/file', '/analyze/url'].includes(path)) {
           assert.match(control[0], /type="checkbox"/);
           assert.doesNotMatch(control[0], /checked/);
         }
@@ -43,14 +43,14 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
     assert.doesNotMatch(render('/'), /68%|Representative only/);
   });
   await t.test('email and file analysis require the active disclaimer before their preview step', () => {
-    for (const path of ['/analyze/email', '/analyze/file']) {
+    for (const path of ['/analyze/email', '/analyze/file', '/analyze/url']) {
       const html = render(path);
       assert.match(html, /Sensitive Information Notice/);
       assert.match(html, /Acknowledge and continue/);
       assert.match(html, /disabled=""/);
       assert.doesNotMatch(html, /No analysis service connected/);
     }
-    assert.doesNotMatch(render('/analyze/url'), /Acknowledge and continue/);
+    assert.match(render('/analyze/url'), /Acknowledge and continue/);
   });
   await t.test('password security is operational, local-only, and employee restricted', () => {
     const html = render('/password-security');

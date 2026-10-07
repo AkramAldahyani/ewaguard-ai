@@ -60,6 +60,7 @@ export function parseConfig(env = process.env) {
     trustedOrigins: Object.freeze(trustedOrigins),
     accessTokenTtlSeconds, loginRateLimitWindowMinutes, loginRateLimitMax,
     mfaEncryptionKey, mfaIssuer, mfaChallengeTtlSeconds,
+    virusTotalApiKey: env.VIRUSTOTAL_API_KEY?.trim() || null,
   });
 }
 

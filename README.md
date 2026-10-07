@@ -10,7 +10,8 @@ incident triage, and security awareness.
 **Current implementation: Phase 0–2B foundation, design system and verified
 PostgreSQL/pgvector architecture, Phase 3A authentication, Phase 3B RBAC/MFA,
 the Phase 4A employee portal, Phase 4B chat interface, Phase 5A local password
-security, and Phase 5B sensitive-information acknowledgement.**
+security, Phase 5B sensitive-information acknowledgement, Phase 6A email analysis,
+and Phase 6B URL analysis.**
 Employees sign in using short-lived HTTP-only JWT cookies. Administrators must
 enroll and verify TOTP before receiving an authenticated session. See
 [RBAC and MFA operations](docs/rbac-mfa.md) for enrollment and key configuration.
@@ -25,8 +26,10 @@ feature submissions remain disabled and explicitly labeled as previews. See
 See [chat interface architecture and preview boundaries](docs/chat-interface.md).
 See [password security architecture and privacy controls](docs/password-security.md).
 See [sensitive-information disclaimer architecture](docs/disclaimers.md).
-Phase 6A1 adds an internal bounded email parser and evidence library; email submission
-is not enabled yet. See [email analyzer scope and privacy boundaries](docs/email-analyzer.md).
+Phase 6A supports employee email submissions and minimized evidence. See
+[email analyzer scope and privacy boundaries](docs/email-analyzer.md).
+Phase 6B adds public URL structure, DNS, TLS and VirusTotal report evidence without
+loading webpages. See [URL analyzer architecture and privacy](docs/url-analyzer.md).
 
 See [database architecture and setup](docs/database.md) for the 32 tables,
 relationships, privacy boundaries, validation commands and pgvector prerequisite.
@@ -82,6 +85,9 @@ The home page displays the actual result or an unavailable message.
 | `npm run test:password` | Check password strength, policy, secure generation and privacy boundaries |
 | `npm run test:disclaimer` | Check disclaimer UI, authorization, metadata minimization and verification |
 | `npm run test:email` | Check bounded email parsing, deterministic indicators and privacy minimization |
+| `npm run test:url` | Check URL normalization, SSRF, DNS/TLS, and mocked reputation providers |
+| `npm run test:url:api` | Check URL API authorization and real minimized PostgreSQL persistence |
+| `npm run test:url:ui` | Check employee URL UI rendering and interaction state |
 | `npm run prisma:format` | Format the PostgreSQL datasource schema |
 | `npm run prisma:validate` | Validate the MVP schema |
 | `npm run prisma:generate` | Generate the ignored Prisma Client |
@@ -112,6 +118,7 @@ not verify database connectivity. No database is contacted by the Phase 0 API.
 | `JWT_ACCESS_TTL_SECONDS` | Access-cookie lifetime, 60–3600 seconds; default 900 |
 | `LOGIN_RATE_LIMIT_WINDOW_MINUTES` | Failed-login rate-limit window; default 15 |
 | `LOGIN_RATE_LIMIT_MAX` | Failed login limit per client/window; default 10 |
+| `VIRUSTOTAL_API_KEY` | Optional backend-only key for Phase 6B public reputation reports |
 
 Other integration variables in `.env.example` are reserved for later phases.
 Never put secrets in `VITE_*` variables;

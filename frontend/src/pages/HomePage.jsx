@@ -8,7 +8,7 @@ import { useAuth } from '../context/auth-context.js';
 
 const tools = [
   { title: 'Analyze Email', icon: Mail, to: '/analyze/email', description: 'Review suspicious messages, headers, and .eml files.' },
-  { title: 'Analyze URL', icon: Link2, to: '/analyze/url', description: 'Explore how link evidence will be presented.' },
+  { title: 'Analyze URL', icon: Link2, to: '/analyze/url', description: 'Review link structure, DNS, certificates, and reputation evidence.' },
   { title: 'Analyze File', icon: Upload, to: '/analyze/file', description: 'Preview permitted file checks and their limitations.' },
   { title: 'Password Security', icon: KeyRound, to: '/password-security', description: 'Check strength locally and create a policy-compliant password.' },
 ];
