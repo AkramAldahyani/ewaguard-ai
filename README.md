@@ -154,6 +154,10 @@ Secure employee chat APIs and conservative OpenAI spending controls are document
 in [docs/openai-chat.md](docs/openai-chat.md). The assistant UI remains a preview
 until Phase 8C. Normal tests use mocked OpenAI responses and cost $0.
 
-Phase 8B1 adds an internal [controlled tool foundation](docs/controlled-tools.md).
-Read-only results are owner-checked; new-analysis confirmation is contract-only.
-Model tool calling and action execution remain disabled until Phase 8B2.
+The [controlled tool foundation](docs/controlled-tools.md) enforces employee-owned
+read-only results. Phase 8B2A implements
+[durable human approvals and controlled email/URL execution](docs/tool-approvals.md).
+Configure the dedicated
+approval encryption key and use the documented employee REST endpoints. Phase 8B2B
+still needs Responses tool orchestration and multi-round budget accounting; Phase
+8C approval/chat UI is not implemented.

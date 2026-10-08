@@ -54,11 +54,24 @@ test('tool authorization with real local PostgreSQL and synthetic data ($0)', as
   });
   await t.test('current database role/status wins over role claims and old sessions', async () => {
     await assert.rejects(service.execute(request('get_analysis_result', ref(), { auth: { ...auth(admin), role: 'EMPLOYEE' } })), { code: 'TOOL_FORBIDDEN' });
-    for (const status of ['SUSPENDED', 'DEACTIVATED']) {
+    for (const status of ['INVITED', 'SUSPENDED', 'DEACTIVATED']) {
       await database.user.update({ where: { id: employee.id }, data: { status } });
       await assert.rejects(service.execute(request('get_analysis_result', ref())), { code: 'TOOL_AUTHENTICATION_REQUIRED' });
     }
     await database.user.update({ where: { id: employee.id }, data: { status: 'ACTIVE' } });
+    await database.user.update({ where: { id: employee.id }, data: { deactivatedAt: new Date() } });
+    await assert.rejects(service.execute(request('get_analysis_result', ref())), { code: 'TOOL_AUTHENTICATION_REQUIRED' });
+    await database.user.update({ where: { id: employee.id }, data: { deactivatedAt: null, role: { connect: { name: 'IT_SECURITY_ADMIN' } } } });
+    await assert.rejects(service.execute(request('get_analysis_result', ref())), { code: 'TOOL_FORBIDDEN' });
+    await database.user.update({ where: { id: employee.id }, data: { role: { connect: { name: 'EMPLOYEE' } } } });
+  });
+  await t.test('closed and expired owned conversations deny both reads and action preparation', async () => {
+    for (const data of [{ closedAt: new Date() }, { expiresAt: new Date(0) }]) {
+      const unavailable = await database.chatSession.create({ data: { ownerId: employee.id, expiresAt: new Date(Date.now() + 60000), ...data } });
+      const context = { conversationId: unavailable.id };
+      await assert.rejects(service.execute(request('get_analysis_result', ref(), context)), { code: 'TOOL_NOT_FOUND' });
+      await assert.rejects(service.prepareActionContract(request('analyze_url', { url: 'https://example.com/' }, context)), { code: 'TOOL_NOT_FOUND' });
+    }
   });
   await t.test('foreign conversations and all cross-employee analysis types denied', async () => {
     await assert.rejects(service.execute(request('get_analysis_result', ref(), { auth: auth(other) })), { code: 'TOOL_NOT_FOUND' });
@@ -106,6 +119,14 @@ test('tool authorization with real local PostgreSQL and synthetic data ($0)', as
     await assert.rejects(service.execute(request('analyze_email', parameters)), { code: 'TOOL_EXECUTION_DEFERRED' });
     await assert.rejects(service.execute(request('analyze_url', { url: 'https://example.com/' })), { code: 'TOOL_EXECUTION_DEFERRED' });
     await assert.rejects(service.prepareActionContract(request('analyze_email', { ...parameters, confirmed: true })), { code: 'TOOL_INVALID_ARGUMENTS' });
+  });
+  await t.test('an acknowledgement for a different submission context cannot authorize an action', async () => {
+    const otherSession = await database.chatSession.create({ data: { ownerId: other.id, expiresAt: new Date(Date.now() + 60000) } });
+    const ack = await database.disclaimerAcknowledgement.create({ data: { userId: other.id, context: 'FILE_ANALYSIS', version: DISCLAIMER_DEFINITION.version } });
+    const context = { auth: auth(other), conversationId: otherSession.id };
+    await assert.rejects(service.prepareActionContract(request('analyze_email', { body: 'Synthetic invitation.', headers: '' }, context)), { code: 'TOOL_ACKNOWLEDGEMENT_REQUIRED' });
+    await assert.rejects(service.prepareActionContract(request('analyze_url', { url: 'https://example.com/' }, context)), { code: 'TOOL_ACKNOWLEDGEMENT_REQUIRED' });
+    await database.disclaimerAcknowledgement.delete({ where: { id: ack.id } });
   });
   await t.test('foundation creates no incidents, new analyses or usage entries', async () => {
     assert.equal(await database.incident.count({ where: { reporterId: { in: users } } }), 0);

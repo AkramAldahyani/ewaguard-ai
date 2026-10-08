@@ -44,6 +44,13 @@ export function parseConfig(env = process.env) {
     throw new Error('MFA_ENCRYPTION_KEY must be a dedicated 32-byte hexadecimal key.');
   }
   const mfaIssuer = env.MFA_TOTP_ISSUER ?? 'EWAGuard AI';
+  const toolApprovalEncryptionKey = env.TOOL_APPROVAL_ENCRYPTION_KEY || null;
+  if (toolApprovalEncryptionKey && !/^[a-f0-9]{64}$/i.test(toolApprovalEncryptionKey)) {
+    throw new Error('TOOL_APPROVAL_ENCRYPTION_KEY must be a dedicated 32-byte hexadecimal key.');
+  }
+  if (toolApprovalEncryptionKey && (toolApprovalEncryptionKey === mfaEncryptionKey || toolApprovalEncryptionKey === jwtSecret)) {
+    throw new Error('TOOL_APPROVAL_ENCRYPTION_KEY must not reuse an authentication key.');
+  }
   if (!mfaIssuer.trim() || mfaIssuer.length > 80 || [...mfaIssuer].some((char) => char === ':' || char.charCodeAt(0) < 32)) throw new Error('Invalid MFA issuer.');
   const mfaChallengeTtlSeconds = positiveInteger(env.MFA_CHALLENGE_TTL_SECONDS ?? '300', 'MFA_CHALLENGE_TTL_SECONDS', 60, 600);
   const loginRateLimitWindowMinutes = positiveInteger(env.LOGIN_RATE_LIMIT_WINDOW_MINUTES ?? '15', 'LOGIN_RATE_LIMIT_WINDOW_MINUTES', 1, 60);
@@ -61,6 +68,7 @@ export function parseConfig(env = process.env) {
     trustedOrigins: Object.freeze(trustedOrigins),
     accessTokenTtlSeconds, loginRateLimitWindowMinutes, loginRateLimitMax,
     mfaEncryptionKey, mfaIssuer, mfaChallengeTtlSeconds,
+    toolApprovalEncryptionKey,
     openaiApiKey: env.OPENAI_API_KEY?.trim() || null,
     openaiModel: env.OPENAI_MODEL?.trim() || 'gpt-6-luna',
     virusTotalApiKey: env.VIRUSTOTAL_API_KEY?.trim() || null,

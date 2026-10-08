@@ -248,6 +248,7 @@ model User {
   department             Department?                 @relation("User_department", fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   chatSessions           ChatSession[]               @relation("ChatSession_owner")
   aiUsage                AiUsage[]
+  toolApprovals          ToolApproval[]
   acknowledgements       DisclaimerAcknowledgement[] @relation("DisclaimerAcknowledgement_user")
   emailAnalysisRecords   EmailAnalysis[]             @relation("EmailAnalysis_user")
   urlAnalysisRecords     UrlAnalysis[]               @relation("UrlAnalysis_user")
@@ -280,16 +281,17 @@ model User {
 }
 
 model ChatSession {
-  id        String        @id @default(uuid()) @db.Uuid
-  title     String?       @db.VarChar(160)
-  expiresAt DateTime      @db.Timestamptz(3)
-  closedAt  DateTime?     @db.Timestamptz(3)
-  createdAt DateTime      @default(now()) @db.Timestamptz(3)
-  updatedAt DateTime      @updatedAt @db.Timestamptz(3)
-  ownerId   String        @db.Uuid
-  owner     User          @relation("ChatSession_owner", fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  messages  ChatMessage[] @relation("ChatMessage_session")
-  aiUsage   AiUsage[]
+  id            String         @id @default(uuid()) @db.Uuid
+  title         String?        @db.VarChar(160)
+  expiresAt     DateTime       @db.Timestamptz(3)
+  closedAt      DateTime?      @db.Timestamptz(3)
+  createdAt     DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt     DateTime       @updatedAt @db.Timestamptz(3)
+  ownerId       String         @db.Uuid
+  owner         User           @relation("ChatSession_owner", fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  messages      ChatMessage[]  @relation("ChatMessage_session")
+  aiUsage       AiUsage[]
+  toolApprovals ToolApproval[]
 
   @@index([expiresAt])
   @@index([ownerId])
@@ -311,6 +313,49 @@ model ChatMessage {
   @@index([expiresAt])
   @@index([sessionId])
   @@map("chat_messages")
+}
+
+enum ToolApprovalStatus {
+  PENDING
+  REJECTED
+  EXPIRED
+  EXECUTING
+  COMPLETED
+  FAILED
+}
+
+// Raw parameters are authenticated ciphertext only, erased on consumption/expiry.
+// EXECUTING is never retried automatically, including after process failure.
+model ToolApproval {
+  id                  String                    @id @default(uuid()) @db.Uuid
+  requestId           String                    @db.Uuid
+  userId              String                    @db.Uuid
+  conversationId      String                    @db.Uuid
+  acknowledgementId   String                    @db.Uuid
+  toolName            String                    @db.VarChar(40)
+  parameterDigest     String                    @db.VarChar(64)
+  encryptedParameters String?                   @db.Text
+  status              ToolApprovalStatus        @default(PENDING)
+  createdAt           DateTime                  @default(now()) @db.Timestamptz(3)
+  expiresAt           DateTime                  @db.Timestamptz(3)
+  decidedAt           DateTime?                 @db.Timestamptz(3)
+  completedAt         DateTime?                 @db.Timestamptz(3)
+  emailAnalysisId     String?                   @db.Uuid
+  urlAnalysisId       String?                   @db.Uuid
+  user                User                      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  conversation        ChatSession               @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  acknowledgement     DisclaimerAcknowledgement @relation(fields: [acknowledgementId], references: [id], onDelete: Restrict)
+  emailAnalysis       EmailAnalysis?            @relation("ToolApproval_email", fields: [emailAnalysisId], references: [id], onDelete: SetNull)
+  urlAnalysis         UrlAnalysis?              @relation("ToolApproval_url", fields: [urlAnalysisId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, requestId])
+  @@index([conversationId, createdAt])
+  @@index([status, expiresAt])
+  @@index([userId, toolName, decidedAt])
+  @@index([acknowledgementId])
+  @@index([emailAnalysisId])
+  @@index([urlAnalysisId])
+  @@map("tool_approvals")
 }
 
 enum AiUsageStatus {
@@ -362,6 +407,7 @@ model DisclaimerAcknowledgement {
   fileAnalysisRecords  FileAnalysis[]            @relation("FileAnalysis_acknowledgement")
   posts                CommunityPost[]           @relation("CommunityPost_acknowledgement")
   attachments          CommunityPostAttachment[] @relation("CommunityPostAttachment_acknowledgement")
+  toolApprovals        ToolApproval[]
 
   @@index([userId, context, createdAt])
   @@index([userId])
@@ -369,6 +415,7 @@ model DisclaimerAcknowledgement {
 }
 
 model EmailAnalysis {
+  toolApprovals     ToolApproval[]            @relation("ToolApproval_email")
   id                String                    @id @default(uuid()) @db.Uuid
   status            AnalysisStatus            @default(PENDING)
   evidence          Json                      @default("{}")
@@ -396,6 +443,7 @@ model EmailAnalysis {
 }
 
 model UrlAnalysis {
+  toolApprovals     ToolApproval[]            @relation("ToolApproval_url")
   id                String                    @id @default(uuid()) @db.Uuid
   status            AnalysisStatus            @default(PENDING)
   evidence          Json                      @default("{}")

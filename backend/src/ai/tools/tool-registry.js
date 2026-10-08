@@ -7,7 +7,7 @@ export function freeze(value) {
 export const TOOL_LIMITS = freeze({ argumentBytes: 48 * 1024, resultBytes: 16 * 1024,
   activeOperations: 4, transactionTimeoutMs: 5000, statementTimeoutMs: 2000,
   acknowledgementAgeMs: 15 * 60_000, confirmationTtlMs: 5 * 60_000,
-  modelRounds: 0, actionExecutions: 0 });
+  modelRounds: 0, actionExecutions: 1 });
 
 const id = { type: 'string', format: 'uuid', minLength: 36, maxLength: 36 };
 const schema = (properties) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
@@ -20,12 +20,12 @@ const read = (name, description, parameters = reference) => ({ name, description
   timeoutMs: TOOL_LIMITS.transactionTimeoutMs, operationalLimits: { records: 1, outputBytes: TOOL_LIMITS.resultBytes },
   outputProjection: 'analysis-tool-result-v1' });
 const action = (name, description, parameters, context, service) => ({ name, description, parameters, strict: true,
-  kind: 'ACTION', authorizedRole: 'EMPLOYEE', execution: 'DEFERRED_8B2',
-  inputRequirements: 'Validated text, current acknowledgement, owned conversation, and a future exact-operation human confirmation.',
+  kind: 'ACTION', authorizedRole: 'EMPLOYEE', execution: 'HUMAN_APPROVAL_API_ONLY',
+  inputRequirements: 'Validated text, current acknowledgement, owned conversation, and a durable exact-operation human confirmation.',
   privacyRestrictions: 'No secrets. Parameters stay within the backend confirmation contract; never send them to a model automatically.',
   acknowledgementContext: context, allowedService: service, timeoutMs: TOOL_LIMITS.transactionTimeoutMs,
-  operationalLimits: { executions: 0, proposalsPerInvocation: 1, confirmationTtlMs: TOOL_LIMITS.confirmationTtlMs },
-  outputProjection: 'pending-tool-summary-v1' });
+  operationalLimits: { executions: 1, humanApprovalRequired: true, proposalsPerInvocation: 1, confirmationTtlMs: TOOL_LIMITS.confirmationTtlMs },
+  outputProjection: 'tool-approval-summary-v1' });
 
 export const TOOL_REGISTRY = freeze([
   action('analyze_email', 'Prepare a pasted-email analysis for employee review. Does not run analysis.',

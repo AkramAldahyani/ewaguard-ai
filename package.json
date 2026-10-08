@@ -18,7 +18,7 @@
     "test:portal": "node --test frontend/tests/portal.integration.mjs",
     "test:chat": "node --test frontend/tests/chat.test.mjs",
     "test:chat:api": "node --test backend/tests/openai-adapter.test.js backend/tests/chat-api.integration.test.js",
-    "test:tools": "node --test backend/tests/tool-registry.test.js backend/tests/tool-authorization.integration.test.js",
+    "test:tools": "node --test backend/tests/tool-registry.test.js backend/tests/tool-authorization.integration.test.js backend/tests/tool-approvals.test.js",
     "chat:purge": "node backend/scripts/purge-expired-chats.js",
     "openai:verify:model": "node backend/scripts/verify-openai-model.js",
     "openai:verify:live": "node backend/scripts/verify-openai-live.js",

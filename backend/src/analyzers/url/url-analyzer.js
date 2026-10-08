@@ -43,6 +43,10 @@ export function createUrlAnalyzer({ resolveTarget = resolvePublicTarget, tlsInsp
 
 export async function submitUrlAnalysis(database, { userId, acknowledgementId, input }, analyzer) {
   const result = await analyzer(input);
+  return persistUrlAnalysis(database, { userId, acknowledgementId, result });
+}
+
+export async function persistUrlAnalysis(database, { userId, acknowledgementId, result }) {
   const now = new Date();
   result.risk = evaluateRisk({ analyzerType: 'URL', evidence: result, evaluatedAt: now.toISOString() });
   const assistance = buildIncidentAssistance({ analyzerType: 'URL', riskResult: result.risk });

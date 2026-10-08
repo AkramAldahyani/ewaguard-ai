@@ -8,6 +8,12 @@ export const EMAIL_RETENTION_MS = 30 * 24 * 60 * 60_000;
 
 export async function submitEmailAnalysis(database, { userId, acknowledgementId, input }, analyzer = analyzeEmail) {
   const result = await analyzer(input);
+  return persistEmailAnalysis(database, { userId, acknowledgementId, result });
+}
+
+// Persistence is shared with approved execution so the result and consumption
+// receipt can commit together, without holding a transaction across analysis.
+export async function persistEmailAnalysis(database, { userId, acknowledgementId, result }) {
   const now = new Date();
   result.risk = evaluateRisk({ analyzerType: 'EMAIL', evidence: result, evaluatedAt: now.toISOString() });
   const assistance = buildIncidentAssistance({ analyzerType: 'EMAIL', riskResult: result.risk });

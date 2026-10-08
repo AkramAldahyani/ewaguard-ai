@@ -1,5 +1,13 @@
 # Phase 8B1 — Controlled tool registry and authorization foundation
 
+**Current implementation:** [Phase 8B2A durable approvals and controlled execution](tool-approvals.md)
+adds authenticated human approval endpoints and single-use email/URL execution.
+Phase 8B2B (Responses orchestration and multi-round usage accounting) remains
+unimplemented. The sections below retain the completed 8B1 design/history;
+the linked 8B2A contract supersedes its deferred-action statements. The legacy
+in-memory `prepareActionContract` remains a non-executable fixture; production
+approval endpoints use PostgreSQL `ToolApproval` records instead.
+
 This is an internal backend foundation. It introduces no HTTP execution endpoint,
 no model-call loop, no OpenAI tool registration, no chat upload, no analysis action,
 and no incident automation. The Phase 8A adapter still sends `tools: []` and
@@ -78,6 +86,9 @@ over this envelope. There is no route exposing this envelope in 8B1.
 
 Every operation checks valid unexpired auth, current database ACTIVE status,
 non-deactivation and EMPLOYEE role. A role claim in the envelope is ignored.
+Missing envelopes and malformed identity/expiry fields return the same safe 401.
+Session expiry is rechecked after transaction admission and before releasing a
+read result or pending contract, so waiting on the database cannot extend a session.
 Administrators are denied, including MFA administrators. It then verifies an owned,
 open, unexpired conversation. Analysis reads additionally constrain ID, owner,
 COMPLETED status and expiry in the database query. Foreign and missing resources
@@ -180,10 +191,19 @@ failure sanitization, concurrency, and no incident/usage/analysis creation.
 Synthetic PostgreSQL fixtures are cleaned by their own IDs. No real employee/company
 content or external provider call is used.
 
-Validation for this subphase: `npm test` passed 316 backend tests;
+The 2026-10-09 review reused the existing committed 8B1 foundation and tightened
+session-expiry handling. Added mocked checks for missing/malformed trusted sessions,
+expiry during transaction admission/reads/acknowledgement lookup, and inconsistent
+stored risk. Expanded database checks cover INVITED/deactivated accounts, role
+changes after authentication, closed/expired conversations, and wrong-context
+acknowledgements. No analyzer, chat adapter, dependency or migration was changed.
+
+Validation on 2026-10-09: `npm test` passed 321 backend tests;
 `node --test --test-concurrency=1 frontend/tests/*.mjs backend/tests/database.integration.js backend/tests/vector.integration.js`
 passed 107 checks, including existing HNSW and database invariants. The new tool
-suites contain 17 tests/subtests. Lint, frontend build, backend checks, Prisma
-validation and migration status passed; npm audit reported zero vulnerabilities.
+suites contain 22 tests/subtests, including five added by this review. `npm run lint`,
+`npm run build`, `npm run check:backend`, `npm run prisma:validate` and
+`npm run db:status` passed; all four migrations remain applied. `npm audit`
+reported zero vulnerabilities. `git diff --check` passed.
 The existing frontend large-bundle warning remains. No migration or model call was
 performed for this phase.

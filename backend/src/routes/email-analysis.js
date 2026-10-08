@@ -1,6 +1,6 @@
 import { Router, json } from 'express';
 import multer from 'multer';
-import { rateLimit } from 'express-rate-limit';
+import { createAnalysisGate, ANALYSIS_REQUEST_LIMITS } from '../analyzers/analysis-gate.js';
 import { createAuthenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/authorize.js';
 import { createTrustedOrigin } from '../middleware/trusted-origin.js';
@@ -10,29 +10,21 @@ import { EMAIL_LIMITS, EmailAnalysisError } from '../analyzers/email/email-polic
 import { submitEmailAnalysis } from '../analyzers/email/email-submission.js';
 
 export const EMAIL_ACKNOWLEDGEMENT_MAX_AGE_MS = 15 * 60_000;
-export const EMAIL_SUBMISSION_LIMIT = 30;
+export const EMAIL_SUBMISSION_LIMIT = ANALYSIS_REQUEST_LIMITS.EMAIL;
 const JSON_LIMIT = 6 * (EMAIL_LIMITS.bodyBytes + EMAIL_LIMITS.headerBytes) + 1024;
 const MIME_TYPES = new Set(['message/rfc822', 'application/octet-stream', 'text/plain']);
 
 const fail = (res, status, code, message) => res.status(status).json({ error: { code, message } });
 
-export function createEmailAnalysisRouter({ database, config, analyzer }) {
+export function createEmailAnalysisRouter({ database, config, analyzer, gate = createAnalysisGate('EMAIL') }) {
   const router = Router();
-  let active = 0;
-  const limiter = rateLimit({
-    windowMs: 60_000, limit: EMAIL_SUBMISSION_LIMIT,
-    keyGenerator: (req) => req.user.id,
-    standardHeaders: 'draft-7', legacyHeaders: false,
-    handler: (_req, res) => fail(res, 429, 'EMAIL_RATE_LIMITED', 'Too many email submissions. Please try again shortly.'),
-  });
   router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
-  router.use(createAuthenticate({ database, config }), requireRole('EMPLOYEE'), createTrustedOrigin(config.trustedOrigins), limiter);
+  router.use(createAuthenticate({ database, config }), requireRole('EMPLOYEE'), createTrustedOrigin(config.trustedOrigins), gate.limiter);
   // Bound concurrent buffered requests across both modes, including slow uploads.
   router.use((_req, res, next) => {
-    if (active >= 4) return fail(res, 503, 'EMAIL_BUSY', 'Email analysis is busy. Please try again shortly.');
-    active += 1;
-    let released = false;
-    const release = () => { if (!released) { released = true; active -= 1; } };
+    let release;
+    try { release = gate.acquire(); }
+    catch (error) { return fail(res, error.status, error.code, error.message); }
     res.once('finish', release);
     res.once('close', release);
     next();

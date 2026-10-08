@@ -1,3 +1,5 @@
+import { AnalysisGateError } from '../analyzers/analysis-gate.js';
+
 export function notFound(_req, res) {
   res.status(404).json({ error: { code: 'NOT_FOUND', message: 'API route not found.' } });
 }
@@ -5,6 +7,7 @@ export function notFound(_req, res) {
 // Express requires four parameters to identify error middleware.
 export function errorHandler(error, _req, res, next) {
   if (res.headersSent) return next(error);
+  if (error instanceof AnalysisGateError) return res.status(error.status).json({ error: { code: error.code, message: error.message } });
   const clientErrors = {
     'entity.parse.failed': [400, 'INVALID_JSON', 'Request body must contain valid JSON.'],
     'entity.too.large': [413, 'PAYLOAD_TOO_LARGE', 'Request body exceeds the size limit.'],

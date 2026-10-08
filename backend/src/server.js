@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { parseConfig } from './config/env.js';
 import { createFileTempStore } from './analyzers/file/file-temp.js';
 import { purgeExpiredChats } from './ai/chat-service.js';
+import { purgeExpiredApprovals } from './ai/tools/approval-service.js';
 
 try {
   const config = parseConfig();
@@ -13,6 +14,12 @@ try {
   void cleanupChats();
   const chatRetentionTimer = setInterval(cleanupChats, 60 * 60_000);
   chatRetentionTimer.unref();
+  const cleanupApprovals = () => purgeExpiredApprovals(app.locals.database).catch(() => {
+    console.error(JSON.stringify({ level: 'ERROR', event: 'approval_retention_failed' }));
+  });
+  void cleanupApprovals();
+  const approvalRetentionTimer = setInterval(cleanupApprovals, 60_000);
+  approvalRetentionTimer.unref();
   const server = app.listen(config.port, config.host, () => {
     console.info(JSON.stringify({ level: 'INFO', event: 'server_started', port: config.port }));
   });
@@ -25,6 +32,7 @@ try {
     if (stopping) return;
     stopping = true;
     clearInterval(chatRetentionTimer);
+    clearInterval(approvalRetentionTimer);
     console.info(JSON.stringify({ level: 'INFO', event: 'server_stopping' }));
     const deadline = setTimeout(() => process.exit(1), 10000);
     deadline.unref();

@@ -9,6 +9,8 @@ import { createEmailAnalysisRouter } from './routes/email-analysis.js';
 import { createUrlAnalysisRouter } from './routes/url-analysis.js';
 import { createFileAnalysisRouter } from './routes/file-analysis.js';
 import { createChatRouter } from './routes/chat.js';
+import { createToolApprovalRouter } from './routes/tool-approvals.js';
+import { createAnalysisGate } from './analyzers/analysis-gate.js';
 import { createThreatIntelligence } from './services/threat-intelligence.js';
 import { healthRouter } from './routes/health.js';
 import { createAuthenticate } from './middleware/authenticate.js';
@@ -19,16 +21,19 @@ export function createApp(config, dependencies = {}) {
   const app = express();
   const database = dependencies.database ?? createDatabaseClient();
   const threatIntelligence = createThreatIntelligence({ apiKey: config.virusTotalApiKey });
+  const gates = { EMAIL: createAnalysisGate('EMAIL'), URL: createAnalysisGate('URL') };
   app.locals.database = database;
   app.disable('x-powered-by');
   app.use(helmet());
   app.use(cors({ origin: config.trustedOrigins, credentials: true, methods: ['GET', 'POST', 'HEAD', 'OPTIONS'] }));
   app.use(cookieParser());
   // Email has its own bounded parser after authentication and acknowledgement.
-  app.use('/api/analysis/email', createEmailAnalysisRouter({ database, config, ...dependencies.emailAnalysis }));
-  app.use('/api/analysis/url', createUrlAnalysisRouter({ database, config, threatIntelligence, ...dependencies.urlAnalysis }));
+  app.use('/api/analysis/email', createEmailAnalysisRouter({ database, config, ...dependencies.emailAnalysis, gate: gates.EMAIL }));
+  app.use('/api/analysis/url', createUrlAnalysisRouter({ database, config, threatIntelligence, ...dependencies.urlAnalysis, gate: gates.URL }));
   app.use('/api/analysis/file', createFileAnalysisRouter({ database, config, threatIntelligence, ...dependencies.fileAnalysis }));
   app.use('/api/chat', createChatRouter({ database, config, ...dependencies.chat }));
+  app.use('/api/tool-approvals', createToolApprovalRouter({ database, config, gates, threatIntelligence,
+    emailAnalyzer: dependencies.emailAnalysis?.analyzer, urlAnalyzer: dependencies.urlAnalysis?.analyzer }));
   app.use(express.json({ limit: '32kb', strict: true }));
   app.use('/api/health', healthRouter);
   app.use('/api/auth', createAuthRouter({ database, config }));
