@@ -12,7 +12,8 @@ PostgreSQL/pgvector architecture, Phase 3A authentication, Phase 3B RBAC/MFA,
 the Phase 4A employee portal, Phase 4B chat interface, Phase 5A local password
 security, Phase 5B sensitive-information acknowledgement, Phase 6A email analysis,
 Phase 6B URL analysis, Phase 6C file analysis, Phase 7A central risk evaluation,
-Phase 7B incident assistance, and Phase 8A secure OpenAI/chat backend.**
+Phase 7B incident assistance, Phase 8A secure OpenAI/chat backend, and Phase 8B1
+controlled tool registry/authorization foundation.**
 Employees sign in using short-lived HTTP-only JWT cookies. Administrators must
 enroll and verify TOTP before receiving an authenticated session. See
 [RBAC and MFA operations](docs/rbac-mfa.md) for enrollment and key configuration.
@@ -152,3 +153,7 @@ Phase 18. Phase 0 architecture notes remain a historical foundation description.
 Secure employee chat APIs and conservative OpenAI spending controls are documented
 in [docs/openai-chat.md](docs/openai-chat.md). The assistant UI remains a preview
 until Phase 8C. Normal tests use mocked OpenAI responses and cost $0.
+
+Phase 8B1 adds an internal [controlled tool foundation](docs/controlled-tools.md).
+Read-only results are owner-checked; new-analysis confirmation is contract-only.
+Model tool calling and action execution remain disabled until Phase 8B2.
