@@ -1,3 +1,4 @@
+import { buildIncidentAssistance } from '../src/assistance/incident-assistance.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
@@ -135,6 +136,14 @@ test('Phase 6A2 HTTP and real PostgreSQL privacy boundaries', async (t) => {
     assert.equal((await text({ body }, cookie, { 'Content-Type': 'text/plain' })).status, 415);
     assert.equal(await database.emailAnalysis.count({ where: { userId: employee.id } }), 0);
   });
+  base = await start();
+  await t.test('assistance and exposure fields cannot be supplied by clients', async () => {
+    for (const key of ['assistance', 'evidenceContext', 'credentialsExposed', 'suspectedExecution']) {
+      const data = { body: 'Hello', [key]: true };
+      assert.equal((await text(data)).status, 400);
+    }
+  });
+  base = await start();
   await t.test('both modes persist only the existing minimized projection and return safe metadata', async () => {
     for (const [submit, inputType] of [[text, 'PASTED'], [upload, 'EML']]) {
       const response = await submit();
@@ -157,6 +166,9 @@ test('Phase 6A2 HTTP and real PostgreSQL privacy boundaries', async (t) => {
       assert.ok(row.analyzedAt);
       assert.equal(row.expiresAt - row.analyzedAt, 30 * 86400_000);
       assert.deepEqual(row.evidence, minimizeEmailEvidence(data.result));
+      assert.equal(row.evidence.assistance, undefined);
+      assert.deepEqual(data.result.assistance, buildIncidentAssistance({ analyzerType: 'EMAIL', riskResult: row.evidence.risk }));
+      assert.equal(await database.incident.count({ where: { reporterId: employee.id } }), 0);
       for (const key of ['senderDomain', 'replyToDomain']) assert.equal(row[key], null);
       const ack = await database.disclaimerAcknowledgement.findUniqueOrThrow({ where: { id: row.acknowledgementId } });
       assert.equal(ack.context, 'EMAIL_ANALYSIS');

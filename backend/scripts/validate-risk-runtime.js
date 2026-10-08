@@ -6,12 +6,14 @@ import { createDatabaseClient } from '../src/config/database.js';
 import { parseConfig, databaseUrl } from '../src/config/env.js';
 import { hashPassword } from '../src/auth/auth-service.js';
 import { evaluateRisk } from '../src/risk/risk-engine.js';
+import { buildIncidentAssistance } from '../src/assistance/incident-assistance.js';
 
 const config = parseConfig(); const target = new URL(databaseUrl());
 assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(target.hostname));
 assert.equal(target.pathname, '/ewaguard_ai'); assert.equal(config.nodeEnv, 'development');
 const database = createDatabaseClient(); let employee;
 try {
+  const incidentsBefore = await database.incident.count();
   const password = `Smoke-${randomUUID()}!`;
   const role = await database.role.findUniqueOrThrow({ where: { name: 'EMPLOYEE' } });
   employee = await database.user.create({ data: { email: `${randomUUID()}@example.invalid`, firstName: 'Risk', lastName: 'Smoke',
@@ -37,7 +39,11 @@ try {
     assert.equal(row.evidence.risk.evaluatedAt, r.evaluatedAt);
     const codes = row.evidence.risk.reasonCodes ?? row.evidence.risk.reasons.map(({ code }) => code);
     assert.deepEqual(codes, r.reasons.map(({ code }) => code));
+    assert.equal(row.evidence.assistance, undefined);
+    assert.deepEqual(result.assistance, buildIncidentAssistance({ analyzerType: type, riskResult: row.evidence.risk, version: '1.0' }));
+    assert.equal(await database.incident.count({ where: { reporterId: employee.id } }), 0);
     summaries.push({ type, finding: result.provisionalClassification, score: r.score, riskLevel: r.riskLevel, confidence: r.confidence,
+      urgency: result.assistance.urgency, escalation: result.assistance.escalationRecommendation.level,
       ...(type === 'FILE' ? { clamav: result.clamav.status, yara: result.yara.status, provider: result.threatIntelligence.status } : {}),
       ...(type === 'URL' ? { dns: result.dnsEvidence.status, tls: result.tlsEvidence.status, providers: result.threatIntelligence.map(({ status }) => status) } : {}) });
   }
@@ -48,7 +54,8 @@ try {
   await analyze('FILE', '/api/analysis/file', form);
   assert.equal((await post('/api/auth/logout', {})).status, 204); cookie = null;
   assert.equal((await post('/api/analysis/email/text', { body: 'Hello' })).status, 401);
-  console.info(JSON.stringify({ employeeLogin: 'PASS', results: summaries, persistedRisk: 'PASS', logout: 'PASS' }));
+  assert.equal(await database.incident.count(), incidentsBefore);
+  console.info(JSON.stringify({ employeeLogin: 'PASS', results: summaries, persistedRisk: 'PASS', derivedAssistance: 'PASS', noIncidentCreated: 'PASS', logout: 'PASS' }));
 } finally {
   if (employee) {
     for (const model of [database.emailAnalysis, database.urlAnalysis, database.fileAnalysis]) await model.deleteMany({ where: { userId: employee.id } });

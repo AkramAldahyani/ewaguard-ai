@@ -1,3 +1,4 @@
+import { buildIncidentAssistance } from '../../assistance/incident-assistance.js';
 import { createHash } from 'node:crypto';
 import { normalizeUrl } from './url-normalization.js';
 import { localUrlIndicators, classifyUrl } from './url-local.js';
@@ -44,6 +45,7 @@ export async function submitUrlAnalysis(database, { userId, acknowledgementId, i
   const result = await analyzer(input);
   const now = new Date();
   result.risk = evaluateRisk({ analyzerType: 'URL', evidence: result, evaluatedAt: now.toISOString() });
+  const assistance = buildIncidentAssistance({ analyzerType: 'URL', riskResult: result.risk });
   // Hash the minimized representation, never a raw token-bearing URL.
   const stored = await database.urlAnalysis.create({ data: {
     userId, acknowledgementId, status: 'COMPLETED', hostname: result.normalizedUrl.hostname,
@@ -51,5 +53,5 @@ export async function submitUrlAnalysis(database, { userId, acknowledgementId, i
     evidence: result, analyzedAt: now, expiresAt: new Date(now.getTime() + 30 * 86400_000),
     ...riskColumns(result.risk),
   }, select: { id: true, createdAt: true } });
-  return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result };
+  return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result: { ...result, assistance } };
 }

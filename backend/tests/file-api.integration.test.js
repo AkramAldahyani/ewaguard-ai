@@ -1,3 +1,4 @@
+import { buildIncidentAssistance } from '../src/assistance/incident-assistance.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { randomUUID, createHash } from 'node:crypto';
@@ -94,6 +95,13 @@ test('Phase 6C authenticated multipart API and minimized PostgreSQL persistence'
     }
   });
   await start();
+  await t.test('assistance and exposure fields cannot be supplied by clients', async () => {
+    for (const key of ['assistance', 'evidenceContext', 'credentialsExposed', 'suspectedExecution']) {
+      const data = form(); data.append(key, 'true');
+      assert.equal((await submit(data)).status, 400);
+    }
+  });
+  await start();
   await t.test('empty, oversized, unsupported file and wrong content type rejected', async () => {
     assert.equal((await submit(form(''))).status, 400);
     assert.equal((await submit(form(Buffer.alloc(FILE_MAX_BYTES + 1)))).status, 413);
@@ -109,7 +117,11 @@ test('Phase 6C authenticated multipart API and minimized PostgreSQL persistence'
     assert.equal(row.userId, employee.id); assert.equal(row.sha256, createHash('sha256').update(content).digest('hex')); assert.equal(row.sizeBytes, BigInt(Buffer.byteLength(content)));
     assert.equal(row.clamavStatus, 'NO_KNOWN_DETECTION'); assert.equal(row.yaraStatus, 'NO_KNOWN_DETECTION'); assert.equal(row.storageKey, null);
     assert.equal(row.riskScore, data.result.risk.score); assert.equal(row.riskRuleVersion, data.result.risk.version); assert.equal(row.severity, data.result.risk.riskLevel); assert.ok(row.deletedAt); assert.equal(row.expiresAt - row.analyzedAt, 30 * 86400_000);
-    assert.deepEqual(row.evidence, data.result);
+    const { assistance, ...analyzerResult } = data.result;
+    assert.deepEqual(row.evidence, analyzerResult);
+    assert.equal(row.evidence.assistance, undefined);
+    assert.deepEqual(assistance, buildIncidentAssistance({ analyzerType: 'FILE', riskResult: row.evidence.risk }));
+    assert.equal(await database.incident.count({ where: { reporterId: employee.id } }), 0);
     const serialized = JSON.stringify({ ...row, sizeBytes: Number(row.sizeBytes) });
     assert.doesNotMatch(serialized, /FILE_CONTENT_SENTINEL|SECRET_FILENAME|RAW_PROVIDER_SENTINEL|FILE_API_KEY_SENTINEL|stdout|stderr/);
     assert.deepEqual(await fs.readdir(root), []);

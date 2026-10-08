@@ -223,4 +223,5 @@ This initial policy is an explainable prototype rubric, not empirically validate
 malware probability. Analyzer coverage, rule quality, forged email headers,
 provider errors, stale reports and false positives remain limitations. No model
 can infer compromise or malicious execution from evidence these analyzers do not
-collect. Incident decisions and AI explanations remain future phases.
+collect. Phase 7B derives [Incident Assistance](incident-assistance.md) from this result.
+Actual incident handling and AI explanations remain future phases.

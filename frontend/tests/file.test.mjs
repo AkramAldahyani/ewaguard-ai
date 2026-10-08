@@ -1,3 +1,4 @@
+import { buildIncidentAssistance } from '../../backend/src/assistance/incident-assistance.js';
 import { evaluateRisk } from '../../backend/src/risk/risk-engine.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -21,6 +22,7 @@ test('employee file analyzer UI, safe presentation and interaction lifecycle', a
   });
   const analysis = { analysisId: 'fixture-id', createdAt: new Date().toISOString(), result: await analyzer({ originalname: 'private.txt', mimetype: 'text/plain', buffer: Buffer.from('PRIVATE_FILE_CONTENT') }) };
   analysis.result.risk = evaluateRisk({ analyzerType: 'FILE', evidence: analysis.result, evaluatedAt: analysis.createdAt });
+  analysis.result.assistance = buildIncidentAssistance({ analyzerType: 'FILE', riskResult: analysis.result.risk });
   const file = new File(['harmless text'], 'fixture.txt', { type: 'text/plain' });
   const ready = (submit = async () => analysis) => { const flow = createFileFlow(submit); flow.acknowledge(); flow.selectFiles([file]); return flow; };
 
@@ -52,6 +54,12 @@ test('employee file analyzer UI, safe presentation and interaction lifecycle', a
       return { ok: true, status: 201, json: async () => analysis };
     });
     await analyzeFile(file);
+  });
+  await t.test('incident assistance renders urgency, escalation and safe next steps', () => {
+    const html = render(FileResults, { analysis });
+    for (const title of ['What should I do now?', 'Immediate actions', 'Actions to avoid', 'Escalation recommendation', analysis.result.assistance.urgency, analysis.result.assistance.escalationRecommendation.level]) assert.ok(html.includes(title));
+    assert.match(html, /has not created an incident/);
+    assert.doesNotMatch(html, /<button[^>]*>Create Incident|href="[^"]*create-incident/);
   });
   await t.test('all nine result sections show partial coverage and hash-only privacy', () => {
     const html = render(FileResults, { analysis });

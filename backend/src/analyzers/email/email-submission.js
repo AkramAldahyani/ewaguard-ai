@@ -1,3 +1,4 @@
+import { buildIncidentAssistance } from '../../assistance/incident-assistance.js';
 import { analyzeEmail } from './email-analyzer.js';
 import { minimizeEmailEvidence } from './email-privacy.js';
 import { evaluateRisk } from '../../risk/risk-engine.js';
@@ -9,6 +10,7 @@ export async function submitEmailAnalysis(database, { userId, acknowledgementId,
   const result = await analyzer(input);
   const now = new Date();
   result.risk = evaluateRisk({ analyzerType: 'EMAIL', evidence: result, evaluatedAt: now.toISOString() });
+  const assistance = buildIncidentAssistance({ analyzerType: 'EMAIL', riskResult: result.risk });
   // One atomic insert: never store pending records or display metadata.
   const stored = await database.emailAnalysis.create({
     data: {
@@ -19,5 +21,5 @@ export async function submitEmailAnalysis(database, { userId, acknowledgementId,
     },
     select: { id: true, createdAt: true },
   });
-  return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result };
+  return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result: { ...result, assistance } };
 }

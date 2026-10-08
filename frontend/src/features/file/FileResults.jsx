@@ -1,3 +1,4 @@
+import { IncidentAssistance } from '../../components/IncidentAssistance.jsx';
 import { RiskResult } from '../../components/RiskResult.jsx';
 import { Badge, Card } from '../../components/ui/index.jsx';
 import { FILE_PRIVACY_NOTICE } from '../../../../shared/file-policy.js';
@@ -14,6 +15,7 @@ export function FileResults({ analysis }) {
   const p = r.threatIntelligence;
   return <div className="space-y-5 text-sm leading-6">
     <RiskResult risk={analysis.result.risk} />
+    <IncidentAssistance assistance={analysis.result.assistance} />
     <Section title="Analysis Summary: Analyzer Finding"><Badge tone={tone}>{label}</Badge><p className="mt-3">{r.provisionalClassification === 'NO_STRONG_INDICATORS' ? 'No strong malicious indicators were detected by the available checks. This does not guarantee safety.' : 'Security indicators were detected. Do not open or execute this file; review the evidence with IT/security.'}</p>
       <p className="mt-3 font-semibold">{r.coverage === 'PARTIAL_EVIDENCE' ? 'Partial evidence: one or more local scans did not complete. Review scanner availability below.' : 'Local scanner checks completed. Review hash reputation availability separately.'}</p>
       <p className="mt-3 text-slate-600">This is a provisional analyzer finding. The EWAGuard Risk Level above evaluates the structured evidence using the central risk model.</p><p className="mt-3 break-all text-xs text-slate-500">Analysis {analysis.analysisId} · {new Date(analysis.createdAt).toLocaleString()}</p></Section>

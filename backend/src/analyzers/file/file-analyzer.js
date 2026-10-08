@@ -1,3 +1,4 @@
+import { buildIncidentAssistance } from '../../assistance/incident-assistance.js';
 import { inspectFile } from './file-inspection.js';
 import { createFileTempStore } from './file-temp.js';
 import { createFileScanners } from './file-scanners.js';
@@ -75,11 +76,12 @@ export async function submitFileAnalysis(database, { userId, acknowledgementId, 
   const result = await analyzer(upload);
   const now = new Date();
   result.risk = evaluateRisk({ analyzerType: 'FILE', evidence: result, evaluatedAt: now.toISOString() });
+  const assistance = buildIncidentAssistance({ analyzerType: 'FILE', riskResult: result.risk });
   const stored = await database.fileAnalysis.create({ data: {
     userId, acknowledgementId, status: 'COMPLETED', sha256: result.file.sha256, sizeBytes: BigInt(result.file.size),
     extension: result.file.extension, detectedMime: result.file.mimeType, clamavStatus: scannerStatus(result.clamav.status), yaraStatus: scannerStatus(result.yara.status),
     evidence: result, analyzedAt: now, deletedAt: now, expiresAt: new Date(now.getTime() + 30 * 86400_000),
     ...riskColumns(result.risk),
   }, select: { id: true, createdAt: true } });
-  return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result };
+  return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result: { ...result, assistance } };
 }

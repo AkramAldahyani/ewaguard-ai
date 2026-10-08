@@ -1,3 +1,4 @@
+import { IncidentAssistance } from '../../components/IncidentAssistance.jsx';
 import { RiskResult } from '../../components/RiskResult.jsx';
 import { Badge, Card } from '../../components/ui/index.jsx';
 const readable = (value) => String(value ?? 'Unavailable').replaceAll('_', ' ');
@@ -14,6 +15,7 @@ export function UrlResults({ analysis }) {
   const [label, tone] = labels[r.provisionalClassification] ?? ['Unavailable', 'neutral'];
   return <div className="space-y-5 text-sm leading-6">
     <RiskResult risk={analysis.result.risk} />
+    <IncidentAssistance assistance={analysis.result.assistance} />
     <Section title="Analysis Summary: Analyzer Finding"><Badge tone={tone}>{label}</Badge><p className="mt-3">Local analysis completed. Review provider availability and all evidence below. No strong indicators does not guarantee safety.</p><p className="mt-3 text-slate-600">This is a provisional URL-analyzer finding. The EWAGuard Risk Level above evaluates the structured evidence using the central risk model.</p><p className="mt-3 break-all text-xs text-slate-500">Analysis {analysis.analysisId} · {new Date(analysis.createdAt).toLocaleString()}</p></Section>
     <Section title="URL Structure"><p className="mb-4 break-all rounded-xl bg-slate-50 p-4 font-mono">{n.redactedUrl}</p><Metadata values={[
       ['Protocol', n.protocol.toUpperCase()], ['Hostname', n.hostname], ['Approximate domain', n.domainApproximation], ['Port', n.port],

@@ -11,7 +11,7 @@ incident triage, and security awareness.
 PostgreSQL/pgvector architecture, Phase 3A authentication, Phase 3B RBAC/MFA,
 the Phase 4A employee portal, Phase 4B chat interface, Phase 5A local password
 security, Phase 5B sensitive-information acknowledgement, Phase 6A email analysis,
-Phase 6B URL analysis, Phase 6C file analysis, and Phase 7A central risk evaluation.**
+Phase 6B URL analysis, Phase 6C file analysis, Phase 7A central risk evaluation, and Phase 7B incident assistance.**
 Employees sign in using short-lived HTTP-only JWT cookies. Administrators must
 enroll and verify TOTP before receiving an authenticated session. See
 [RBAC and MFA operations](docs/rbac-mfa.md) for enrollment and key configuration.
@@ -36,6 +36,9 @@ SHA-256 lookup only. See [file analyzer architecture and privacy](docs/file-anal
 Phase 7A computes deterministic final risk for all three analyzers, with separate
 confidence, coverage, reasons and recommendations. See [Central Risk Engine](docs/risk-engine.md).
 Run `npm run test:risk` for its policy and UI matrix. No incident creation is enabled.
+Phase 7B adds deterministic employee next-step guidance derived from completed risk
+results. See [Incident Assistance](docs/incident-assistance.md) and run
+`npm run test:assistance`. No incident is created or administrator contacted.
 
 See [database architecture and setup](docs/database.md) for the 32 tables,
 relationships, privacy boundaries, validation commands and pgvector prerequisite.

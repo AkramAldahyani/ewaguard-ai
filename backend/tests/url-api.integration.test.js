@@ -1,3 +1,4 @@
+import { buildIncidentAssistance } from '../src/assistance/incident-assistance.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
@@ -80,13 +81,25 @@ test('Phase 6B authenticated HTTP and PostgreSQL integration', async (t) => {
     }
   });
   await start();
+  await t.test('assistance and exposure fields cannot be supplied by clients', async () => {
+    for (const key of ['assistance', 'evidenceContext', 'credentialsExposed', 'suspectedExecution']) {
+      const data = { url: 'https://example.com', [key]: true };
+      assert.equal((await submit(data)).status, 400);
+    }
+  });
+  await start();
   await t.test('benign analysis persisted to session owner with normalized provider evidence', async () => {
     const response = await submit(); assert.equal(response.status, 201); assert.equal(response.headers.get('cache-control'), 'no-store');
     const data = await response.json();
     assert.equal(data.result.threatIntelligence[0].status, 'AVAILABLE');
     const row = await database.urlAnalysis.findUniqueOrThrow({ where: { id: data.analysisId } });
     assert.equal(row.userId, employee.id); assert.equal(row.status, 'COMPLETED'); assert.equal(row.severity, data.result.risk.riskLevel); assert.equal(row.riskScore, data.result.risk.score); assert.equal(row.riskRuleVersion, data.result.risk.version);
-    assert.deepEqual(row.evidence, data.result); assert.equal(row.expiresAt - row.analyzedAt, 30 * 86400_000);
+    const { assistance, ...analyzerResult } = data.result;
+    assert.deepEqual(row.evidence, analyzerResult);
+    assert.equal(row.evidence.assistance, undefined);
+    assert.deepEqual(assistance, buildIncidentAssistance({ analyzerType: 'URL', riskResult: row.evidence.risk }));
+    assert.equal(await database.incident.count({ where: { reporterId: employee.id } }), 0);
+    assert.equal(row.expiresAt - row.analyzedAt, 30 * 86400_000);
     assert.doesNotMatch(JSON.stringify(row), /KEY_SENTINEL_6B|RAW_PROVIDER_SENTINEL_6B|last_analysis_stats/);
   });
   await t.test('path, unknown query names, query values, fragments not persisted or returned', async () => {

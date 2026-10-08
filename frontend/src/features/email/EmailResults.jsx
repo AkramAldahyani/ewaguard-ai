@@ -1,3 +1,4 @@
+import { IncidentAssistance } from '../../components/IncidentAssistance.jsx';
 import { RiskResult } from '../../components/RiskResult.jsx';
 import { Badge, Card } from '../../components/ui/index.jsx';
 import { formatBytes } from './email-state.js';
@@ -21,6 +22,7 @@ export function EmailResults({ analysis }) {
   const mismatch = result.indicators.some(({ id }) => ['REPLY_DOMAIN_MISMATCH', 'REPLY_ADDRESS_MISMATCH'].includes(id));
   return <div className="space-y-5 text-sm leading-6">
     <RiskResult risk={analysis.result.risk} />
+    <IncidentAssistance assistance={analysis.result.assistance} />
     <Card className="p-5 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="text-lg font-bold text-slate-950">Analysis Summary: Analyzer Finding</h3><Badge tone={tone}>{label}</Badge></div><p className="mt-4 text-slate-700">{description}</p><p className="mt-3 rounded-xl bg-slate-50 p-3 text-slate-600">This is an email-analyzer finding. The EWAGuard Risk Level above evaluates the structured evidence using the central risk model.</p><p className="mt-3 break-all text-xs text-slate-500">Analysis {analysis.analysisId} · {new Date(analysis.createdAt).toLocaleString()}</p>{result.subject && <p className="mt-3 break-words [overflow-wrap:anywhere]"><strong>Subject: </strong>{result.subject}</p>}</Card>
     <div className="grid gap-5 md:grid-cols-2">
       <Section title="Sender Information"><Metadata values={[["Display name", result.sender.displayName], ['Sender address', result.sender.address], ['Sender domain', result.sender.domain]]} /></Section>

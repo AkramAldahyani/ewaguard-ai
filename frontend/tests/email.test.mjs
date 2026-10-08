@@ -1,3 +1,4 @@
+import { buildIncidentAssistance } from '../../backend/src/assistance/incident-assistance.js';
 import { evaluateRisk } from '../../backend/src/risk/risk-engine.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -20,6 +21,7 @@ test('employee email UI, state transitions and API contract', async (t) => {
   const result = await analyzeEmail({ inputType: 'EML', eml: Buffer.from(eml) });
   const analysis = { analysisId: 'test-analysis', createdAt: '2026-10-06T12:00:00Z', result };
   analysis.result.risk = evaluateRisk({ analyzerType: 'EMAIL', evidence: analysis.result, evaluatedAt: analysis.createdAt });
+  analysis.result.assistance = buildIncidentAssistance({ analyzerType: 'EMAIL', riskResult: analysis.result.risk });
   const valid = { mode: 'paste', body: 'A synthetic message', headers: '', file: null };
   const api = { analyzePastedEmail: async () => analysis, analyzeEml: async () => analysis };
   const ready = (client = api) => { const flow = createEmailFlow(client); flow.acknowledge(); flow.edit('body', valid.body); return flow; };
@@ -113,6 +115,12 @@ test('employee email UI, state transitions and API contract', async (t) => {
     assert.equal(flow.getSnapshot().body, valid.body);
     finish(analysis); await pending;
     assert.equal(flow.getSnapshot().status, 'success');
+  });
+  await t.test('incident assistance renders urgency, escalation and safe next steps', () => {
+    const html = render(EmailResults, { analysis });
+    for (const title of ['What should I do now?', 'Immediate actions', 'Actions to avoid', 'Escalation recommendation', analysis.result.assistance.urgency, analysis.result.assistance.escalationRecommendation.level]) assert.ok(html.includes(title));
+    assert.match(html, /has not created an incident/);
+    assert.doesNotMatch(html, /<button[^>]*>Create Incident|href="[^"]*create-incident/);
   });
   await t.test('structured result renders all sections from real analyzer output', () => {
     const html = render(EmailResults, { analysis });
