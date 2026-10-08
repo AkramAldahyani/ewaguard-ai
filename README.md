@@ -11,7 +11,8 @@ incident triage, and security awareness.
 PostgreSQL/pgvector architecture, Phase 3A authentication, Phase 3B RBAC/MFA,
 the Phase 4A employee portal, Phase 4B chat interface, Phase 5A local password
 security, Phase 5B sensitive-information acknowledgement, Phase 6A email analysis,
-Phase 6B URL analysis, Phase 6C file analysis, Phase 7A central risk evaluation, and Phase 7B incident assistance.**
+Phase 6B URL analysis, Phase 6C file analysis, Phase 7A central risk evaluation,
+Phase 7B incident assistance, and Phase 8A secure OpenAI/chat backend.**
 Employees sign in using short-lived HTTP-only JWT cookies. Administrators must
 enroll and verify TOTP before receiving an authenticated session. See
 [RBAC and MFA operations](docs/rbac-mfa.md) for enrollment and key configuration.
@@ -145,3 +146,9 @@ See [the foundation architecture](docs/architecture.md). Follow [AGENTS.md](AGEN
 for phase scope, security, privacy, and development requirements. Database design
 is described in [Phase 2 documentation](docs/database.md); deployment belongs to
 Phase 18. Phase 0 architecture notes remain a historical foundation description.
+
+## Phase 8A backend
+
+Secure employee chat APIs and conservative OpenAI spending controls are documented
+in [docs/openai-chat.md](docs/openai-chat.md). The assistant UI remains a preview
+until Phase 8C. Normal tests use mocked OpenAI responses and cost $0.

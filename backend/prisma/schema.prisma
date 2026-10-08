@@ -247,6 +247,7 @@ model User {
   role                   Role                        @relation("User_role", fields: [roleId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   department             Department?                 @relation("User_department", fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   chatSessions           ChatSession[]               @relation("ChatSession_owner")
+  aiUsage                AiUsage[]
   acknowledgements       DisclaimerAcknowledgement[] @relation("DisclaimerAcknowledgement_user")
   emailAnalysisRecords   EmailAnalysis[]             @relation("EmailAnalysis_user")
   urlAnalysisRecords     UrlAnalysis[]               @relation("UrlAnalysis_user")
@@ -288,6 +289,7 @@ model ChatSession {
   ownerId   String        @db.Uuid
   owner     User          @relation("ChatSession_owner", fields: [ownerId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   messages  ChatMessage[] @relation("ChatMessage_session")
+  aiUsage   AiUsage[]
 
   @@index([expiresAt])
   @@index([ownerId])
@@ -309,6 +311,43 @@ model ChatMessage {
   @@index([expiresAt])
   @@index([sessionId])
   @@map("chat_messages")
+}
+
+enum AiUsageStatus {
+  RESERVED
+  COMPLETED
+  FAILED
+  UNKNOWN
+}
+
+// No content, credentials, or provider payloads. Survives history/user deletion.
+model AiUsage {
+  id                   String        @id @default(uuid()) @db.Uuid
+  userId               String?       @db.Uuid
+  sessionId            String?       @db.Uuid
+  requestId            String        @db.Uuid
+  status               AiUsageStatus @default(RESERVED)
+  model                String        @db.VarChar(100)
+  pricingVersion       String        @db.VarChar(80)
+  instructionVersion   String        @db.VarChar(80)
+  privacyNoticeVersion String        @db.VarChar(80)
+  inputTokens          Int?
+  outputTokens         Int?
+  reservedMicros       Int
+  chargedMicros        Int
+  inputTokenBound      Int
+  outputTokenBound     Int
+  userSequence         Int?
+  createdAt            DateTime      @default(now()) @db.Timestamptz(3)
+  updatedAt            DateTime      @updatedAt @db.Timestamptz(3)
+  user                 User?         @relation(fields: [userId], references: [id], onDelete: SetNull)
+  session              ChatSession?  @relation(fields: [sessionId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, requestId])
+  @@index([userId, createdAt])
+  @@index([status, createdAt])
+  @@index([sessionId])
+  @@map("ai_usage")
 }
 
 model DisclaimerAcknowledgement {

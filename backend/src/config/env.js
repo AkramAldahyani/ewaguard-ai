@@ -61,6 +61,8 @@ export function parseConfig(env = process.env) {
     trustedOrigins: Object.freeze(trustedOrigins),
     accessTokenTtlSeconds, loginRateLimitWindowMinutes, loginRateLimitMax,
     mfaEncryptionKey, mfaIssuer, mfaChallengeTtlSeconds,
+    openaiApiKey: env.OPENAI_API_KEY?.trim() || null,
+    openaiModel: env.OPENAI_MODEL?.trim() || 'gpt-6-luna',
     virusTotalApiKey: env.VIRUSTOTAL_API_KEY?.trim() || null,
     clamavPath: env.CLAMAV_PATH?.trim() || null,
     yaraPath: env.YARA_PATH?.trim() || null,

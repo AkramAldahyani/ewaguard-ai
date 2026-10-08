@@ -1,5 +1,9 @@
 # Phase 4B — AI chat interface
 
+Phase 8A update: the secure backend now exists; see [OpenAI/chat backend](openai-chat.md).
+This document describes the preserved preview UI. Connecting it is deferred to
+Phase 8C as explicitly scoped; the preview does not make paid calls.
+
 The employee-only `/assistant` route uses the existing AuthProvider, route guards
 and application shell. No backend, schema, dependencies or authentication changes
 were required. Administrators retain their separate workspace.

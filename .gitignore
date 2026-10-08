@@ -53,3 +53,4 @@ secrets/
 # Tool caches / future generated Prisma client
 .cache/
 backend/src/generated/
+.runtime/
