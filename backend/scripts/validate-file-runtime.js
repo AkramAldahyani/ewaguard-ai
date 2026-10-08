@@ -31,7 +31,7 @@ try {
   assert.equal(r.clamav.status, 'CLEAN'); assert.equal(r.yara.status, 'NO_MATCH');
   assert.ok(config.virusTotalApiKey ? ['AVAILABLE', 'NO_REPORT'].includes(r.threatIntelligence.status) : r.threatIntelligence.status === 'NOT_CONFIGURED');
   const row = await database.fileAnalysis.findUniqueOrThrow({ where: { id: analysis.analysisId } });
-  assert.equal(row.userId, employee.id); assert.equal(row.storageKey, null); assert.ok(row.deletedAt); assert.equal(row.riskScore, null);
+  assert.equal(row.userId, employee.id); assert.equal(row.storageKey, null); assert.ok(row.deletedAt); assert.equal(row.riskScore, r.risk.score); assert.equal(row.severity, r.risk.riskLevel);
   const serialized = JSON.stringify({ ...row, sizeBytes: Number(row.sizeBytes) });
   assert.ok(!serialized.includes(bytes)); assert.ok(!serialized.includes('PRIVATE_SMOKE_NAME'));
   assert.ok(!config.virusTotalApiKey || !serialized.includes(config.virusTotalApiKey));

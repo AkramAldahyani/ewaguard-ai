@@ -1,5 +1,11 @@
 # Phase 6A1 — Email parsing and evidence
 
+> Phase 7A integration: completed submissions now include server-computed
+> `result.risk` and persist score, severity, model version and confidence/reasons.
+> Analyzer-local findings below remain unchanged. See [Central Risk Engine](risk-engine.md).
+> References to excluded final risk describe the original Phase 6 scope.
+
+
 Phase 6A1 implements the internal parsing/evidence library. Phase 6A2 adds
 authenticated submission APIs and minimized persistence. Phase 6A3 connects the
 employee portal at `/analyze/email`. No history endpoint, AI, malware scanner,
@@ -136,7 +142,7 @@ acknowledgement, COMPLETED status, timestamps, and `minimizeEmailEvidence(result
 in `evidence`. That projection includes analyzer/version, PASTED/EML input mode,
 provisional classification, indicator IDs, unverified authentication states,
 counts and attachment categories/sizes for future deterministic risk evaluation.
-Sender/reply-to domains and final risk fields remain null. Display results are
+Sender/reply-to domains remain null. Phase 7A fills final risk fields and adds a minimized risk snapshot to evidence. Display results are
 returned only in the response; they are not stored.
 
 No raw body, headers, EML, HTML, attachment bytes, subject, address, URL, attachment

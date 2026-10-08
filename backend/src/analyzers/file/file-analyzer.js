@@ -3,6 +3,8 @@ import { createFileTempStore } from './file-temp.js';
 import { createFileScanners } from './file-scanners.js';
 import { createThreatIntelligence } from '../../services/threat-intelligence.js';
 import { FILE_PRIVACY_NOTICE } from '../../../../shared/file-policy.js';
+import { evaluateRisk } from '../../risk/risk-engine.js';
+import { riskColumns } from '../../risk/risk-persistence.js';
 
 export function fileIndicators({ file, validation }, clamav, yara, provider) {
   const values = [];
@@ -72,10 +74,12 @@ const scannerStatus = (status) => ({ CLEAN: 'NO_KNOWN_DETECTION', NO_MATCH: 'NO_
 export async function submitFileAnalysis(database, { userId, acknowledgementId, upload }, analyzer) {
   const result = await analyzer(upload);
   const now = new Date();
+  result.risk = evaluateRisk({ analyzerType: 'FILE', evidence: result, evaluatedAt: now.toISOString() });
   const stored = await database.fileAnalysis.create({ data: {
     userId, acknowledgementId, status: 'COMPLETED', sha256: result.file.sha256, sizeBytes: BigInt(result.file.size),
     extension: result.file.extension, detectedMime: result.file.mimeType, clamavStatus: scannerStatus(result.clamav.status), yaraStatus: scannerStatus(result.yara.status),
     evidence: result, analyzedAt: now, deletedAt: now, expiresAt: new Date(now.getTime() + 30 * 86400_000),
+    ...riskColumns(result.risk),
   }, select: { id: true, createdAt: true } });
   return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result };
 }

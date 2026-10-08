@@ -1,5 +1,11 @@
 # Phase 6C — File Analyzer
 
+> Phase 7A integration: completed submissions now include server-computed
+> `result.risk` and persist score, severity, model version and confidence/reasons.
+> Analyzer-local findings below remain unchanged. See [Central Risk Engine](risk-engine.md).
+> References to excluded final risk describe the original Phase 6 scope.
+
+
 `/analyze/file` is operational for authenticated employees. This phase adds secure
 file intake, validation, hashing, local scanners, hash reputation, minimized storage,
 and evidence presentation. It does not add the Phase 7A central risk engine, final
@@ -201,7 +207,7 @@ output and secrets are not stored. No content-extraction pipeline is introduced.
 
 Existing ScanStatus enums map CLEAN/NO_MATCH to NO_KNOWN_DETECTION, MATCH/DETECTED
 to DETECTED, TIMEOUT/ERROR to ERROR, and unavailable to UNAVAILABLE. Detailed states
-remain in result JSON. `riskScore`, `severity`, and `riskRuleVersion` stay null.
+remain in result JSON. Phase 7A fills `riskScore`, `severity`, and `riskRuleVersion`; `evidence.risk` includes confidence and reasons.
 An expiresAt value marks 30-day evidence retention; an automated evidence-deletion
 worker is not part of this phase. The pgvector schema and HNSW index are unchanged.
 

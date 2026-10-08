@@ -73,12 +73,19 @@ test('Phase 6B authenticated HTTP and PostgreSQL integration', async (t) => {
     assert.equal(networkCalls, 0);
   });
   await start();
+  await t.test('client-supplied risk fields are rejected before analysis', async () => {
+    for (const key of ['riskLevel', 'score', 'confidence']) {
+      const data = { url: 'https://example.com', [key]: 'LOW' };
+      assert.equal((await submit(data)).status, 400);
+    }
+  });
+  await start();
   await t.test('benign analysis persisted to session owner with normalized provider evidence', async () => {
     const response = await submit(); assert.equal(response.status, 201); assert.equal(response.headers.get('cache-control'), 'no-store');
     const data = await response.json();
     assert.equal(data.result.threatIntelligence[0].status, 'AVAILABLE');
     const row = await database.urlAnalysis.findUniqueOrThrow({ where: { id: data.analysisId } });
-    assert.equal(row.userId, employee.id); assert.equal(row.status, 'COMPLETED'); assert.equal(row.severity, null); assert.equal(row.riskScore, null);
+    assert.equal(row.userId, employee.id); assert.equal(row.status, 'COMPLETED'); assert.equal(row.severity, data.result.risk.riskLevel); assert.equal(row.riskScore, data.result.risk.score); assert.equal(row.riskRuleVersion, data.result.risk.version);
     assert.deepEqual(row.evidence, data.result); assert.equal(row.expiresAt - row.analyzedAt, 30 * 86400_000);
     assert.doesNotMatch(JSON.stringify(row), /KEY_SENTINEL_6B|RAW_PROVIDER_SENTINEL_6B|last_analysis_stats/);
   });

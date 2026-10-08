@@ -3,6 +3,8 @@ import { normalizeUrl } from './url-normalization.js';
 import { localUrlIndicators, classifyUrl } from './url-local.js';
 import { resolvePublicTarget, inspectTls } from './url-network.js';
 import { createThreatIntelligence } from '../../services/threat-intelligence.js';
+import { evaluateRisk } from '../../risk/risk-engine.js';
+import { riskColumns } from '../../risk/risk-persistence.js';
 
 export function createUrlAnalyzer({ resolveTarget = resolvePublicTarget, tlsInspector = inspectTls, threatIntelligence = createThreatIntelligence() } = {}) {
   return async (input) => {
@@ -41,11 +43,13 @@ export function createUrlAnalyzer({ resolveTarget = resolvePublicTarget, tlsInsp
 export async function submitUrlAnalysis(database, { userId, acknowledgementId, input }, analyzer) {
   const result = await analyzer(input);
   const now = new Date();
+  result.risk = evaluateRisk({ analyzerType: 'URL', evidence: result, evaluatedAt: now.toISOString() });
   // Hash the minimized representation, never a raw token-bearing URL.
   const stored = await database.urlAnalysis.create({ data: {
     userId, acknowledgementId, status: 'COMPLETED', hostname: result.normalizedUrl.hostname,
     urlSha256: createHash('sha256').update(result.normalizedUrl.redactedUrl).digest('hex'),
     evidence: result, analyzedAt: now, expiresAt: new Date(now.getTime() + 30 * 86400_000),
+    ...riskColumns(result.risk),
   }, select: { id: true, createdAt: true } });
   return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result };
 }

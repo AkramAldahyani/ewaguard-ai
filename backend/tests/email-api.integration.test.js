@@ -119,7 +119,7 @@ test('Phase 6A2 HTTP and real PostgreSQL privacy boundaries', async (t) => {
   await t.test('strict JSON contract, unknown identity/ack fields, types and sizes', async () => {
     for (const data of [
       { body, userId: other.id }, { body, inputType: 'EML' }, { body, acknowledgementId: randomUUID() },
-      { body, version: DISCLAIMER_DEFINITION.version }, { body, unknown: true }, {}, [],
+      { body, version: DISCLAIMER_DEFINITION.version }, { body, unknown: true }, { body, riskLevel: 'LOW' }, { body, score: 0 }, { body, confidence: 'HIGH_CONFIDENCE' }, {}, [],
       { body: '  \n\t' }, { body: 123 }, { body, headers: null },
     ]) assert.equal((await text(data)).status, 400);
     for (const data of [
@@ -148,11 +148,16 @@ test('Phase 6A2 HTTP and real PostgreSQL privacy boundaries', async (t) => {
       const row = await database.emailAnalysis.findUniqueOrThrow({ where: { id: data.analysisId } });
       assert.equal(row.userId, employee.id);
       assert.equal(row.status, 'COMPLETED');
+      assert.equal(row.riskScore, data.result.risk.score);
+      assert.equal(row.severity, data.result.risk.riskLevel);
+      assert.equal(row.riskRuleVersion, data.result.risk.version);
+      assert.equal(row.evidence.risk.confidence, data.result.risk.confidence);
+      assert.deepEqual(row.evidence.risk.reasonCodes, data.result.risk.reasons.map((r) => r.code));
       assert.equal(row.createdAt.toISOString(), data.createdAt);
       assert.ok(row.analyzedAt);
       assert.equal(row.expiresAt - row.analyzedAt, 30 * 86400_000);
       assert.deepEqual(row.evidence, minimizeEmailEvidence(data.result));
-      for (const key of ['senderDomain', 'replyToDomain', 'severity', 'riskScore', 'riskRuleVersion']) assert.equal(row[key], null);
+      for (const key of ['senderDomain', 'replyToDomain']) assert.equal(row[key], null);
       const ack = await database.disclaimerAcknowledgement.findUniqueOrThrow({ where: { id: row.acknowledgementId } });
       assert.equal(ack.context, 'EMAIL_ANALYSIS');
       assert.equal(ack.userId, employee.id);

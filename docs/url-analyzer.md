@@ -1,5 +1,11 @@
 # Phase 6B — URL Analyzer
 
+> Phase 7A integration: completed submissions now include server-computed
+> `result.risk` and persist score, severity, model version and confidence/reasons.
+> Analyzer-local findings below remain unchanged. See [Central Risk Engine](risk-engine.md).
+> References to excluded final risk describe the original Phase 6 scope.
+
+
 The employee route `/analyze/url` is operational. This phase adds deterministic
 URL evidence and an analyzer-local provisional finding. It does not implement
 the central risk engine, final severity, OpenAI, incidents, or any Phase 6C work.
@@ -172,7 +178,7 @@ COMPLETED status, timestamps, 30-day expiresAt, hostname, safe result JSON, and
 SHA-256 of the **redacted representation**. That hash is a minimized grouping
 identifier, not an exact original-URL fingerprint. Paths, query values, unknown
 names, fragments, credentials, raw DNS addresses, certificates, and raw provider
-payloads are not stored. Final riskScore, severity, and rule version remain null.
+payloads are not stored. Phase 7A fills riskScore, severity and riskRuleVersion; evidence.risk includes confidence and reasons.
 No incident or AI operation is invoked. Expiry metadata is present; automated
 retention deletion remains an operational task (no new scheduler in this phase).
 The pgvector schema and HNSW index are untouched.

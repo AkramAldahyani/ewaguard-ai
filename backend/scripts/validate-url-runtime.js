@@ -30,7 +30,7 @@ try {
   const analysis = await benign.json();
   assert.equal(analysis.result.analyzer, 'URL');
   const row = await database.urlAnalysis.findUniqueOrThrow({ where: { id: analysis.analysisId } });
-  assert.equal(row.userId, employee.id); assert.equal(row.riskScore, null);
+  assert.equal(row.userId, employee.id); assert.equal(row.riskScore, analysis.result.risk.score); assert.equal(row.severity, analysis.result.risk.riskLevel);
   for (const input of ['malformed', 'http://127.0.0.1/', 'https://localhost/']) assert.equal((await post('/api/analysis/url', { url: input })).status, 400);
   const minimized = await post('/api/analysis/url', { url: 'https://example.com/login?token=SMOKE_SECRET_VALUE' });
   assert.equal(minimized.status, 201);

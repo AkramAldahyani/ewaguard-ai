@@ -13,6 +13,7 @@
     "build": "npm run build --workspace frontend",
     "lint": "eslint .",
     "test": "npm run test --workspace backend",
+    "test:risk": "node --test backend/tests/risk-engine.test.js frontend/tests/risk.test.mjs",
     "test:portal": "node --test frontend/tests/portal.integration.mjs",
     "test:chat": "node --test frontend/tests/chat.test.mjs",
     "test:password": "node --test frontend/tests/password-security.test.mjs",

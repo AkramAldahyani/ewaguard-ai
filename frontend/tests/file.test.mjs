@@ -1,3 +1,4 @@
+import { evaluateRisk } from '../../backend/src/risk/risk-engine.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +20,7 @@ test('employee file analyzer UI, safe presentation and interaction lifecycle', a
     scanners: { clamav: async () => ({ status: 'UNAVAILABLE', detections: [] }), yara: async () => ({ status: 'NO_MATCH', matches: [] }) },
   });
   const analysis = { analysisId: 'fixture-id', createdAt: new Date().toISOString(), result: await analyzer({ originalname: 'private.txt', mimetype: 'text/plain', buffer: Buffer.from('PRIVATE_FILE_CONTENT') }) };
+  analysis.result.risk = evaluateRisk({ analyzerType: 'FILE', evidence: analysis.result, evaluatedAt: analysis.createdAt });
   const file = new File(['harmless text'], 'fixture.txt', { type: 'text/plain' });
   const ready = (submit = async () => analysis) => { const flow = createFileFlow(submit); flow.acknowledge(); flow.selectFiles([file]); return flow; };
 

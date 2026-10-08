@@ -1,3 +1,4 @@
+import { evaluateRisk } from '../../backend/src/risk/risk-engine.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +19,7 @@ test('employee email UI, state transitions and API contract', async (t) => {
   const eml = 'From: Help Desk <support@example.invalid>\r\nReply-To: other@elsewhere.invalid\r\nSubject: Review request\r\nAuthentication-Results: inbound.invalid; spf=pass; dkim=fail; dmarc=fail\r\nContent-Type: multipart/mixed; boundary=fixture\r\n\r\n--fixture\r\nContent-Type: text/plain\r\n\r\nUrgent: provide your password. Visit http://example.invalid/account?secret=hidden\r\n--fixture\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename="report.exe"\r\n\r\nHarmless synthetic attachment\r\n--fixture--';
   const result = await analyzeEmail({ inputType: 'EML', eml: Buffer.from(eml) });
   const analysis = { analysisId: 'test-analysis', createdAt: '2026-10-06T12:00:00Z', result };
+  analysis.result.risk = evaluateRisk({ analyzerType: 'EMAIL', evidence: analysis.result, evaluatedAt: analysis.createdAt });
   const valid = { mode: 'paste', body: 'A synthetic message', headers: '', file: null };
   const api = { analyzePastedEmail: async () => analysis, analyzeEml: async () => analysis };
   const ready = (client = api) => { const flow = createEmailFlow(client); flow.acknowledge(); flow.edit('body', valid.body); return flow; };
@@ -118,11 +120,11 @@ test('employee email UI, state transitions and API contract', async (t) => {
     assert.match(html, /Sender and Reply-To differ/);
     assert.match(html, /local part omitted/);
   });
-  await t.test('all provisional classifications display without final severity or score', () => {
+  await t.test('all provisional classifications remain distinct from the final risk', () => {
     for (const [value, label] of [['NO_STRONG_INDICATORS', 'No Strong Indicators'], ['SUSPICIOUS', 'Suspicious'], ['HIGHLY_SUSPICIOUS', 'Highly Suspicious']]) {
       const html = render(EmailResults, { analysis: { ...analysis, result: { ...result, provisionalClassification: value } } });
-      assert.ok(html.includes(label)); assert.match(html, /Final risk evaluation will use the EWAGuard risk engine/);
-      assert.doesNotMatch(html, /Low risk|Medium risk|High risk|Critical risk|\/100/);
+      assert.ok(html.includes(label)); assert.match(html, /broader deterministic risk evaluation/);
+      assert.match(html, /EWAGuard Risk Level/); assert.match(html, /Risk score:/);
     }
   });
   await t.test('authentication claims and unavailable/conflicting states never imply verification', () => {

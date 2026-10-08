@@ -1,3 +1,4 @@
+import { evaluateRisk } from '../../backend/src/risk/risk-engine.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
@@ -15,6 +16,7 @@ test('URL employee UI and state lifecycle', async (t) => {
   const render = (C, props) => renderToStaticMarkup(createElement(C, props));
   const analyzer = createUrlAnalyzer({ resolveTarget: async () => ({ addresses: ['8.8.8.8'], evidence: { status: 'RESOLVED', resolvedIpCount: 1 } }), tlsInspector: async () => ({ status: 'UNAVAILABLE' }) });
   const analysis = { analysisId: 'test-id', createdAt: new Date().toISOString(), result: await analyzer('https://example.com/login?token=VALUE_SECRET') };
+  analysis.result.risk = evaluateRisk({ analyzerType: 'URL', evidence: analysis.result, evaluatedAt: analysis.createdAt });
   const ready = (submit = async () => analysis) => { const flow = createUrlFlow(submit); flow.acknowledge(); flow.edit('https://example.com'); return flow; };
   await t.test('unchecked acknowledgement and provider disclosure before input', () => {
     const html = render(UrlAnalyzerPage); assert.match(html, /Sensitive Information Notice/); assert.match(html, /VirusTotal.*dataset/);

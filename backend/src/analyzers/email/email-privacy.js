@@ -1,3 +1,5 @@
+import { riskSnapshot } from '../../risk/risk-persistence.js';
+
 // Best-effort display redaction, not a DLP guarantee. Persistent evidence uses
 // a stricter allow-list and excludes ALL sender names, subject and URL strings.
 export function redactEmailMetadata(value, maximum = 180) {
@@ -34,5 +36,6 @@ export function minimizeEmailEvidence(result) {
     arcPresent: result.authentication.arcPresent,
     counts: result.evidenceSummary,
     attachmentTypes: result.attachments.map(({ category, size }) => ({ category, size, scanStatus: 'NOT_SCANNED' })),
+    ...(result.risk ? { risk: riskSnapshot(result.risk) } : {}),
   };
 }
