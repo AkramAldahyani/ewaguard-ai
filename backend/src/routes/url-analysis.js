@@ -10,7 +10,7 @@ import { UrlAnalysisError } from '../analyzers/url/url-normalization.js';
 
 export const URL_SUBMISSION_LIMIT = 10;
 const fail = (res, status, code, message) => res.status(status).json({ error: { code, message } });
-export function createUrlAnalysisRouter({ database, config, analyzer = createUrlAnalyzer({ threatIntelligence: createThreatIntelligence({ apiKey: config.virusTotalApiKey }) }) }) {
+export function createUrlAnalysisRouter({ database, config, threatIntelligence = createThreatIntelligence({ apiKey: config.virusTotalApiKey }), analyzer = createUrlAnalyzer({ threatIntelligence }) }) {
   const router = Router();
   let active = 0;
   router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });

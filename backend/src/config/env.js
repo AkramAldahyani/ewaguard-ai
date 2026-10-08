@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { DEFAULT_YARA_RULES } from '../analyzers/file/file-policy.js';
 
 // Resolve from this module so workspace and root commands load the same file.
 // Node preserves injected environment variables over values in this file.
@@ -61,6 +62,9 @@ export function parseConfig(env = process.env) {
     accessTokenTtlSeconds, loginRateLimitWindowMinutes, loginRateLimitMax,
     mfaEncryptionKey, mfaIssuer, mfaChallengeTtlSeconds,
     virusTotalApiKey: env.VIRUSTOTAL_API_KEY?.trim() || null,
+    clamavPath: env.CLAMAV_PATH?.trim() || null,
+    yaraPath: env.YARA_PATH?.trim() || null,
+    yaraRulesPath: env.YARA_RULES_PATH?.trim() || (nodeEnv === 'development' ? DEFAULT_YARA_RULES : null),
   });
 }
 

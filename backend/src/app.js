@@ -7,6 +7,8 @@ import { createAuthRouter } from './routes/auth.js';
 import { createDisclaimerRouter } from './routes/disclaimers.js';
 import { createEmailAnalysisRouter } from './routes/email-analysis.js';
 import { createUrlAnalysisRouter } from './routes/url-analysis.js';
+import { createFileAnalysisRouter } from './routes/file-analysis.js';
+import { createThreatIntelligence } from './services/threat-intelligence.js';
 import { healthRouter } from './routes/health.js';
 import { createAuthenticate } from './middleware/authenticate.js';
 import { requireRole } from './middleware/authorize.js';
@@ -15,6 +17,7 @@ import { errorHandler, notFound } from './middleware/error-handler.js';
 export function createApp(config, dependencies = {}) {
   const app = express();
   const database = dependencies.database ?? createDatabaseClient();
+  const threatIntelligence = createThreatIntelligence({ apiKey: config.virusTotalApiKey });
   app.locals.database = database;
   app.disable('x-powered-by');
   app.use(helmet());
@@ -22,7 +25,8 @@ export function createApp(config, dependencies = {}) {
   app.use(cookieParser());
   // Email has its own bounded parser after authentication and acknowledgement.
   app.use('/api/analysis/email', createEmailAnalysisRouter({ database, config, ...dependencies.emailAnalysis }));
-  app.use('/api/analysis/url', createUrlAnalysisRouter({ database, config, ...dependencies.urlAnalysis }));
+  app.use('/api/analysis/url', createUrlAnalysisRouter({ database, config, threatIntelligence, ...dependencies.urlAnalysis }));
+  app.use('/api/analysis/file', createFileAnalysisRouter({ database, config, threatIntelligence, ...dependencies.fileAnalysis }));
   app.use(express.json({ limit: '32kb', strict: true }));
   app.use('/api/health', healthRouter);
   app.use('/api/auth', createAuthRouter({ database, config }));

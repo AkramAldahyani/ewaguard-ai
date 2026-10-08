@@ -29,7 +29,7 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
   await t.test('only the local assistant composer accepts preview text; file selection never exists', () => {
     for (const [path] of pages.filter(([path]) => path !== '/profile')) {
       const html = render(path);
-      if (!['/password-security', '/analyze/email', '/analyze/url'].includes(path)) assert.match(html, /Preview only/);
+      if (!['/password-security', '/analyze/email', '/analyze/url', '/analyze/file'].includes(path)) assert.match(html, /Preview only/);
       for (const control of html.matchAll(/<(?:input|textarea)\b[^>]*>/g)) {
         if (path === '/assistant') assert.match(control[0], /id="chat-message"/);
         else if (path !== '/password-security' && !['/analyze/email', '/analyze/file', '/analyze/url'].includes(path)) assert.match(control[0], /disabled=""/);

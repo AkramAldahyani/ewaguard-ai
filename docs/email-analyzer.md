@@ -259,7 +259,8 @@ Phase 6A2 persists this projection only. Immutable JavaScript strings cannot be 
 ## Phase status
 
 6A1, 6A2 and 6A3 are implemented. The separate [Phase 6B URL analyzer](url-analyzer.md)
-is implemented; email URL enrichment remains deferred. Phase 6C has not been started.
+is implemented; email URL enrichment remains deferred. The separate
+[Phase 6C file analyzer](file-analyzer.md) is implemented; email attachments remain NOT_SCANNED.
 
 ## Validation and references
 

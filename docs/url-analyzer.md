@@ -125,8 +125,8 @@ do not establish that a URL is malicious. Recommended actions are deterministic.
 ## VirusTotal provider
 
 `createThreatIntelligence()` exposes reusable `lookupUrl()` and `lookupDomain()`
-operations. It contains all VirusTotal API details. There is no file-hash operation
-yet. Future callers must apply the same public-target DNS validation before
+operations. It contains all VirusTotal API details; Phase 6C also adds a hash-only
+file-report operation. Future URL/domain callers must apply the same public-target DNS validation before
 enrichment; the adapter also rejects syntactically private/internal targets.
 
 `VIRUSTOTAL_API_KEY` is read by backend configuration only. The example is blank;

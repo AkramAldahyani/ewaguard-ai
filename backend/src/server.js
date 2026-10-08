@@ -1,8 +1,10 @@
 import { createApp } from './app.js';
 import { parseConfig } from './config/env.js';
+import { createFileTempStore } from './analyzers/file/file-temp.js';
 
 try {
   const config = parseConfig();
+  await createFileTempStore().cleanupStale();
   const app = createApp(config);
   const server = app.listen(config.port, config.host, () => {
     console.info(JSON.stringify({ level: 'INFO', event: 'server_started', port: config.port }));

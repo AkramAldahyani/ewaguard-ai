@@ -59,7 +59,8 @@ export function createThreatIntelligence({ apiKey = null, fetchImpl = globalThis
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     let value;
     try {
-      const response = await fetchImpl(`https://www.virustotal.com/api/v3/${scope === 'URL' ? 'urls' : 'domains'}/${encodeURIComponent(identifier)}`, {
+      const resource = { URL: 'urls', DOMAIN: 'domains', FILE_HASH: 'files' }[scope];
+      const response = await fetchImpl(`https://www.virustotal.com/api/v3/${resource}/${encodeURIComponent(identifier)}`, {
         method: 'GET', headers: { 'x-apikey': apiKey, Accept: 'application/json' }, signal: controller.signal, redirect: 'error',
       });
       if (response.status === 200) {
@@ -77,6 +78,10 @@ export function createThreatIntelligence({ apiKey = null, fetchImpl = globalThis
     return { ...value, cached: false };
   };
   return {
+    lookupFileHash: async (sha256) => {
+      if (typeof sha256 !== 'string' || !/^[a-f0-9]{64}$/i.test(sha256)) throw new TypeError('A SHA-256 hash is required.');
+      return lookup('FILE_HASH', sha256.toLowerCase());
+    },
     lookupUrl: async (input) => {
       const { url, normalized } = normalizeUrl(input);
       if (normalized.isIpHost || url.pathname !== '/' || url.search || url.hash) return outcome('URL', 'SKIPPED_PRIVACY');
