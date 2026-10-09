@@ -13,7 +13,8 @@ the Phase 4A employee portal, Phase 4B chat interface, Phase 5A local password
 security, Phase 5B sensitive-information acknowledgement, Phase 6A email analysis,
 Phase 6B URL analysis, Phase 6C file analysis, Phase 7A central risk evaluation,
 Phase 7B incident assistance, Phase 8A secure OpenAI/chat backend, and Phase 8B1
-controlled tool registry/authorization foundation.**
+controlled tool registry, Phase 8B2A durable approvals, and Phase 8B2B Responses
+function calling with multi-round budget accounting.**
 Employees sign in using short-lived HTTP-only JWT cookies. Administrators must
 enroll and verify TOTP before receiving an authenticated session. See
 [RBAC and MFA operations](docs/rbac-mfa.md) for enrollment and key configuration.
@@ -159,5 +160,6 @@ read-only results. Phase 8B2A implements
 [durable human approvals and controlled email/URL execution](docs/tool-approvals.md).
 Configure the dedicated
 approval encryption key and use the documented employee REST endpoints. Phase 8B2B
-still needs Responses tool orchestration and multi-round budget accounting; Phase
-8C approval/chat UI is not implemented.
+connects Responses function calling, private-input approval handoff, saved-result
+explanations and separately reserved model rounds. Phase 8C approval/chat UI is
+not implemented. Automated tests use mocked OpenAI responses and no paid calls.

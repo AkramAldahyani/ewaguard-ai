@@ -14,7 +14,7 @@ function fields(body, names) {
 
 export function createToolApprovalRouter(options) {
   const { database, config, gates } = options;
-  const service = createApprovalService(options);
+  const service = options.service ?? createApprovalService(options);
   const router = Router();
   router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   router.use(createAuthenticate({ database, config }), requireRole('EMPLOYEE'), createTrustedOrigin(config.trustedOrigins));

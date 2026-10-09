@@ -1,8 +1,8 @@
-# Phase 8A — Secure OpenAI integration and chat backend
+# Secure OpenAI chat — Phase 8A and Phase 8B2B
 
-Phase 8A supplies a REST backend for general cybersecurity guidance. The existing
-assistant UI remains an explicitly labeled preview until Phase 8C. No analyzer,
-RAG, incident automation, or model tool calling is connected to chat.
+Phase 8B2B connects the existing registry and durable approvals to Responses
+function calling. The assistant UI remains a preview until Phase 8C. RAG, incident
+creation, new file scans and arbitrary external tools are not enabled.
 
 ## Architecture and model
 
@@ -13,10 +13,19 @@ pair persistence → employee response.
 
 `backend/src/ai/openai-adapter.js` is the only generation adapter. It uses the
 official `openai` JavaScript SDK and Responses API, a fixed official API origin,
-Standard (`service_tier: default`) processing, `store: false`, `tools: []`,
-`tool_choice: none`, a 30-second abort deadline, and zero SDK retries. Client
+Standard (`service_tier: default`) processing, `store: false`, six allowlisted
+functions, a 30-second abort deadline, and zero SDK retries. Client
 disconnect aborts generation. Cancellation cannot guarantee cancellation of a
 provider charge. No automatic fallback or model upgrade exists.
+
+`tool-orchestration.js` validates the entire function batch before execution. It
+uses the existing read-tool service and approval service, never invokes model
+functions directly. Each output uses the matching `call_id`. Prior response items,
+including encrypted reasoning requested with `reasoning.encrypted_content`, remain
+in bounded in-memory context for follow-ups. Provider response IDs and reasoning
+are never stored in chat. Tools default to disabled in standalone adapter calls;
+authenticated chat explicitly enables the fixed schemas. The final bounded round
+and approval explanations set `tool_choice: none`.
 
 `OPENAI_API_KEY` and `OPENAI_MODEL` are backend-only environment settings. The
 existing root `.env` is loaded without overwriting injected settings or rewriting
@@ -58,7 +67,7 @@ requests must satisfy the existing trusted-origin protection. Responses have
 {
   "content": "What is phishing?",
   "requestId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-  "privacyNoticeVersion": "chat-privacy-v1"
+  "privacyNoticeVersion": "chat-privacy-v2"
 }
 ```
 
@@ -78,29 +87,73 @@ Unknown fields (including roles, model, instructions, tools, ownership, evidence
 files and token limits) are rejected. Missing and foreign conversations both return
 404. No administrator private-chat/history endpoint exists.
 
+One optional field is supported for a **private backend handoff**:
+
+```json
+{
+  "analysisInput": {
+    "toolName": "analyze_email",
+    "parameters": { "body": "Synthetic invitation.", "headers": "" }
+  }
+}
+```
+
+Include this alongside the normal three message fields, never inside `content`.
+URL input uses `toolName: analyze_url` and `parameters: {url: ...}`. A current
+analyzer-specific disclaimer acknowledgement is required before any paid request.
+The backend locally validates input and sends only the tool name and the current
+request UUID as `inputReference`. The model must return that exact reference and
+matching tool. The reference is valid only within this message execution; it does
+not authorize a scan or provide arbitrary access to other drafts.
+
+When requested, the existing approval service encrypts and persists the exact
+operation. Chat returns `pendingConfirmation` and `toolMetadata.approvalId`, saves
+a fixed confirmation message, and stops without a follow-up model request.
+Private parameters are discarded from request memory after processing and never
+become chat messages. HTTP JSON is bounded to 128 KiB; underlying analyzer byte
+limits still apply. If no proposal is produced, input is not persisted. Clients
+must use a new deliberate submission if they want to propose it again.
+
+Additional employee-only endpoints:
+
+| Endpoint | Purpose |
+| --- | --- |
+| `GET /api/chat/conversations/:id/requests/:requestId` | Recover request status, safe references, current authorized results and approval status after a timeout or later-round failure |
+| `POST /api/chat/conversations/:id/approvals/:approvalId/explanation` | Body `{privacyNoticeVersion}`; explain a completed saved analysis with no tools enabled |
+
+The explanation endpoint derives a stable server idempotency key per approval.
+Completed explanations replay for free. Attempted failures never automatically
+retry. If the budget/provider is unavailable, it returns the saved deterministic
+risk and Incident Assistance with an unavailable explanation status. It never
+invokes the analyzer. Confirmation remains the existing separate human decision
+endpoint documented in [tool approvals](tool-approvals.md).
+
 ## Privacy, system behavior and retention
 
-Only actively submitted chat text and at most the last eight persisted USER or
-ASSISTANT messages are transmitted, plus server-owned versioned instructions.
-The current user message is additional to those eight. No identity fields,
-email/URL/file analyses, attachments, company documents, incident evidence,
-password-analysis input or local generated passwords enter the provider request.
+Actively submitted chat text and at most eight persisted USER/ASSISTANT messages
+are transmitted, plus server-owned instructions, fixed schemas and minimized
+authorized tool projections. The current message is additional to those eight.
+Raw email bodies/headers, raw files, URL inputs, identity fields, company documents,
+scanner/provider payloads, password inputs and generated passwords are excluded.
 
 Heuristic checks reject common secret assignments, private-key headers, recognizable
 API keys, bearer/JWT tokens, six-digit codes, URL credentials and URLs containing
-queries/fragments. History is checked again before transmission. These checks have
+queries/fragments. Chat also rejects URLs and recognizable email/header blocks;
+use the private handoff. History is checked again before transmission. These checks have
 false positives and false negatives: they cannot recognize every secret, language,
 obfuscation, confidential document or personal datum. Users must not paste sensitive
 material. Model responses also pass shape, status, type, length and secret checks.
 
-The centralized `ewaguard-guidance-v1` instruction requires defensive general advice,
+The centralized `ewaguard-tools-v2` instruction requires defensive advice,
 uncertainty and IT/Security referral; it forbids invented scans, incident creation,
 PDPL provisions and policy citations. Prompt rules cannot guarantee perfect
 factuality or prevent every instruction disclosure. The decisive boundary is
-structural: the model receives no secrets or internal access, tools are disabled,
-and unexpected tool output is rejected. It cannot change authorization, call APIs,
-execute commands or perform incident actions. Render responses as escaped text in
-Phase 8C, never executable HTML.
+structural: only schema-validated owner-filtered reads and pending proposals are
+available. The model cannot change authorization, stored risk, confirmation state,
+or incident records. Final text passes shape, secret, safety-claim and basic risk
+contradiction checks. These are conservative heuristics, not semantic proof of
+factuality. `verifiedResults` is the authoritative risk/assistance output; Phase 8C
+must render its fields separately and render model text as escaped prose.
 
 Reuse `ChatSession` and `ChatMessage`: ownership, expiry and unique sequence are
 already present. Successful message pairs and their completed ledger state commit
@@ -116,8 +169,11 @@ requires review. Monitor `chat_retention_failed`. Session deletion cascades mess
 usage rows survive with null foreign keys so deletion never restores budget.
 Database backups must follow the organization's retention policy as well.
 
-The usage ledger contains only request/identity references, acknowledgement and
-instruction versions, model/pricing metadata, token counts, status and money. Keep
+The usage ledger contains request/identity references, acknowledgement and
+instruction versions, model/pricing metadata, token counts, status, money and safe
+tool references. Additive migration `20261009000200_tool_round_usage` adds nullable
+`parentRequestId` and `toolMetadata` JSON. No existing data, index or approval
+encryption was replaced. Keep
 it for this fixed lifetime budget. Do not clear it during chat-history cleanup.
 No employee content, model responses, passwords, cookies, authorization headers,
 API keys or provider error payloads are logged. SDK logging is explicitly off.
@@ -132,16 +188,26 @@ Hard ceilings live in `chat-policy.js`, outside employee control:
 | Control | Limit |
 | --- | --- |
 | Lifetime application budget | $4; not reset daily/monthly |
-| Employee attempts | 20 per UTC day, shared across processes/restarts |
-| Active generation requests | 2 globally; 1 per conversation |
+| Employee paid attempts | 20 per UTC day, including every follow-up and explanation attempt |
+| Active turns | 2 globally; 1 per conversation, held across all rounds |
 | Input | 2,000 JavaScript UTF-16 characters |
 | Previous context | Last 8 messages |
 | Output | 500 tokens total, including reasoning |
 | General API burst limit | 60 requests/minute per employee per process |
 | Provider timeout/retries | 30 seconds / 0 |
+| Tool-call rounds | At most 2 per employee message |
+| Tool invocations | At most 4 total; an oversized batch is rejected before execution |
+| Paid model requests per turn | At most 3: initial, tool follow-up, final response; pending confirmation stops immediately |
 
-Every admitted attempt inserts a durable reservation under a shared PostgreSQL
-transaction advisory lock. The reservation uses UTF-8 input bytes plus 4,096 tokens
+Every paid request, including tool follow-ups, inserts a separate durable reservation
+under the existing shared PostgreSQL transaction advisory lock. Follow-up entries
+carry the root `parentRequestId`; their costs are always included in global sums.
+The root remains RESERVED as the turn/conversation slot until the final outcome.
+Children count toward daily limits but do not consume extra turn slots. Admissions
+across backend instances cannot evade either reservations or limits.
+
+The reservation uses UTF-8 bytes of instructions, full bounded context and tool
+schemas plus 4,096 tokens
 for framing overhead and the full output cap. Integer microdollars are rounded up.
 Admission sums reconciled costs **and all in-flight reservations**, checks the daily
 quota and slots, then releases the database lock before the provider request.
@@ -195,10 +261,11 @@ accidental reruns. Do not remove these to retry without new authorization.
 
 ## Future boundary
 
-Phase 8B may add an explicit allow-listed, schema-validated tool orchestrator with
-server-side authorization and deterministic evidence/risk evaluation. No such tool
-is enabled here. Phase 8C will connect the frontend and active privacy notice to
-these endpoints. RAG and incident automation require separate phases.
+Phase 8B2B completes backend function orchestration and approval continuation.
+Phase 8C must connect the frontend, active privacy notice, private handoff, exact
+operation review, confirmation choices, authoritative results and recovery UI.
+RAG and incident automation require separate phases. No live paid request was
+made for Phase 8B2B; normal tests mock the official SDK transport.
 
 ## Phase 8A validation record (2026-10-08)
 
@@ -219,3 +286,23 @@ these endpoints. RAG and incident automation require separate phases.
   estimate: **$0.000065**, reconciled from a $0.000775 reservation. No provider or
   billing error occurred. Synthetic account/history was removed; the charge and
   rerun marker were retained. No response content or API key was printed.
+
+## Phase 8B2B validation record (2026-10-09)
+
+- `npm test`: 368 backend tests/subtests passed, including 28 new Responses
+  checks and the unchanged durable-approval, analyzer, risk, assistance, auth/MFA
+  regressions. Backend suites run sequentially because independent tests exercise
+  the same application-wide ledger and intentionally create blocking reservations.
+- `node --test --test-concurrency=1 frontend/tests/*.mjs backend/tests/database.integration.js backend/tests/vector.integration.js`:
+  107 passed, including portal rendering and the preserved HNSW index.
+- `npm run lint`, `npm run build`, `npm run check:backend`, explicit new-module
+  syntax checks and `git diff --check` passed.
+- Prisma format, validation, additive migration deployment, client generation and
+  migration status passed; all six migrations are applied. No reset was performed.
+- `npm audit`: zero vulnerabilities. The existing frontend large-chunk warning
+  remains. No frontend implementation changed.
+- Local HTTP integration used the actual Express routes, authentication,
+  PostgreSQL ledger and approval storage with mocked SDK responses. No live paid
+  OpenAI generation or model verification was performed in this phase.
+- Live function-calling compatibility remains unverified to preserve API credit.
+  AI prose validation remains heuristic; authoritative risk is always backend data.

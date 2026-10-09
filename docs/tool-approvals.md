@@ -1,8 +1,8 @@
 # Phase 8B2A — Durable approvals and controlled analyzer execution
 
-Phase 8B2 is split into two implementation subphases. **8B2A is implemented.**
-**8B2B remains required before Phase 8B2 is complete:** Responses function calling,
-authorized read-tool orchestration, and two-round persistent usage accounting.
+Phase 8B2 is split into two implementation subphases. **8B2A and 8B2B are implemented.**
+8B2B reuses the unchanged encrypted approval state machine for Responses function
+calling and adds separately budgeted model rounds and saved-result explanation.
 Phase 8C UI, RAG, incident creation and chat file uploads are not included.
 
 ## Architecture
@@ -126,24 +126,40 @@ if cleanup has not run. Metadata follows the parent conversation's deletion
 lifecycle. No raw email or URL is added to chat messages, audit logs, model context
 or response metadata. Private review is the sole raw-parameter response.
 
-## 8B2B handoff — still required
+## 8B2B handoff and explanation
 
-The OpenAI adapter still has `tools: []` and `tool_choice: none`. This implementation
-makes zero model calls and leaves the existing $4 budget, two concurrent requests,
-daily limit, configured model and no-fallback policy unchanged.
+The approval service itself makes zero model calls. Chat uses six fixed function
+schemas and leaves the $4 budget, two concurrent turns, configured model and
+no-fallback policy intact. Every follow-up counts toward the 20-request daily cap.
 
-8B2B must expose read-only registry definitions and reference-only action schemas
-to Responses. Never publish the current raw email/URL preparation schemas to a
-model. A model can refer to an employee-prepared approval by ID or suggest a human
-handoff, but cannot call private review or decision endpoints. Approval creation
-and confirmation never grant the model access to the encrypted payload.
+The message API accepts optional `analysisInput: {toolName, parameters}` separately
+from employee chat `content`. Local validation and current acknowledgement checks
+precede generation. Only the current request UUID (`inputReference`) and tool name
+reach OpenAI. Model action schemas accept exactly that UUID, never raw email/URL
+parameters. The backend binds it to this execution's private input and calls the
+existing `prepare` method. Pending confirmation stops the loop immediately, without
+running analysis or paying for a restatement. Five-minute expiry is unchanged.
+
+The employee reviews through the existing human-only review route, then chooses
+CONFIRM or REJECT. After COMPLETED, the optional explicit continuation is:
+`POST /api/chat/conversations/:id/approvals/:approvalId/explanation` with
+`{privacyNoticeVersion: "chat-privacy-v2"}`. It retrieves the saved sanitized result,
+disables tools, reserves budget, and explains it once. A stable approval-derived
+request ID prevents duplicate paid explanations and history on browser retries.
+If no budget is available or generation fails, deterministic risk and assistance
+remain in the response. The analyzer is never called by continuation.
+
+`GET /api/chat/conversations/:id/requests/:requestId` recovers safe tool references
+and pending/completed approvals, including a receipt committed before chat history
+failed. Existing `GET /requests/:id` remains the source of completed approval
+results. Neither recovery endpoint exposes private review parameters to OpenAI.
 
 Use the official [Responses function-calling contract](https://developers.openai.com/api/docs/guides/function-calling)
-for function-call items and outputs. Implement at most two total model requests per
-turn, bounded invocations/results, strict response validation and persistent budget
-reservation/reconciliation for every round, including reasoning usage. Continue to
-deny tool/model/admin authorization overrides. Add mocked orchestration and budget
-failure tests before enabling this adapter behavior. Do not begin Phase 8C yet.
+for function-call items and matching outputs. Current limits are two **tool-call
+rounds**, four invocations and at most three paid requests (initial, follow-up,
+final), each capped at 500 output tokens including reasoning. This implements the
+8B2B requirement and supersedes the older proposed two-total-request limit. See
+[multi-round budgeting and privacy](openai-chat.md). Phase 8C remains unimplemented.
 
 ## Validation
 

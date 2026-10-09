@@ -371,6 +371,9 @@ model AiUsage {
   userId               String?       @db.Uuid
   sessionId            String?       @db.Uuid
   requestId            String        @db.Uuid
+  // Follow-up requests retain the root reservation as the conversation slot.
+  parentRequestId      String?       @db.Uuid
+  toolMetadata         Json          @default("{}")
   status               AiUsageStatus @default(RESERVED)
   model                String        @db.VarChar(100)
   pricingVersion       String        @db.VarChar(80)

@@ -146,13 +146,14 @@ test('unsupported and inconsistent stored risk fails closed without recomputing 
   }
 });
 
-test('model integration stays disabled until 8B2B and Phase 8A spending ceilings remain intact', async () => {
+test('model integration is explicitly opt-in and Phase 8A spending ceilings remain intact', async () => {
   const directory = new URL('../src/ai/tools/', import.meta.url);
   const source = (await Promise.all((await readdir(directory)).map((name) => readFile(new URL(name, directory), 'utf8')))).join('\n');
   assert.doesNotMatch(source, /from ['"](?:openai|node:child_process|node:fs)|\bfetch\s*\(|incident\.create|\$executeRawUnsafe|\$queryRawUnsafe/);
   const adapter = await readFile(new URL('../src/ai/openai-adapter.js', import.meta.url), 'utf8');
-  assert.match(adapter, /tools: \[\], tool_choice: 'none'/);
+  assert.match(adapter, /enableTools = false/);
+  assert.match(adapter, /tools: enableTools \? responseToolSchemas : \[\]/);
   assert.equal(CHAT_LIMITS.budgetMicros, 4_000_000); assert.equal(CHAT_LIMITS.simultaneousRequests, 2); assert.equal(CHAT_LIMITS.dailyRequests, 20);
-  assert.equal(TOOL_LIMITS.modelRounds, 0); assert.equal(TOOL_LIMITS.actionExecutions, 1);
+  assert.equal(TOOL_LIMITS.modelRounds, 2); assert.equal(TOOL_LIMITS.modelInvocations, 4); assert.equal(TOOL_LIMITS.actionExecutions, 1);
   for (const tool of TOOL_REGISTRY.filter((entry) => entry.kind === 'ACTION')) assert.equal(tool.operationalLimits.humanApprovalRequired, true);
 });

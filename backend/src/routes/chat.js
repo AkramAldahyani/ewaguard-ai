@@ -6,10 +6,14 @@ import { createTrustedOrigin } from '../middleware/trusted-origin.js';
 import { CHAT_LIMITS, ChatError, PRIVACY_NOTICE, UUID, validateMessage } from '../ai/chat-policy.js';
 import { createOpenAIAdapter } from '../ai/openai-adapter.js';
 import { createChatService, ownedSession, messageSelect, sessionSelect } from '../ai/chat-service.js';
+import { createHash } from 'node:crypto';
+import { ToolError } from '../ai/tools/tool-registry.js';
+import { createToolService } from '../ai/tools/tool-service.js';
 
-export function createChatRouter({ database, config, provider = createOpenAIAdapter({ apiKey: config.openaiApiKey, model: config.openaiModel }) }) {
+export function createChatRouter({ database, config, approvals, provider = createOpenAIAdapter({ apiKey: config.openaiApiKey, model: config.openaiModel }) }) {
   const router = Router();
-  const service = createChatService({ database, provider });
+  const service = createChatService({ database, provider, approvals });
+  const tools = createToolService({ database });
   router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   router.use(createAuthenticate({ database, config }), requireRole('EMPLOYEE'), createTrustedOrigin(config.trustedOrigins));
   router.use(rateLimit({ windowMs: 60_000, limit: 60, keyGenerator: (req) => req.user.id, standardHeaders: 'draft-7', legacyHeaders: false,
@@ -18,7 +22,7 @@ export function createChatRouter({ database, config, provider = createOpenAIAdap
   router.use((req, _res, next) => {
     if (req.method === 'POST' && !req.is('application/json')) return next(new ChatError(415, 'CHAT_CONTENT_TYPE', 'Use application/json.'));
     next();
-  }, json({ limit: '16kb', strict: true, inflate: false }));
+  }, json({ limit: '128kb', strict: true, inflate: false }));
   router.get('/privacy', (_req, res) => res.json({ privacyNotice: PRIVACY_NOTICE, limits: CHAT_LIMITS }));
   router.post('/conversations', async (req, res) => {
     if (!req.body || Array.isArray(req.body) || Object.keys(req.body).length) throw new ChatError(400, 'CHAT_INVALID_CONVERSATION', 'Send an empty JSON object to create a conversation.');
@@ -48,12 +52,53 @@ export function createChatRouter({ database, config, provider = createOpenAIAdap
     const cancel = () => { if (!res.writableEnded) controller.abort(); };
     res.on('close', cancel);
     try {
-      const result = await service.send({ userId: req.user.id, sessionId: req.params.id, content, requestId: req.body.requestId, signal: controller.signal });
+      const result = await service.send({ userId: req.user.id, auth: req.auth, sessionId: req.params.id, content,
+        requestId: req.body.requestId, analysisInput: req.body.analysisInput, signal: controller.signal });
       res.status(result.replayed ? 200 : 201).json(result);
     } finally { res.off('close', cancel); delete req.body; }
   });
+  // Recovery exposes only safe references/current projections, never ledger costs,
+  // raw provider output, private parameters or another employee's records.
+  router.get('/conversations/:id/requests/:requestId', async (req, res) => {
+    await ownedSession(database, req.user.id, req.params.id);
+    if (!UUID.test(req.params.requestId)) throw new ChatError(404, 'CHAT_REQUEST_NOT_FOUND', 'Request not found.');
+    const entry = await database.aiUsage.findFirst({ where: { userId: req.user.id, sessionId: req.params.id,
+      requestId: req.params.requestId, parentRequestId: null } });
+    if (!entry) throw new ChatError(404, 'CHAT_REQUEST_NOT_FOUND', 'Request not found.');
+    const verifiedResults = [];
+    for (const ref of entry.toolMetadata?.results ?? []) {
+      verifiedResults.push(await tools.execute({ auth: req.auth, conversationId: req.params.id, name: ref.name,
+        argumentsJson: JSON.stringify(ref.name === 'get_file_analysis' ? { analysisId: ref.analysisId } : { analyzerType: ref.analyzerType, analysisId: ref.analysisId }) }));
+    }
+    const receipt = await database.toolApproval.findFirst({ where: { userId: req.user.id, conversationId: req.params.id, requestId: entry.requestId }, select: { id: true } });
+    const approvalId = entry.toolMetadata?.approvalId ?? receipt?.id;
+    const pending = approvalId ? await approvals.get({ auth: req.auth, conversationId: req.params.id, id: approvalId }) : {};
+    res.json({ status: entry.status, toolMetadata: entry.toolMetadata, verifiedResults, ...pending });
+  });
+  // Explicit, idempotent continuation after human approval. The analyzer is never
+  // called here. A stable server request ID prevents paid retries on replay.
+  router.post('/conversations/:id/approvals/:approvalId/explanation', async (req, res) => {
+    try {
+      if (!req.body || Object.keys(req.body).join(',') !== 'privacyNoticeVersion' || req.body.privacyNoticeVersion !== PRIVACY_NOTICE.version) {
+        throw new ChatError(400, 'CHAT_INVALID_MESSAGE', 'Acknowledge the current chat privacy notice.');
+      }
+      const completed = await approvals.get({ auth: req.auth, conversationId: req.params.id, id: req.params.approvalId });
+      if (completed.approval.status !== 'COMPLETED' || !completed.result) throw new ToolError(409, 'TOOL_RESULT_UNAVAILABLE', 'A completed analysis is required.');
+      const digest = createHash('sha256').update(`approval-explanation:${req.params.approvalId}`).digest('hex');
+      const requestId = `${digest.slice(0, 8)}-${digest.slice(8, 12)}-5${digest.slice(13, 16)}-a${digest.slice(17, 20)}-${digest.slice(20, 32)}`;
+      try {
+        const explanation = await service.send({ auth: req.auth, userId: req.user.id, sessionId: req.params.id, requestId,
+          content: 'Explain the completed analysis using the verified backend findings.', initialResult: completed.result });
+        res.json({ ...completed, explanation });
+      } catch (error) {
+        if (!(error instanceof ChatError) || error.status < 409) throw error;
+        res.json({ ...completed, explanation: { status: 'UNAVAILABLE', code: error.code,
+          message: 'The analysis is available below. An AI explanation is unavailable; no new scan was performed.' } });
+      }
+    } finally { delete req.body; }
+  });
   router.use((error, _req, res, next) => {
-    if (!(error instanceof ChatError)) return next(error);
+    if (!(error instanceof ChatError) && !(error instanceof ToolError)) return next(error);
     res.status(error.status).json({ error: { code: error.code, message: error.message } });
   });
   return router;

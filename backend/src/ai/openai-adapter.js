@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { CHAT_LIMITS, ChatError, SYSTEM_INSTRUCTIONS, modelPricing, containsSecret } from './chat-policy.js';
+import { responseToolSchemas } from './tool-orchestration.js';
 
 export function providerError(error) {
   if (error instanceof ChatError) return error;
@@ -31,12 +32,13 @@ export function createOpenAIAdapter({ apiKey, model = 'gpt-6-luna', client, time
       }
       return pricing;
     },
-    async respond(messages, { signal, maxOutputTokens = CHAT_LIMITS.outputTokens } = {}) {
+    async respond(messages, { signal, maxOutputTokens = CHAT_LIMITS.outputTokens, enableTools = false } = {}) {
       const pricing = configured();
       try {
         return await sdk.responses.create({ model, instructions: SYSTEM_INSTRUCTIONS,
           input: messages, reasoning: { effort: pricing.reasoning }, max_output_tokens: Math.min(maxOutputTokens, CHAT_LIMITS.outputTokens),
-          store: false, service_tier: 'default', tools: [], tool_choice: 'none',
+          store: false, service_tier: 'default', tools: enableTools ? responseToolSchemas : [], tool_choice: enableTools ? 'auto' : 'none',
+          parallel_tool_calls: false, include: ['reasoning.encrypted_content'],
         }, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs), maxRetries: 0 });
       } catch (error) { throw providerError(error); }
     },
@@ -44,14 +46,15 @@ export function createOpenAIAdapter({ apiKey, model = 'gpt-6-luna', client, time
 }
 
 export function responseText(response) {
-  if (response?.status !== 'completed' || !Array.isArray(response.output) || response.output.some((item) => !['message', 'reasoning'].includes(item.type))) {
+  if (response?.status !== 'completed' || !Array.isArray(response.output) || response.output.some((item) => !item || !['message', 'reasoning'].includes(item.type))) {
     throw new ChatError(502, 'AI_INVALID_RESPONSE', 'The AI response was incomplete or invalid.');
   }
   const parts = [];
   for (const item of response.output) {
     if (item.type !== 'message') continue;
-    if (item.role !== 'assistant' || !Array.isArray(item.content)) throw new ChatError(502, 'AI_INVALID_RESPONSE', 'The AI response was invalid.');
+    if (item.role !== 'assistant' || (item.status && item.status !== 'completed') || !Array.isArray(item.content)) throw new ChatError(502, 'AI_INVALID_RESPONSE', 'The AI response was invalid.');
     for (const part of item.content) {
+      if (!part) throw new ChatError(502, 'AI_INVALID_RESPONSE', 'The AI response was invalid.');
       const value = part.type === 'output_text' ? part.text : part.type === 'refusal' ? part.refusal : null;
       if (typeof value !== 'string') throw new ChatError(502, 'AI_INVALID_RESPONSE', 'The AI response was invalid.');
       parts.push(value);

@@ -1,12 +1,62 @@
-# Phase 8B1 — Controlled tool registry and authorization foundation
+# Controlled tools — Phase 8B1 through Phase 8B2B
 
 **Current implementation:** [Phase 8B2A durable approvals and controlled execution](tool-approvals.md)
 adds authenticated human approval endpoints and single-use email/URL execution.
-Phase 8B2B (Responses orchestration and multi-round usage accounting) remains
-unimplemented. The sections below retain the completed 8B1 design/history;
-the linked 8B2A contract supersedes its deferred-action statements. The legacy
+Phase 8B2B connects those services to Responses and separately budgets every model
+request. The sections marked historical below retain the completed 8B1 design;
+the current 8B2 contracts supersede their deferred-action statements. The legacy
 in-memory `prepareActionContract` remains a non-executable fixture; production
 approval endpoints use PostgreSQL `ToolApproval` records instead.
+
+## Current Responses execution policy (8B2B)
+
+The official SDK adapter registers exactly the existing six tool names. The four
+read-only functions retain their strict ID-only schemas and owner-filtered,
+minimized projections. `analyze_email` and `analyze_url` have model-facing schemas
+with **only `inputReference` (UUID)**. Their existing raw parameter schemas remain
+backend-only for private submission and approval validation.
+
+`tool-orchestration.js` validates function-call shape/IDs and the full batch's
+allowlist and arguments before side effects. The existing tool service rechecks
+active employee identity, conversation and record ownership on every read. It
+returns no raw database objects or free-form evidence text. No paths, file scans,
+incident actions, arbitrary network access or additional tool types are enabled.
+
+The optional private `analysisInput` handoff is documented in [OpenAI chat](openai-chat.md).
+Its parameters never enter provider context or chat history. An action must match
+the current request reference and private tool name; it calls the existing durable
+approval `prepare`, returns a structured pending confirmation and stops the loop.
+Mixed batches prioritize the single pending action; reads in that batch do not run.
+Multiple action proposals in one batch are rejected. Only the human decision API
+can claim execution. Missing private input fails safely without a scan.
+
+Tool outputs use matching Responses `call_id` references. Necessary response items
+and encrypted reasoning are carried only in memory with `store: false`. Tool data
+is evidence, never authorization or system instructions. Limits: two tool-call
+rounds, four invocations, up to three model requests, 500 output tokens per request.
+The last model request has tools disabled; any further requested call is rejected.
+An unknown tool, invalid JSON, unauthorized ID or invalid response stops safely.
+
+Every model request reserves and reconciles through the existing locked ledger.
+Parent and follow-up rows retain charges separately; the root holds the global and
+conversation slot across rounds. Completed analysis survives provider failure.
+Safe references in usage metadata support recovery without repeating tools/scans.
+The explicit approval explanation endpoint uses saved results with tools disabled;
+no budget means deterministic risk/Incident Assistance without another paid call.
+
+The Phase 8C frontend must display private review separately, collect explicit
+confirmation and current privacy acknowledgement, preserve request IDs on retries,
+and display authoritative `verifiedResults` independently of AI prose. Text output
+guards are heuristic; they do not guarantee factuality. Existing approval crash
+limitations (consumed EXECUTING cannot automatically retry) remain unchanged.
+No frontend, RAG or incident creation work is included in 8B2B.
+
+`npm run test:tools` now includes `tool-responses.test.js` alongside the original
+registry, authorization and approval suites. The new suite uses synthetic local
+fixtures and mocked SDK responses; external HTTP is forbidden. Full validation
+is recorded in [OpenAI chat](openai-chat.md#phase-8b2b-validation-record-2026-10-09).
+
+## Historical Phase 8B1 foundation (superseded availability statements)
 
 This is an internal backend foundation. It introduces no HTTP execution endpoint,
 no model-call loop, no OpenAI tool registration, no chat upload, no analysis action,

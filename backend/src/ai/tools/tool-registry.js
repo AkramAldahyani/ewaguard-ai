@@ -7,7 +7,7 @@ export function freeze(value) {
 export const TOOL_LIMITS = freeze({ argumentBytes: 48 * 1024, resultBytes: 16 * 1024,
   activeOperations: 4, transactionTimeoutMs: 5000, statementTimeoutMs: 2000,
   acknowledgementAgeMs: 15 * 60_000, confirmationTtlMs: 5 * 60_000,
-  modelRounds: 0, actionExecutions: 1 });
+  modelRounds: 2, modelInvocations: 4, actionExecutions: 1 });
 
 const id = { type: 'string', format: 'uuid', minLength: 36, maxLength: 36 };
 const schema = (properties) => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });

@@ -10,6 +10,7 @@ import { createUrlAnalysisRouter } from './routes/url-analysis.js';
 import { createFileAnalysisRouter } from './routes/file-analysis.js';
 import { createChatRouter } from './routes/chat.js';
 import { createToolApprovalRouter } from './routes/tool-approvals.js';
+import { createApprovalService } from './ai/tools/approval-service.js';
 import { createAnalysisGate } from './analyzers/analysis-gate.js';
 import { createThreatIntelligence } from './services/threat-intelligence.js';
 import { healthRouter } from './routes/health.js';
@@ -31,9 +32,11 @@ export function createApp(config, dependencies = {}) {
   app.use('/api/analysis/email', createEmailAnalysisRouter({ database, config, ...dependencies.emailAnalysis, gate: gates.EMAIL }));
   app.use('/api/analysis/url', createUrlAnalysisRouter({ database, config, threatIntelligence, ...dependencies.urlAnalysis, gate: gates.URL }));
   app.use('/api/analysis/file', createFileAnalysisRouter({ database, config, threatIntelligence, ...dependencies.fileAnalysis }));
-  app.use('/api/chat', createChatRouter({ database, config, ...dependencies.chat }));
-  app.use('/api/tool-approvals', createToolApprovalRouter({ database, config, gates, threatIntelligence,
-    emailAnalyzer: dependencies.emailAnalysis?.analyzer, urlAnalyzer: dependencies.urlAnalysis?.analyzer }));
+  const approvalOptions = { database, config, gates, threatIntelligence,
+    emailAnalyzer: dependencies.emailAnalysis?.analyzer, urlAnalyzer: dependencies.urlAnalysis?.analyzer };
+  const approvals = createApprovalService(approvalOptions);
+  app.use('/api/chat', createChatRouter({ database, config, ...dependencies.chat, approvals }));
+  app.use('/api/tool-approvals', createToolApprovalRouter({ ...approvalOptions, service: approvals }));
   app.use(express.json({ limit: '32kb', strict: true }));
   app.use('/api/health', healthRouter);
   app.use('/api/auth', createAuthRouter({ database, config }));
