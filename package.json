@@ -16,7 +16,7 @@
     "test:assistance": "node --test backend/tests/incident-assistance.test.js frontend/tests/incident-assistance.test.mjs",
     "test:risk": "node --test backend/tests/risk-engine.test.js frontend/tests/risk.test.mjs",
     "test:portal": "node --test frontend/tests/portal.integration.mjs",
-    "test:chat": "node --test frontend/tests/chat.test.mjs",
+    "test:chat": "node --test --test-concurrency=1 frontend/tests/chat.test.mjs frontend/tests/chat-flow.test.mjs",
     "test:chat:api": "node --test backend/tests/openai-adapter.test.js backend/tests/chat-api.integration.test.js",
     "test:tools": "node --test --test-concurrency=1 backend/tests/tool-registry.test.js backend/tests/tool-authorization.integration.test.js backend/tests/tool-approvals.test.js backend/tests/tool-responses.test.js",
     "chat:purge": "node backend/scripts/purge-expired-chats.js",

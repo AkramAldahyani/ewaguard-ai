@@ -43,9 +43,10 @@ incident records, assigned courses, scores, certificates or published posts. The
 representative home-page percentage has been removed. Training progress is unavailable,
 not zero. The community submission button opens an explanatory modal only.
 
-Phase 4B replaces the assistant placeholder with a labeled, memory-only conversation
-preview and reusable message/result components. It sends no content to any service.
-See [chat interface](chat-interface.md) for its scope and verification limits.
+Phase 8C replaces the Phase 4B assistant demonstration with authenticated backend
+chat, PostgreSQL history, privacy acknowledgement, private analysis handoff and
+human approvals. Synthetic chat layouts remain only in the design-system showcase.
+See [chat interface](chat-interface.md) for workflow, security and verification limits.
 
 ## Accessibility and validation
 

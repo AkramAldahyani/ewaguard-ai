@@ -1,8 +1,8 @@
 import { AlertCircle, BookOpen, Info, LoaderCircle, ShieldAlert, Sparkles, UserRound } from 'lucide-react';
 import { Badge, Button, RiskBadge } from '../../components/ui/index.jsx';
 
-export function EmployeeMessage({ content }) {
-  return <article className="flex min-w-0 gap-3 py-5 sm:gap-4" aria-label="Your preview message"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600"><UserRound className="size-4" aria-hidden="true" /></span><div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-slate-800">You <span className="ml-2 font-normal text-slate-500">Local preview</span></h3><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 [overflow-wrap:anywhere]">{content}</p></div></article>;
+export function EmployeeMessage({ content, preview = true }) {
+  return <article className="flex min-w-0 gap-3 py-5 sm:gap-4" aria-label={preview ? 'Your preview message' : 'Your message'}><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600"><UserRound className="size-4" aria-hidden="true" /></span><div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-slate-800">You {preview && <span className="ml-2 font-normal text-slate-500">Local preview</span>}</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 [overflow-wrap:anywhere]">{content}</p></div></article>;
 }
 
 export function AIMessage({ content, children, preview = true }) {

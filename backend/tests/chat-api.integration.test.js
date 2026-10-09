@@ -98,6 +98,10 @@ test('Phase 8A HTTP and PostgreSQL chat boundaries (mock provider, $0)', async (
     assert.equal(stored.status, 'COMPLETED'); assert.equal(stored.inputTokens, 100); assert.equal(stored.outputTokens, 20);
     assert.ok(stored.chargedMicros < stored.reservedMicros);
     const history = await (await request(`/conversations/${session.id}`)).json(); assert.equal(history.messages.length, 2);
+    assert.equal(history.requests.length, 1);
+    assert.equal(history.requests[0].requestId, data.requestId);
+    assert.deepEqual(Object.keys(history.requests[0]).sort(), ['requestId', 'status', 'toolMetadata', 'userSequence']);
+    assert.equal(history.requests[0].status, 'COMPLETED');
     assert.equal(JSON.stringify(history).includes('SyntheticApiKeySentinel8A'), false);
     assert.equal((await (await request('/conversations', undefined, other)).json()).conversations.some((c) => c.id === session.id), false);
   });

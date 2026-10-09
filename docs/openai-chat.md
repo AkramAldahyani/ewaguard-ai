@@ -1,7 +1,7 @@
 # Secure OpenAI chat — Phase 8A and Phase 8B2B
 
 Phase 8B2B connects the existing registry and durable approvals to Responses
-function calling. The assistant UI remains a preview until Phase 8C. RAG, incident
+function calling. Phase 8C connects the employee interface to these APIs. RAG, incident
 creation, new file scans and arbitrary external tools are not enabled.
 
 ## Architecture and model
@@ -153,7 +153,7 @@ available. The model cannot change authorization, stored risk, confirmation stat
 or incident records. Final text passes shape, secret, safety-claim and basic risk
 contradiction checks. These are conservative heuristics, not semantic proof of
 factuality. `verifiedResults` is the authoritative risk/assistance output; Phase 8C
-must render its fields separately and render model text as escaped prose.
+renders its fields separately and renders model text as escaped prose.
 
 Reuse `ChatSession` and `ChatMessage`: ownership, expiry and unique sequence are
 already present. Successful message pairs and their completed ledger state commit
@@ -262,7 +262,7 @@ accidental reruns. Do not remove these to retry without new authorization.
 ## Future boundary
 
 Phase 8B2B completes backend function orchestration and approval continuation.
-Phase 8C must connect the frontend, active privacy notice, private handoff, exact
+Phase 8C connects the frontend, active privacy notice, private handoff, exact
 operation review, confirmation choices, authoritative results and recovery UI.
 RAG and incident automation require separate phases. No live paid request was
 made for Phase 8B2B; normal tests mock the official SDK transport.
@@ -306,3 +306,37 @@ made for Phase 8B2B; normal tests mock the official SDK transport.
   OpenAI generation or model verification was performed in this phase.
 - Live function-calling compatibility remains unverified to preserve API credit.
   AI prose validation remains heuristic; authoritative risk is always backend data.
+
+## Phase 8C integration and validation (2026-10-09)
+
+The employee `/assistant` route uses the existing backend; see
+[employee workflow and API contracts](chat-interface.md). It provides persisted
+conversation history, active versioned privacy acknowledgement, private email/URL
+handoff, exact-input review, explicit approval/rejection, backend risk/assistance
+cards and GET-only recovery. Explanation is an explicit separately budgeted action.
+The frontend does not change RBAC, MFA, approval execution or the $4 ledger policy.
+
+History now projects safe root request references from existing AiUsage records.
+No database schema, migration or HNSW index changed. No browser storage is used.
+Browser epoch/abort guards protect conversation switching and logout. No direct
+OpenAI browser request, autoapproval, automatic retry, incident creation or RAG
+was added. Text stays escaped and suspicious URLs remain nonclickable.
+
+Validation executed:
+- `npm test`: 369 backend checks passed, including auth/RBAC/MFA, disclaimers,
+  analyzers, risk, assistance, adapter, tool registry, approvals and orchestration.
+- Sequential frontend/database/vector suites: 139 checks passed, including HNSW.
+- 32 new frontend flow/API/render tests and one integrated frontend-client/HTTP
+  lifecycle test; existing chat history tests now verify safe request metadata.
+- `npm run test:tools`: 70 passed. A pre-existing approval-expiry test fixture was
+  fixed to use one clock sample, preserving the exact five-minute SQL constraint.
+- Lint, frontend build, backend checks, route syntax, Prisma validation, migration
+  status (all six applied), audit (zero vulnerabilities) and diff check passed.
+- `npm run dev` started both Vite and the API. Integration tests exercised real
+  local HTTP login/logout, PostgreSQL and analyzer/approval services with mocked
+  Responses SDK output, including pending operations, rejection and result recovery.
+
+No live OpenAI calls were made for Phase 8C. Browser automation returned unavailable
+for both Edge and the in-app browser. Visual responsive/focus/scroll/console checks
+and live function-calling compatibility remain unverified. The existing large
+frontend bundle warning remains. Phase 9 was not started.

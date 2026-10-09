@@ -16,6 +16,9 @@ import { createUrlAnalyzer } from '../src/analyzers/url/url-analyzer.js';
 import { CHAT_LIMITS, PRIVACY_NOTICE, modelPricing, validateMessage } from '../src/ai/chat-policy.js';
 import { RESPONSE_LIMITS, responseToolSchemas } from '../src/ai/tool-orchestration.js';
 import { DISCLAIMER_DEFINITION } from '../../shared/disclaimer.js';
+import bcrypt from 'bcrypt';
+import { createChatFlow } from '../../frontend/src/features/chat/chat-flow.js';
+import { chatApi } from '../../frontend/src/features/chat/chat-api.js';
 
 const model = 'gpt-6-luna';
 const message = (text = 'Contact IT and review the verified findings.') => ({ type: 'message', role: 'assistant', content: [{ type: 'output_text', text }] });
@@ -209,7 +212,8 @@ test('8B2B Responses orchestration, HTTP handoff and real PostgreSQL ledger; syn
         await approvals.decide({ ...request, decision: 'REJECT' });
         await assert.rejects(approvals.decide({ ...request, decision: 'CONFIRM' }), { code: 'TOOL_APPROVAL_CONSUMED' });
       } else {
-        await database.toolApproval.update({ where: { id: request.id }, data: { createdAt: new Date(Date.now() - 301000), expiresAt: new Date(Date.now() - 1000) } });
+        const expiredAt = Date.now() - 1000;
+        await database.toolApproval.update({ where: { id: request.id }, data: { createdAt: new Date(expiredAt - 300000), expiresAt: new Date(expiredAt) } });
         assert.equal((await approvals.decide({ ...request, decision: 'CONFIRM' })).approval.status, 'EXPIRED');
       }
     }
@@ -326,6 +330,63 @@ test('8B2B Responses orchestration, HTTP handoff and real PostgreSQL ledger; syn
     queue = [response(call('explain_risk', ref)), response(message(`Risk score: ${record.riskScore === 0 ? 100 : 0}.`))];
     await assert.rejects(send(), { code: 'AI_INVALID_RESPONSE' });
     assert.equal((await database.emailAnalysis.findUnique({ where: { id: saved.analysisId } })).riskScore, record.riskScore);
+  });
+  await run('8C frontend flow and API client: login, history, private approval, recovery and logout over HTTP', async () => {
+    base = await start();
+    const password = `Synthetic-${randomUUID()}!`;
+    await database.user.update({ where: { id: owner.user.id }, data: { passwordHash: await bcrypt.hash(password, 12) } });
+    const login = await realFetch(`${base}/api/auth/login`, { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: owner.user.email, password }) });
+    assert.equal(login.status, 200);
+    const cookie = login.headers.get('set-cookie').split(';')[0];
+    const previousFetch = globalThis.fetch;
+    // Exercise the production frontend client against real authenticated routes.
+    // Only the Responses SDK is mocked; no network analyzer is called.
+    globalThis.fetch = (path, options = {}) => {
+      assert.ok(path.startsWith('/api/'));
+      return realFetch(base + path, { ...options, headers: { ...options.headers, Origin: origin, Cookie: cookie } });
+    };
+    try {
+      const flow = createChatFlow(chatApi);
+      await flow.init(); flow.edit('How does MFA protect my account?'); await flow.send();
+      assert.equal(requests.length, 0);
+      flow.acknowledge(true); queue = [response(message())]; await flow.send();
+      assert.equal(flow.getSnapshot().messages.at(-1).content, 'Contact IT and review the verified findings.');
+      const id = flow.getSnapshot().active.id;
+      await flow.list(); assert.ok(flow.getSnapshot().conversations.some((c) => c.id === id));
+      await flow.open(id); assert.equal(flow.getSnapshot().messages.length, 2);
+      queue = [response(call('get_analysis_result', ref)), response(message())];
+      flow.edit('Explain my existing analysis.'); await flow.send();
+      assert.equal(flow.getSnapshot().requests.at(-1).verifiedResults[0].data.analysisId, ref.analysisId);
+      const ack = await fetch('/api/disclaimers/acknowledge', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ context: 'EMAIL_ANALYSIS' }) });
+      assert.ok([200, 201].includes(ack.status));
+      for (const decision of ['CONFIRM', 'REJECT']) {
+        const requestId = randomUUID(); const privateFlow = createChatFlow(chatApi, () => requestId);
+        await privateFlow.init(); privateFlow.acknowledge(true); await privateFlow.open(id);
+        queue = [response(call('analyze_email', { inputReference: requestId }))];
+        const before = scans;
+        await privateFlow.send({ toolName: 'analyze_email', parameters: { body: 'Synthetic private invitation for Phase 8C.', headers: '' } });
+        const pending = privateFlow.getSnapshot().requests.find((r) => r.requestId === requestId);
+        assert.equal(pending.approval.status, 'PENDING'); assert.equal(scans, before);
+        await privateFlow.open(id);
+        assert.equal(privateFlow.getSnapshot().requests.find((r) => r.requestId === requestId).toolMetadata.approvalId, pending.approval.id);
+        await privateFlow.recover(requestId); await privateFlow.review(requestId, pending.approval.id);
+        assert.equal(privateFlow.getSnapshot().review.parameters.body, 'Synthetic private invitation for Phase 8C.');
+        await privateFlow.decide(decision, decision === 'CONFIRM');
+        assert.equal(scans, before + (decision === 'CONFIRM' ? 1 : 0));
+        assert.equal(privateFlow.getSnapshot().requests.find((r) => r.requestId === requestId).approval.status, decision === 'CONFIRM' ? 'COMPLETED' : 'REJECTED');
+        if (decision === 'CONFIRM') {
+          queue = [response(message())]; await privateFlow.explain(requestId, pending.approval.id);
+          assert.equal(privateFlow.getSnapshot().error, '');
+          await privateFlow.recover(requestId);
+          assert.ok(privateFlow.getSnapshot().requests.find((r) => r.requestId === requestId).verifiedResults[0].data.assistance);
+          assert.equal(scans, before + 1);
+        }
+        privateFlow.clear();
+      }
+      assert.equal(JSON.stringify(requests).includes('Synthetic private invitation for Phase 8C.'), false);
+      const logout = await fetch('/api/auth/logout', { method: 'POST' }); assert.equal(logout.status, 204);
+      flow.clear(); assert.equal(flow.getSnapshot().active, null);
+    } finally { globalThis.fetch = previousFetch; }
   });
   await run('private API recovery enforces ownership and contains no key or raw payload', async () => {
     base = await start();

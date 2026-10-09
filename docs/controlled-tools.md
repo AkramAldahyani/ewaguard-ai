@@ -44,9 +44,9 @@ Safe references in usage metadata support recovery without repeating tools/scans
 The explicit approval explanation endpoint uses saved results with tools disabled;
 no budget means deterministic risk/Incident Assistance without another paid call.
 
-The Phase 8C frontend must display private review separately, collect explicit
-confirmation and current privacy acknowledgement, preserve request IDs on retries,
-and display authoritative `verifiedResults` independently of AI prose. Text output
+The Phase 8C frontend displays private review separately, collects explicit
+confirmation and current privacy acknowledgement, uses request IDs for recovery,
+and displays authoritative `verifiedResults` independently of AI prose. Text output
 guards are heuristic; they do not guarantee factuality. Existing approval crash
 limitations (consumed EXECUTING cannot automatically retry) remain unchanged.
 No frontend, RAG or incident creation work is included in 8B2B.
@@ -257,3 +257,16 @@ suites contain 22 tests/subtests, including five added by this review. `npm run 
 reported zero vulnerabilities. `git diff --check` passed.
 The existing frontend large-bundle warning remains. No migration or model call was
 performed for this phase.
+
+## Phase 8C employee tool interface
+
+The connected [chat interface](chat-interface.md) renders only backend-confirmed
+receipts and sanitized results. It uses the existing four read-only tools and
+private-reference email/URL approval handoff. New file scans remain on the file
+analyzer page. Tool progress is non-streaming: no fabricated scanner activity.
+Private review parameters never enter conversation state or OpenAI context.
+Completed analysis and deterministic assistance survive explanation failures;
+status recovery is read-only and cannot rescan. No new tool or permission was added.
+Validation: 369 backend and 139 frontend/database/vector checks passed; 70 tool
+checks passed. Browser visual verification remains pending because automation
+was unavailable. No Phase 8C paid OpenAI calls were made.

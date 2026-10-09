@@ -44,7 +44,11 @@ export function createChatRouter({ database, config, approvals, provider = creat
     const before = req.query.before;
     if (Object.keys(req.query).some((key) => key !== 'before') || (before !== undefined && (typeof before !== 'string' || !/^\d{1,9}$/.test(before)))) throw new ChatError(400, 'CHAT_INVALID_CURSOR', 'Invalid message cursor.');
     const messages = await database.chatMessage.findMany({ where: { sessionId: session.id, expiresAt: { gt: new Date() }, ...(before !== undefined ? { sequence: { lt: Number(before) } } : {}) }, orderBy: { sequence: 'desc' }, take: 50, select: messageSelect });
-    res.json({ conversation: Object.fromEntries(Object.keys(sessionSelect).map((key) => [key, session[key]])), nextBefore: messages.length === 50 ? messages.at(-1).sequence : null, messages: messages.reverse(), privacyNotice: PRIVACY_NOTICE });
+    const requests = await database.aiUsage.findMany({ where: { userId: req.user.id, sessionId: session.id, parentRequestId: null,
+      OR: [{ userSequence: { gte: messages.at(-1)?.sequence ?? 0, ...(before !== undefined ? { lt: Number(before) } : {}) } },
+        ...(before === undefined ? [{ userSequence: null }] : [])] }, orderBy: { createdAt: 'desc' }, take: 50,
+      select: { requestId: true, status: true, userSequence: true, toolMetadata: true } });
+    res.json({ conversation: Object.fromEntries(Object.keys(sessionSelect).map((key) => [key, session[key]])), nextBefore: messages.length === 50 ? messages.at(-1).sequence : null, messages: messages.reverse(), requests, privacyNotice: PRIVACY_NOTICE });
   });
   router.post('/conversations/:id/messages', async (req, res) => {
     const content = validateMessage(req.body);

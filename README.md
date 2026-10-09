@@ -14,7 +14,7 @@ security, Phase 5B sensitive-information acknowledgement, Phase 6A email analysi
 Phase 6B URL analysis, Phase 6C file analysis, Phase 7A central risk evaluation,
 Phase 7B incident assistance, Phase 8A secure OpenAI/chat backend, and Phase 8B1
 controlled tool registry, Phase 8B2A durable approvals, and Phase 8B2B Responses
-function calling with multi-round budget accounting.**
+function calling with multi-round budget accounting, and Phase 8C employee chat integration.**
 Employees sign in using short-lived HTTP-only JWT cookies. Administrators must
 enroll and verify TOTP before receiving an authenticated session. See
 [RBAC and MFA operations](docs/rbac-mfa.md) for enrollment and key configuration.
@@ -22,11 +22,11 @@ enroll and verify TOTP before receiving an authenticated session. See
 The employee portal includes dedicated tool, awareness, incident, community, and
 profile pages. Password strength analysis and secure generation run entirely in the
 browser and create no password records or API requests. The assistant
-supports memory-only messages with fixed preview notices, not AI responses. Later
+supports real backend AI responses, conversation history and explicit analysis approvals. Later
 feature submissions remain disabled and explicitly labeled as previews. See
 [employee portal scope and verification](docs/employee-portal.md).
 
-See [chat interface architecture and preview boundaries](docs/chat-interface.md).
+See [employee chat workflow and security boundaries](docs/chat-interface.md).
 See [password security architecture and privacy controls](docs/password-security.md).
 See [sensitive-information disclaimer architecture](docs/disclaimers.md).
 Phase 6A supports employee email submissions and minimized evidence. See
@@ -152,8 +152,8 @@ Phase 18. Phase 0 architecture notes remain a historical foundation description.
 ## Phase 8A backend
 
 Secure employee chat APIs and conservative OpenAI spending controls are documented
-in [docs/openai-chat.md](docs/openai-chat.md). The assistant UI remains a preview
-until Phase 8C. Normal tests use mocked OpenAI responses and cost $0.
+in [docs/openai-chat.md](docs/openai-chat.md). Phase 8C connects the employee UI
+to these APIs. Normal tests use mocked OpenAI responses and cost $0.
 
 The [controlled tool foundation](docs/controlled-tools.md) enforces employee-owned
 read-only results. Phase 8B2A implements
@@ -161,5 +161,6 @@ read-only results. Phase 8B2A implements
 Configure the dedicated
 approval encryption key and use the documented employee REST endpoints. Phase 8B2B
 connects Responses function calling, private-input approval handoff, saved-result
-explanations and separately reserved model rounds. Phase 8C approval/chat UI is
-not implemented. Automated tests use mocked OpenAI responses and no paid calls.
+explanations and separately reserved model rounds. Phase 8C adds privacy, history,
+approval/rejection and result recovery UI. Automated tests use mocked OpenAI
+responses and no paid calls. Visual browser validation remains pending.

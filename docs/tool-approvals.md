@@ -3,7 +3,8 @@
 Phase 8B2 is split into two implementation subphases. **8B2A and 8B2B are implemented.**
 8B2B reuses the unchanged encrypted approval state machine for Responses function
 calling and adds separately budgeted model rounds and saved-result explanation.
-Phase 8C UI, RAG, incident creation and chat file uploads are not included.
+Phase 8C now supplies the employee approval UI described in [chat interface](chat-interface.md).
+RAG, incident creation and chat file uploads are not included.
 
 ## Architecture
 
@@ -54,9 +55,9 @@ retention has removed/expired the analysis, the receipt remains consumed and
 Expired confirmation is 410. Consumed, rejected or uncertain execution is 409.
 
 The review endpoint is **human-only and must never be registered as an AI tool**.
-Phase 8C must show the exact private review parameters and network/privacy effects,
-then require a deliberate employee choice. A model sentence is never confirmation.
-All responses use `Cache-Control: no-store`; no frontend UI was added here.
+Phase 8C shows the exact private review parameters and network/privacy effects,
+then requires a deliberate employee choice. A model sentence is never confirmation.
+All responses use `Cache-Control: no-store`; the frontend uses these existing APIs.
 
 ## State, concurrency and failure handling
 
@@ -159,7 +160,7 @@ for function-call items and matching outputs. Current limits are two **tool-call
 rounds**, four invocations and at most three paid requests (initial, follow-up,
 final), each capped at 500 output tokens including reasoning. This implements the
 8B2B requirement and supersedes the older proposed two-total-request limit. See
-[multi-round budgeting and privacy](openai-chat.md). Phase 8C remains unimplemented.
+[multi-round budgeting and privacy](openai-chat.md). Phase 8C connects these existing contracts.
 
 ## Validation
 
@@ -174,3 +175,20 @@ validation, client generation and migration deployment/status (all five applied)
 `npm audit` reported zero vulnerabilities. `git diff --check` passed. The existing
 frontend large-bundle warning remains. The local encryption key was initialized
 without printing it; running backend processes must restart to load the new setting.
+
+## Phase 8C approval and recovery interface
+
+[Employee chat](chat-interface.md) now provides private-input forms gated by the
+existing server disclaimer, pending cards and a native review dialog. Confirmation
+requires an explicit unchecked review box and Approve click. A fresh GET precedes
+POST decision; backend identity, ownership, acknowledgement, expiry and atomic
+execution remain authoritative. Rejection cannot start analysis. Browser expiry
+disables approval but is not a security boundary.
+
+Saved request references are returned with conversation history. Reopening and
+Retrieve saved status recover completed results without another scan. Explain
+with AI explicitly invokes the existing idempotent continuation endpoint; failure
+keeps deterministic findings. Backend budget controls are unchanged. Private review
+parameters are discarded from presentation state on close/logout, never copied
+into messages or browser storage. See the chat documentation for contracts,
+accessibility, errors and known browser-validation limitations.
