@@ -1,14 +1,28 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { AlertTriangle, CheckCircle2 } from 'lucide-react';
 import { DISCLAIMER_DEFINITION } from '../../../../shared/disclaimer.js';
 import { Button } from '../../components/ui/index.jsx';
 import { apiRequest } from '../../services/api.js';
 import { canContinue } from './disclaimer-state.js';
+import { hasSessionConsent, rememberSessionConsent } from './session-consent.js';
+
+const consentName = 'sensitive-information';
 
 export function SensitiveInformationNotice({ context, onAcknowledged = () => {}, continuation = 'the feature preview' }) {
   const [checked, setChecked] = useState(false);
-  const [status, setStatus] = useState('idle');
+  const [status, setStatus] = useState(() => hasSessionConsent(consentName, DISCLAIMER_DEFINITION.version) ? 'restoring' : 'idle');
   const [error, setError] = useState('');
+
+  useEffect(() => {
+    if (status !== 'restoring') return undefined;
+    let active = true;
+    // Reuse the session's explicit consent while obtaining the context-specific
+    // backend acknowledgement required by analyzer and approval validation.
+    apiRequest('/api/disclaimers/acknowledge', { method: 'POST', body: JSON.stringify({ context }) })
+      .then((payload) => { if (active) { setStatus('complete'); onAcknowledged(payload.acknowledgement); } })
+      .catch((failure) => { if (active) { setStatus('restore-error'); setError(failure.message || 'Could not restore your acknowledgement.'); } });
+    return () => { active = false; };
+  }, [context, onAcknowledged, status]);
 
   const acknowledge = async () => {
     if (!canContinue(checked, status)) return;
@@ -18,6 +32,7 @@ export function SensitiveInformationNotice({ context, onAcknowledged = () => {},
       const payload = await apiRequest('/api/disclaimers/acknowledge', {
         method: 'POST', body: JSON.stringify({ context }),
       });
+      rememberSessionConsent(consentName, DISCLAIMER_DEFINITION.version);
       setStatus('complete');
       onAcknowledged(payload.acknowledgement);
     } catch (requestError) {
@@ -25,6 +40,9 @@ export function SensitiveInformationNotice({ context, onAcknowledged = () => {},
       setError(requestError.message || 'The acknowledgement could not be recorded. Please try again.');
     }
   };
+
+  if (status === 'restoring') return <p role="status" className="text-sm text-slate-500">Restoring your session acknowledgement…</p>;
+  if (status === 'restore-error') return <div role="alert"><p>{error}</p><Button onClick={() => setStatus('restoring')}>Retry</Button></div>;
 
   if (status === 'complete') return <section className="rounded-2xl border border-success-200 bg-success-50 p-5" aria-live="polite"><div className="flex items-start gap-3"><CheckCircle2 className="mt-0.5 size-5 shrink-0 text-success-700" aria-hidden="true" /><div><h2 className="font-bold text-success-900">Acknowledgement recorded</h2><p className="mt-1 text-sm leading-6 text-success-800">You may continue to {continuation}. No submitted content was stored with this acknowledgement.</p></div></div></section>;
 

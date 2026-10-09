@@ -61,7 +61,7 @@ function SidebarContent({ onNavigate }) {
         </NavLink>
       </div>
 
-      <nav aria-label="Primary navigation" className="flex-1 overflow-y-auto px-3 pb-5 pt-3">
+      <nav aria-label="Primary navigation" className="portal-sidebar-scroll flex-1 overflow-y-auto px-3 pb-5 pt-3">
         {sections.map((section) => (
           <div key={section.label} className="mb-5 last:mb-0">
             <p className="mb-2 px-3 text-[0.65rem] font-bold uppercase tracking-[0.19em] text-slate-400">{section.label}</p>
@@ -108,12 +108,27 @@ export function AppShell() {
   const [loggingOut, setLoggingOut] = useState(false);
   const mobileDialogRef = useRef(null);
   const mainRef = useRef(null);
+  const shellRef = useRef(null);
   const { pathname } = useLocation();
   const isAssistant = pathname === '/assistant';
   const previousPath = useRef(pathname);
   const { user, logout } = useAuth();
   const avatar = user.role === 'IT_SECURITY_ADMIN' ? adminAvatar : userAvatar;
   const roleLabel = user.role === 'IT_SECURITY_ADMIN' ? 'IT / Security Administrator' : 'Employee';
+
+  // The visual viewport also shrinks when a mobile keyboard opens.
+  useEffect(() => {
+    if (!isAssistant) return undefined;
+    const shell = shellRef.current;
+    const viewport = window.visualViewport;
+    const resize = () => {
+      if (!viewport || viewport.scale === 1) shell?.style.setProperty('--assistant-viewport-height', `${viewport?.height ?? window.innerHeight}px`);
+    };
+    resize();
+    viewport?.addEventListener('resize', resize);
+    window.addEventListener('resize', resize);
+    return () => { viewport?.removeEventListener('resize', resize); window.removeEventListener('resize', resize); shell?.style.removeProperty('--assistant-viewport-height'); };
+  }, [isAssistant]);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -149,7 +164,7 @@ export function AppShell() {
   }, [pathname]);
 
   return (
-    <div className="app-surface min-h-screen text-slate-900">
+    <div ref={shellRef} className={cn('app-surface text-slate-900', isAssistant ? 'assistant-shell' : 'min-h-screen')}>
       <a href="#main-content" className="skip-link">Skip to main content</a>
       <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col bg-navy-950 shadow-[8px_0_30px_rgb(7_23_41/0.08)] lg:flex">
         <SidebarContent />
@@ -162,8 +177,8 @@ export function AppShell() {
           </div>
       </dialog>
 
-      <div className="lg:pl-72">
-        <header className="sticky top-0 z-30 flex h-[4.75rem] items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 shadow-[0_1px_0_rgb(15_23_42/0.02)] backdrop-blur-xl sm:px-6 lg:px-8">
+      <div className={cn('lg:pl-72', isAssistant && 'assistant-frame')}>
+        <header className="portal-header sticky top-0 z-30 flex h-[4.75rem] items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 shadow-[0_1px_0_rgb(15_23_42/0.02)] backdrop-blur-xl sm:px-6 lg:px-8">
           <IconButton label="Open navigation" aria-expanded={mobileOpen} aria-controls="mobile-navigation" onClick={() => setMobileOpen(true)} className="shrink-0 lg:hidden"><Menu className="size-5" /></IconButton>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-slate-900">EWAGuard AI Security Portal</p>
@@ -181,8 +196,7 @@ export function AppShell() {
           </div>
         </header>
         <main ref={mainRef} id="main-content" tabIndex={-1} className={cn(
-          'mx-auto w-full min-w-0 max-w-[96rem] px-4 sm:px-6 lg:px-8',
-          isAssistant ? 'h-[calc(100dvh-4.75rem)] overflow-hidden py-4 lg:py-5' : 'py-6 lg:py-8',
+          isAssistant ? 'assistant-main' : 'mx-auto w-full min-w-0 max-w-[96rem] px-4 py-6 sm:px-6 lg:px-8 lg:py-8',
         )}><Outlet /></main>
       </div>
     </div>

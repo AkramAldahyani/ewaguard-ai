@@ -1,12 +1,28 @@
-import { AlertCircle, BookOpen, Info, LoaderCircle, ShieldAlert, Sparkles, UserRound } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { AlertCircle, BookOpen, Check, Copy, Info, ShieldAlert } from 'lucide-react';
 import { Badge, Button, RiskBadge } from '../../components/ui/index.jsx';
+import { MessageContent } from './MessageContent.jsx';
+import logo from '../../assets/branding/ewa-ai-logo.png';
+
+export function AssistantAvatar({ className = '' }) {
+  return <span className={`assistant-avatar ${className}`} aria-hidden="true"><img src={logo} alt="" /></span>;
+}
 
 export function EmployeeMessage({ content, preview = true }) {
-  return <article className="flex min-w-0 gap-3 py-5 sm:gap-4" aria-label={preview ? 'Your preview message' : 'Your message'}><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-slate-100 text-slate-600"><UserRound className="size-4" aria-hidden="true" /></span><div className="min-w-0 flex-1"><h3 className="text-sm font-bold text-slate-800">You {preview && <span className="ml-2 font-normal text-slate-500">Local preview</span>}</h3><p className="mt-2 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 [overflow-wrap:anywhere]">{content}</p></div></article>;
+  return <article className="chat-message chat-message-user" aria-label={preview ? 'Your preview message' : 'Your message'}><div className="chat-user-content"><h3 className="chat-message-label">You {preview && <span>· Local preview</span>}</h3><div className="chat-user-bubble"><p>{content}</p></div></div></article>;
 }
 
 export function AIMessage({ content, children, preview = true }) {
-  return <article className="flex min-w-0 gap-3 py-5 sm:gap-4" aria-label="Assistant message"><span className="grid size-9 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-700"><Sparkles className="size-4" aria-hidden="true" /></span><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><h3 className="text-sm font-bold text-slate-900">EWAGuard AI</h3>{preview && <Badge>Preview response</Badge>}</div>{content && <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-700 [overflow-wrap:anywhere]">{content}</p>}{children && <div className="mt-4 space-y-4">{children}</div>}</div></article>;
+  const [copyState, setCopyState] = useState('idle');
+  const timer = useRef(null);
+  useEffect(() => () => clearTimeout(timer.current), []);
+  const copy = async () => {
+    clearTimeout(timer.current);
+    try { await navigator.clipboard.writeText(content); setCopyState('copied'); }
+    catch { setCopyState('error'); }
+    timer.current = setTimeout(() => setCopyState('idle'), 2500);
+  };
+  return <article className="chat-message chat-message-assistant" aria-label="Assistant message"><AssistantAvatar /><div className="chat-ai-content"><div className="mb-2 flex flex-wrap items-center gap-2"><h3 className="chat-message-label">EWAGuard AI</h3>{preview && <Badge>Preview response</Badge>}</div><div className="chat-ai-bubble">{content && <MessageContent content={content} />}{children && <div className="mt-4 space-y-4">{children}</div>}</div>{content && <div className="chat-message-actions"><button type="button" onClick={copy} aria-label="Copy AI response" className="chat-copy">{copyState === 'copied' ? <Check className="size-3.5" aria-hidden="true" /> : <Copy className="size-3.5" aria-hidden="true" />}<span>{copyState === 'copied' ? 'Copied' : 'Copy'}</span></button><span role="status" className="text-xs text-slate-600">{copyState === 'error' ? 'Copy unavailable. Select the response text to copy it.' : copyState === 'copied' ? 'Response copied.' : ''}</span></div>}</div></article>;
 }
 
 export function SecurityNotice({ children }) {
@@ -14,7 +30,7 @@ export function SecurityNotice({ children }) {
 }
 
 export function ToolRunningState({ label = 'Preparing preview response…', preview = true }) {
-  return <div role="status" className="flex items-center gap-3 rounded-xl bg-slate-50 p-4 text-sm text-slate-600"><LoaderCircle className="size-4 shrink-0 animate-spin motion-reduce:animate-none" aria-hidden="true" /><span>{preview && <strong>UI preview: </strong>}{label}{preview && <span className="block text-xs leading-5 text-slate-500">No tool or AI service is running.</span>}</span></div>;
+  return <div role="status" className="chat-loading"><span className="chat-typing" aria-hidden="true"><i /><i /><i /></span><span>{preview && <strong>UI preview: </strong>}{label}{preview && <span className="block text-xs leading-5 text-slate-500">No tool or AI service is running.</span>}</span></div>;
 }
 
 export function ChatError({ onRetry, onDismiss, busy = false, preview = true }) {

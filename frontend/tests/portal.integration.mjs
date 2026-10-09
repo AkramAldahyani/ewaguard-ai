@@ -17,7 +17,7 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
     return renderToStaticMarkup(createElement(AuthContext.Provider, { value: { logout: async () => {}, ...session } },
       createElement(MemoryRouter, { initialEntries: [path] }, createElement(AppRoutes))));
   }
-  const pages = [['/', 'Welcome, Portal'], ['/assistant', 'Ask EWAGuard AI'], ['/analyze/email', 'Analyze Email'], ['/analyze/url', 'Analyze URL'], ['/analyze/file', 'Analyze File'], ['/password-security', 'Password Security'], ['/incidents', 'My Incidents'], ['/training', 'My Training'], ['/monthly-quiz', 'Monthly Quiz'], ['/certificates', 'Certificates'], ['/community', 'Security Community'], ['/profile', 'Profile']];
+  const pages = [['/', 'Welcome, Portal'], ['/assistant', 'EWAGuard AI'], ['/analyze/email', 'Analyze Email'], ['/analyze/url', 'Analyze URL'], ['/analyze/file', 'Analyze File'], ['/password-security', 'Password Security'], ['/incidents', 'My Incidents'], ['/training', 'My Training'], ['/monthly-quiz', 'Monthly Quiz'], ['/certificates', 'Certificates'], ['/community', 'Security Community'], ['/profile', 'Profile']];
   await t.test('all employee destinations render with complete navigation', () => {
     for (const [path, title] of pages) {
       const html = render(path);
@@ -61,18 +61,14 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
     assert.match(html, /no backend endpoint/i);
     assert.doesNotMatch(html, /Preview only|coming later/);
   });
-  await t.test('assistant has labeled controls, suggestions and an employee-only showcase', () => {
+  await t.test('assistant initially shows only privacy entry and keeps its showcase employee-only', () => {
     const html = render('/assistant');
-    assert.match(html, /How can EWAGuard AI help/);
-    assert.match(html, /I received a suspicious email/);
-    assert.match(html, /How does MFA protect my account/);
-    assert.match(html, /maxLength="2000"/i);
-    assert.match(html, /Shift/);
+    assert.match(html, /Before you chat/);
+    assert.match(html, /class="assistant-consent-page"/);
+    assert.doesNotMatch(html, /Start a conversation|chat-composer|id="chat-message"|aria-label="New Chat"|aria-label="Conversation history"/);
     assert.match(html, /Loading the current privacy notice/);
     assert.doesNotMatch(html, /OpenAI and security tools are not connected|Preview response/);
-    assert.match(html, /h-\[calc\(100dvh-4\.75rem\)\]/);
-    assert.match(html, /min-h-0 min-w-0 flex-1/);
-    assert.match(html, /shrink-0 border-t/);
+    assert.match(html, /class="assistant-main"/);
     assert.match(render('/design-system/chat'), /Chat component previews/);
     assert.doesNotMatch(render('/design-system/chat', { user: null, loading: false }), /Chat component previews/);
     assert.doesNotMatch(render('/design-system/chat', { user: { ...user, role: 'IT_SECURITY_ADMIN' }, loading: false }), /Chat component previews/);

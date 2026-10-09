@@ -343,11 +343,20 @@ test('8B2B Responses orchestration, HTTP handoff and real PostgreSQL ledger; syn
     // Only the Responses SDK is mocked; no network analyzer is called.
     globalThis.fetch = (path, options = {}) => {
       assert.ok(path.startsWith('/api/'));
-      return realFetch(base + path, { ...options, headers: { ...options.headers, Origin: origin, Cookie: cookie } });
+      // Same-origin browser GETs carry Fetch Metadata but normally omit Origin.
+      const read = !options.method || ['GET', 'HEAD'].includes(options.method);
+      return realFetch(base + path, { ...options, headers: { ...options.headers,
+        ...(!read ? { Origin: origin } : {}), 'Sec-Fetch-Site': 'same-origin', Cookie: cookie } });
     };
     try {
       const flow = createChatFlow(chatApi);
-      await flow.init(); flow.edit('How does MFA protect my account?'); await flow.send();
+      await flow.init();
+      assert.equal(flow.getSnapshot().error, '');
+      assert.equal(flow.getSnapshot().listError, '');
+      assert.equal(flow.getSnapshot().privacy.version, PRIVACY_NOTICE.version);
+      assert.equal(flow.getSnapshot().acknowledgedVersion, null);
+      assert.equal(flow.getSnapshot().active, null, 'entry must not require a New conversation click');
+      flow.edit('How does MFA protect my account?'); await flow.send();
       assert.equal(requests.length, 0);
       flow.acknowledge(true); queue = [response(message())]; await flow.send();
       assert.equal(flow.getSnapshot().messages.at(-1).content, 'Contact IT and review the verified findings.');

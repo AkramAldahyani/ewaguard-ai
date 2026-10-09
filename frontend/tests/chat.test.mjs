@@ -82,3 +82,13 @@ test('structured components escape content and never invent missing results', as
   assert.match(render('ToolRunningState'), /role="status"/);
   assert.match(render('ChatError'), /role="alert"/);
 });
+
+test('AI presentation formats readable structure while keeping hostile markup and links inert', async (t) => {
+  const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+  t.after(() => server.close());
+  const { MessageContent } = await server.ssrLoadModule('/src/features/chat/MessageContent.jsx');
+  const content = '# Next steps\n\n**Verify first** using `trusted tools`.\n\n- Do not reply\n- Contact IT\n\n1. Report the message\n2. Wait for guidance\n\n```text\n<script>alert(1)</script>\n```\n\n| Check | Status |\n| --- | --- |\n| Attachment | Not scanned |\n\n[Example](https://suspicious.invalid/)\n<img src="https://tracker.invalid/x" onerror="alert(1)">\n[Bad](javascript:alert)';
+  const html = renderToStaticMarkup(createElement(MessageContent, { content }));
+  for (const pattern of [/<h3>Next steps<\/h3>/, /<strong>Verify first<\/strong>/, /<code>trusted tools<\/code>/, /<ul><li>/, /<ol start="1">/, /<pre><code>/, /<table>/, /<th scope="col">Check/, /Not scanned/, /&lt;script&gt;/, /&lt;img/]) assert.match(html, pattern);
+  assert.doesNotMatch(html, /<(?:script|img|iframe|a)\b|<[^>]+\s(?:href|onerror)=/);
+});

@@ -1,4 +1,5 @@
 import { chatApi } from './chat-api.js';
+import { hasSessionConsent, rememberSessionConsent } from '../disclaimer/session-consent.js';
 
 export const CHAT_MAX_LENGTH = 2000;
 export const CHAT_SUGGESTIONS = ['I received a suspicious email. What should I do?', 'How does MFA protect my account?', 'What are the warning signs of phishing?', 'How should I report a security concern?'];
@@ -6,6 +7,7 @@ export function chatError(error) {
   if (error.status === 401) return 'Your session has expired. Sign in again to continue.';
   if (error.status === 410) return 'This approval has expired. Retrieve its saved status; no new analysis can start.';
   const messages = {
+    UNTRUSTED_ORIGIN: 'The request was blocked by the site’s origin check. Open EWAGuard AI from its configured address and reload chat.',
     AI_BUDGET_EXHAUSTED: 'AI assistance has reached its application spending limit. Saved analysis results remain available.',
     CHAT_DAILY_LIMIT: 'You have reached your daily AI request limit. Return tomorrow; saved results remain available.',
     AI_RATE_LIMITED: 'The AI provider is busy. Check this request’s status before starting another message.',
@@ -59,7 +61,7 @@ export function createChatFlow(api = chatApi, uuid = () => crypto.randomUUID()) 
     set({ status: 'error', error: chatError(error), review: null });
   }
   function notice(value) {
-    if (value) set({ privacy: value, acknowledgedVersion: value.version === state.acknowledgedVersion ? value.version : null });
+    if (value) set({ privacy: value, acknowledgedVersion: value.version === state.acknowledgedVersion || hasSessionConsent('chat', value.version) ? value.version : null });
   }
   function receipt(requestId, payload) {
     const old = state.requests.find((item) => item.requestId === requestId) ?? { requestId };
@@ -85,7 +87,10 @@ export function createChatFlow(api = chatApi, uuid = () => crypto.randomUUID()) 
   const flow = {
     getSnapshot: () => state,
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
-    acknowledge: (checked) => set({ acknowledgedVersion: checked ? state.privacy?.version : null }),
+    acknowledge: (checked) => {
+      rememberSessionConsent('chat', state.privacy?.version, checked);
+      set({ acknowledgedVersion: checked ? state.privacy?.version : null });
+    },
     edit: (draft) => { if (!chatBusy(state)) set({ draft, error: '' }); },
     dismissError: () => set({ error: '', status: 'idle' }),
     closeReview: () => { if (!chatBusy(state)) set({ review: null }); },

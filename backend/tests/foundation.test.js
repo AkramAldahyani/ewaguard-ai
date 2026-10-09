@@ -4,9 +4,41 @@ import { test } from 'node:test';
 import { createApp } from '../src/app.js';
 import { databaseUrl, parseConfig } from '../src/config/env.js';
 import { errorHandler } from '../src/middleware/error-handler.js';
+import { createTrustedOrigin } from '../src/middleware/trusted-origin.js';
 
 const validSecret = 'test-secret-that-is-at-least-32-characters-long';
 const configEnv = (overrides = {}) => ({ JWT_SECRET: validSecret, ...overrides });
+
+test('origin validation permits same-origin browser reads without weakening write or cross-origin checks', () => {
+  const trusted = 'https://ewaguard.example';
+  const middleware = createTrustedOrigin([trusted]);
+  for (const [method, origin, site, allowed] of [
+    ['GET', undefined, 'same-origin', true],
+    ['HEAD', undefined, 'same-origin', true],
+    ['GET', undefined, 'same-site', false],
+    ['GET', undefined, 'cross-site', false],
+    ['GET', undefined, 'none', false],
+    ['GET', 'https://evil.example', 'same-origin', false],
+    ['GET', trusted, 'cross-site', false],
+    ['POST', undefined, 'same-origin', false],
+    ['POST', undefined, 'same-site', false],
+    ['POST', trusted, 'same-origin', true],
+    ['POST', trusted, 'same-site', true],
+    ['POST', trusted, 'cross-site', false],
+    ['PUT', undefined, 'same-origin', false],
+    ['DELETE', undefined, 'same-origin', false],
+    ['GET', undefined, undefined, true],
+    ['POST', undefined, undefined, true],
+  ]) {
+    let passed = false;
+    let status;
+    const req = { method, get: (name) => ({ Origin: origin, 'Sec-Fetch-Site': site })[name] };
+    const res = { status(code) { status = code; return this; }, json(body) { assert.equal(body.error.code, 'UNTRUSTED_ORIGIN'); } };
+    middleware(req, res, () => { passed = true; });
+    assert.equal(passed, allowed, `${method} Origin=${origin} Sec-Fetch-Site=${site}`);
+    if (!allowed) assert.equal(status, 403);
+  }
+});
 
 test('configuration accepts defaults and rejects invalid deployment settings', () => {
   assert.equal(parseConfig(configEnv()).port, 5000);

@@ -50,7 +50,7 @@ export function createAuthRouter({ database, config }) {
       res.cookie(cookie.name, token, cookie.options);
       res.set('Cache-Control', 'no-store');
       console.info(JSON.stringify({ level: 'SECURITY', event: 'login_succeeded', userId: user.id }));
-      return res.json({ user, session: { expiresAt: new Date(Date.now() + config.accessTokenTtlSeconds * 1000).toISOString() } });
+      return res.json({ user, session: sessionMetadata(token, config) });
     } catch (error) { return next(error); }
   });
 
@@ -63,10 +63,11 @@ export function createAuthRouter({ database, config }) {
       const user = await findActiveUser(database, result.userId, result.enabledAt.toISOString());
       if (!user) return invalidCredentials(res);
       const access = authCookie(config);
-      res.cookie(access.name, issueAccessToken(user.id, config, result.enabledAt), access.options);
+      const token = issueAccessToken(user.id, config, result.enabledAt);
+      res.cookie(access.name, token, access.options);
       res.clearCookie(pending.name, { ...pending.options, maxAge: undefined });
       securityEvent('admin_authentication_succeeded', user.id);
-      return res.json({ user, session: { expiresAt: new Date(Date.now() + config.accessTokenTtlSeconds * 1000).toISOString() } });
+      return res.json({ user, session: sessionMetadata(token, config) });
     } catch (error) { return next(error); }
   });
 
@@ -86,10 +87,15 @@ export function createAuthRouter({ database, config }) {
 
   router.get('/me', authenticate, (req, res) => {
     res.set('Cache-Control', 'no-store');
-    res.json({ user: req.user, session: { expiresAt: req.auth.expiresAt } });
+    res.json({ user: req.user, session: { id: req.auth.sessionId, expiresAt: req.auth.expiresAt } });
   });
 
   return router;
+}
+
+function sessionMetadata(token, config) {
+  const claims = verifyAccessToken(token, config);
+  return { id: claims.jti, expiresAt: new Date(claims.exp * 1000).toISOString() };
 }
 
 function validateLogin(body) {

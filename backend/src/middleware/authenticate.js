@@ -14,7 +14,7 @@ export function createAuthenticate({ database, config }) {
       }
       const user = await findActiveUser(database, claims.sub, claims.mfa);
       if (!user) return unauthorized(res);
-      req.auth = Object.freeze({ userId: user.id, mfaVerified: Boolean(claims.mfa), expiresAt: new Date(claims.exp * 1000).toISOString() });
+      req.auth = Object.freeze({ userId: user.id, sessionId: claims.jti, mfaVerified: Boolean(claims.mfa), expiresAt: new Date(claims.exp * 1000).toISOString() });
       req.user = Object.freeze(user);
       return next();
     } catch (error) {

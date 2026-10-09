@@ -8,13 +8,27 @@ There is no browser OpenAI client, API key, localStorage history or second datab
 ## Employee workflow
 
 1. Sign in, open Ask EWAGuard AI, read the current backend privacy notice and actively acknowledge it.
+   The notice appears alone in the assistant workspace; conversation controls,
+   suggestions and the composer appear only after the checkbox is selected.
+   This notice is remembered in sessionStorage for the current signed-in session
+   across navigation and refresh. A new session or notice version requires a new
+   acknowledgement. Logout and session expiry clear the preference. Only notice
+   versions and the non-authenticating session identifier are stored, never tokens
+   or chat content. The separate Sensitive Information Notice is also remembered
+   for the session; each analysis context still obtains its backend acknowledgement.
 2. Start a conversation or select previous history. Suggestions populate the composer without sending. The message limit is 2,000 characters.
+   On first entry, the privacy notice loads immediately. After acknowledgement,
+   employees can type and send directly; the first message creates its conversation
+   automatically. Clicking **New conversation** first is optional. Same-origin
+   browser GET requests are accepted without an Origin header using Fetch Metadata;
+   browser writes retain the trusted-Origin requirement.
 3. Ask cybersecurity questions or refer to an existing owned analysis ID. AI advice and verified evidence are displayed separately.
-4. Use **Private analysis** for new email/URL input. The existing server-backed Sensitive Information Notice must be acknowledged first.
-5. Review exact input in a separate private dialog. Tick the unchecked review box and explicitly approve, or reject. No scan runs beforehand.
+4. Use **Private analysis → Email** for one `.eml` file up to 1 MiB. Pasted body/header inputs are not offered in this chat dialog. The existing server-backed Sensitive Information Notice must be acknowledged first. Select the file, actively confirm, and click **Analyze .eml file**. The dialog reuses the existing authenticated `/api/analysis/email/eml` upload pipeline and its validation, limits, parsing and cleanup. Findings remain visible without an AI call; **Explain findings in chat** sends only the saved analysis ID for owner-checked retrieval. The dedicated email analyzer still supports its existing input modes.
+5. For **Private analysis → URL**, review exact input in a separate private dialog. Tick the unchecked review box and explicitly approve, or reject. No scan runs beforehand.
 6. Retrieve saved results after a timeout. **Explain with AI** explicitly requests an optional explanation; it cannot rescan.
 
-Files stay on the existing file analyzer page. Chat cannot upload/scan files,
+General file scanning stays on the existing file analyzer page. Apart from `.eml`
+email submissions through the email analyzer, chat cannot upload/scan files,
 create incidents, browse arbitrary URLs or retrieve policy/PDPL sources.
 
 ## Actual backend contracts
@@ -62,16 +76,21 @@ risk and Incident Assistance. Explanation recovery never rescans.
 
 ## Privacy, evidence and budget
 
-Private email bodies/headers and URLs travel only in analysisInput, never chat
-content. The model receives an opaque reference. Private input lives transiently
+The Email dialog sends raw `.eml` bytes only to the existing email upload endpoint,
+never in chat content or `analysisInput`. Only a saved analysis ID is used when the
+employee requests an AI explanation. The backend's private pasted-email API remains
+available for existing clients, but is no longer exposed by the chat Email dialog.
+Private URLs travel only in analysisInput, never chat content. The model receives
+an opaque reference. Private input lives transiently
 in the dialog/request and encrypted backend approval, not chat history or browser
 storage. Review parameters are discarded on close. Backend validation still rejects
 secrets, credentials and unsupported URL query/fragment content.
 
 ChatEvidence renders stored central risk level/score, confidence, reasons, indicators,
 scanner/provider coverage and existing Incident Assistance. React does not calculate
-risk. Missing/invalid risk stays unavailable. Messages and suspicious URLs render
-as escaped text without HTML/Markdown execution or automatic links.
+risk. Missing/invalid risk stays unavailable. AI message presentation supports a
+small safe Markdown subset (headings, lists, emphasis, code, quotes and tables) built
+from React text nodes. Raw HTML is escaped; links and image URLs remain inert.
 
 The $4 application budget, daily limits, concurrency and per-round reservation/
 reconciliation remain unchanged: two tool rounds, four invocations, at most three
@@ -82,13 +101,22 @@ does not guarantee the external prepaid balance cannot be exceeded.
 
 ## Accessibility and responsive behavior
 
-Desktop conversation navigation becomes a history dialog on smaller screens.
-Long text wraps, cards stack and the composer sits below the scroll region. Native
-dialogs provide focus containment and Escape behavior. Controls have labels and
-visible focus, semantic articles, polite status announcements, alert errors and
-non-color risk labels. Enter sends, Shift+Enter inserts a newline, and IME composition
-does not submit. Reduced-motion styles are preserved. Mobile History has an explicit
-accessible name. No fake streaming or scanner progress is shown.
+The assistant fills the space beside the existing application navigation. On this
+route, the shell uses a flex viewport with no outer content padding or card; only
+the conversation scrolls. The content and composer share a 1080px maximum width.
+History is available in an accessible dialog at every screen size. Employee bubbles
+align right at up to 75% width in light brand blue; AI replies align left in a darker
+neutral tint with the existing EWAGuard mark and a copy-response control.
+
+The fixed-in-layout composer expands to 160px, retains Enter/Shift+Enter and IME
+behavior, and contains the existing .eml, URL and file-analysis entry points. The
+visual viewport resize listener keeps the workspace above the mobile keyboard;
+safe-area padding protects the bottom edge. Welcome suggestions populate the draft.
+Native dialogs provide focus containment and Escape behavior. Controls have labels,
+visible focus, semantic articles, polite loading/copy status and alert errors.
+Reduced-motion styles are preserved. Loading dots reflect actual pending work;
+there is no fake streaming or scanner progress. API/state/authentication behavior
+is unchanged by this presentation redesign.
 
 ## Validation and limitations
 

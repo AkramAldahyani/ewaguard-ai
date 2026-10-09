@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { apiRequest } from '../services/api.js';
 import { AuthContext } from './auth-context.js';
+import { clearConsentSession, configureConsentSession } from '../features/disclaimer/session-consent.js';
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
@@ -9,6 +10,7 @@ export function AuthProvider({ children }) {
   const [sessionExpired, setSessionExpired] = useState(false);
 
   const clearSession = useCallback((expired = false) => {
+    clearConsentSession();
     setUser(null);
     setExpiresAt(null);
     setSessionExpired(expired);
@@ -18,7 +20,7 @@ export function AuthProvider({ children }) {
     const controller = new AbortController();
     let active = true;
     apiRequest('/api/auth/me', { signal: controller.signal })
-      .then((payload) => { if (active) { setUser(payload.user); setExpiresAt(payload.session.expiresAt); } })
+      .then((payload) => { if (active) { configureConsentSession(payload.user.id, payload.session); setUser(payload.user); setExpiresAt(payload.session.expiresAt); } })
       .catch((error) => { if (active && error.name !== 'AbortError') clearSession(false); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; controller.abort(); };
@@ -42,6 +44,7 @@ export function AuthProvider({ children }) {
       method: 'POST', body: JSON.stringify({ email, password }),
     });
     if (payload.mfaRequired) { clearSession(false); return payload; }
+    configureConsentSession(payload.user.id, payload.session);
     setUser(payload.user);
     setExpiresAt(payload.session.expiresAt);
     setSessionExpired(false);
@@ -50,6 +53,7 @@ export function AuthProvider({ children }) {
 
   const verifyMfa = useCallback(async (code) => {
     const payload = await apiRequest('/api/auth/mfa/verify', { method: 'POST', body: JSON.stringify({ code }) });
+    configureConsentSession(payload.user.id, payload.session);
     setUser(payload.user);
     setExpiresAt(payload.session.expiresAt);
     setSessionExpired(false);

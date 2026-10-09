@@ -1,17 +1,32 @@
-import { LockKeyhole, Send } from 'lucide-react';
-import { Button } from '../../components/ui/index.jsx';
+import { useEffect, useRef } from 'react';
+import { ArrowUp, LockKeyhole } from 'lucide-react';
 import { CHAT_MAX_LENGTH } from './chat-flow.js';
 import { shouldSendOnEnter } from './chat-state.js';
 
-export function ChatComposer({ value, onChange, onSend, disabled, sendDisabled, inputRef }) {
-  return <form onSubmit={(event) => { event.preventDefault(); if (!sendDisabled) onSend(); }} className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
-    <div className="mx-auto max-w-3xl"><label htmlFor="chat-message" className="sr-only">Message to EWAGuard AI</label>
-      <div className="chat-composer-box rounded-2xl border border-slate-300 p-2.5 focus-within:border-brand-500">
-        <textarea ref={inputRef} id="chat-message" value={value} onChange={(event) => onChange(event.target.value)} readOnly={disabled} aria-disabled={disabled} maxLength={CHAT_MAX_LENGTH} rows={2} autoComplete="off" spellCheck={false} aria-describedby="chat-privacy chat-keyboard chat-length" placeholder="Ask a cybersecurity question…" className="block max-h-36 min-h-14 w-full resize-y border-0 bg-transparent p-1 text-sm leading-6 text-slate-800 outline-none [overflow-wrap:anywhere]" onKeyDown={(event) => { if (shouldSendOnEnter(event)) { event.preventDefault(); if (!sendDisabled) onSend(); } }} />
-        <div className="flex flex-wrap items-center justify-between gap-2"><p id="chat-length" className="text-xs text-slate-500">{value.length} / {CHAT_MAX_LENGTH}</p><Button type="submit" disabled={sendDisabled} size="sm" aria-label="Send message"><Send className="size-4" aria-hidden="true" />Send</Button></div>
+export function ChatComposer({ value, onChange, onSend, disabled, sendDisabled, inputRef, accessories }) {
+  const localRef = useRef(null);
+  const field = inputRef ?? localRef;
+  useEffect(() => {
+    const input = field.current;
+    if (!input) return undefined;
+    const resize = () => {
+      input.style.height = '0px';
+      input.style.height = `${Math.min(160, Math.max(48, input.scrollHeight))}px`;
+      input.style.overflowY = input.scrollHeight > 160 ? 'auto' : 'hidden';
+    };
+    resize();
+    let width = input.clientWidth;
+    const observer = new ResizeObserver(() => { if (input.clientWidth !== width) { width = input.clientWidth; resize(); } });
+    observer.observe(input);
+    return () => observer.disconnect();
+  }, [value, field]);
+  return <form onSubmit={(event) => { event.preventDefault(); if (!sendDisabled) onSend(); }} className="chat-composer">
+    <div className="chat-content-width"><label htmlFor="chat-message" className="sr-only">Message to EWAGuard AI</label>
+      <div className="chat-composer-box">
+        <textarea ref={field} id="chat-message" value={value} onChange={(event) => onChange(event.target.value)} readOnly={disabled} aria-disabled={disabled} maxLength={CHAT_MAX_LENGTH} rows={1} autoComplete="off" spellCheck={false} aria-describedby="chat-privacy chat-keyboard chat-length" placeholder="Ask EWAGuard AI about cybersecurity..." className="chat-input" onKeyDown={(event) => { if (shouldSendOnEnter(event)) { event.preventDefault(); if (!sendDisabled) onSend(); } }} />
+        <div className="chat-composer-controls"><div className="chat-composer-tools">{accessories}</div><div className="flex shrink-0 items-center gap-3"><span id="chat-length" className="chat-length">{value.length} / {CHAT_MAX_LENGTH}</span><button type="submit" disabled={sendDisabled} className="chat-send" aria-label="Send message"><ArrowUp className="size-5" aria-hidden="true" /></button></div></div>
       </div>
-      <p id="chat-keyboard" className="mt-2 hidden text-xs text-slate-500 sm:block">Enter to send · Shift+Enter for a new line</p>
-      <p id="chat-privacy" className="mt-2 flex items-start gap-2 text-xs leading-5 text-slate-600"><LockKeyhole className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />Keep passwords, MFA codes and confidential information out of chat. Use Private analysis for email content and URLs.</p>
+      <div className="chat-composer-caption"><p id="chat-privacy"><LockKeyhole className="size-3 shrink-0" aria-hidden="true" /><span>Keep passwords and confidential information out of chat. AI can make mistakes.</span></p><p id="chat-keyboard">Enter to send · Shift+Enter for a new line</p></div>
     </div>
   </form>;
 }

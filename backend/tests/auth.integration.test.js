@@ -50,10 +50,13 @@ test('authentication lifecycle and security boundaries', async (t) => {
     assert.equal((await response.json()).error.code, 'AUTHENTICATION_REQUIRED');
   });
   let cookie;
+  let loginSession;
   await t.test('valid login returns safe profile and secure development cookie', async () => {
     const response = await login(user.email.toUpperCase(), password);
     assert.equal(response.status, 200);
     const body = await response.json();
+    loginSession = body.session;
+    assert.match(loginSession.id, /^[0-9a-f-]{36}$/i);
     const serialized = JSON.stringify(body);
     assert.equal(body.user.id, user.id);
     assert.equal(body.user.role, 'EMPLOYEE');
@@ -78,6 +81,12 @@ test('authentication lifecycle and security boundaries', async (t) => {
     assert.equal(body.user.id, user.id);
     assert.equal('passwordHash' in body.user, false);
     assert.match(body.session.expiresAt, /^\d{4}-\d{2}-\d{2}T/);
+    assert.deepEqual(body.session, loginSession, 'refresh retains the same session identity and expiry');
+  });
+  await t.test('a new sign-in has a different session identity', async () => {
+    const response = await login(user.email, password);
+    assert.equal(response.status, 200);
+    assert.notEqual((await response.json()).session.id, loginSession.id);
   });
   await t.test('wrong password and nonexistent account use the same response', async () => {
     const wrong = await login(user.email, `${password}-wrong`);

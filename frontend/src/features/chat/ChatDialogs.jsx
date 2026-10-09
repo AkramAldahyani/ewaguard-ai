@@ -1,21 +1,24 @@
 import { useEffect, useState } from 'react';
-import { Button, Field, Input, Textarea } from '../../components/ui/index.jsx';
+import { Button, Field, Input } from '../../components/ui/index.jsx';
 import { Modal } from '../../components/ui/Dialog.jsx';
 import { SensitiveInformationNotice } from '../disclaimer/SensitiveInformationNotice.jsx';
-import { byteLength, EMAIL_INPUT_LIMITS } from '../email/email-state.js';
+import { EmailUploadDialog } from './EmailUploadDialog.jsx';
 
-export function PrivateAnalysisDialog({ type, onClose, onSubmit }) {
+export function PrivateAnalysisDialog({ type, onClose, onSubmit, onExplain }) {
+  return type === 'EMAIL' ? <EmailUploadDialog onClose={onClose} onExplain={onExplain} /> : <PrivateUrlDialog onClose={onClose} onSubmit={onSubmit} />;
+}
+
+function PrivateUrlDialog({ onClose, onSubmit }) {
   const [acknowledged, setAcknowledged] = useState(false);
-  const [body, setBody] = useState(''); const [headers, setHeaders] = useState(''); const [url, setUrl] = useState(''); const [error, setError] = useState('');
+  const [url, setUrl] = useState(''); const [error, setError] = useState('');
   function submit(event) {
     event.preventDefault(); if (!acknowledged) return;
-    if (type === 'EMAIL' && (!body.trim() || byteLength(body) > EMAIL_INPUT_LIMITS.body || byteLength(headers) > EMAIL_INPUT_LIMITS.headers)) { setError('Provide an email body up to 24 KiB and headers up to 8 KiB.'); return; }
-    if (type === 'URL' && (!url.trim() || url.length > 4096)) { setError('Provide one public HTTP(S) URL, up to 4,096 characters.'); return; }
-    onSubmit(type === 'EMAIL' ? { toolName: 'analyze_email', parameters: { body, headers } } : { toolName: 'analyze_url', parameters: { url } });
-    setBody(''); setHeaders(''); setUrl(''); onClose();
+    if (!url.trim() || url.length > 4096) { setError('Provide one public HTTP(S) URL, up to 4,096 characters.'); return; }
+    onSubmit({ toolName: 'analyze_url', parameters: { url } });
+    setUrl(''); onClose();
   }
-  return <Modal open onClose={onClose} title={`Private ${type === 'EMAIL' ? 'email' : 'URL'} analysis`} description="Input goes only to the EWAGuard backend. The AI receives an opaque reference. No analysis runs until you review and approve."><div className="space-y-4"><SensitiveInformationNotice context={`${type}_ANALYSIS`} continuation="private analysis preparation" onAcknowledged={() => setAcknowledged(true)} />
-    {acknowledged && <form onSubmit={submit} className="space-y-4">{type === 'EMAIL' ? <><Field id="private-email" label="Email body" required hint="Maximum 24 KiB. Do not include passwords or confidential information.">{(props) => <Textarea {...props} value={body} maxLength={24576} autoComplete="off" onChange={(e) => setBody(e.target.value)} />}</Field><Field id="private-headers" label="Email headers (optional)" hint="Maximum 8 KiB.">{(props) => <Textarea {...props} value={headers} maxLength={8192} autoComplete="off" onChange={(e) => setHeaders(e.target.value)} />}</Field></> : <Field id="private-url" label="URL to analyze" required hint="Public HTTP(S) URLs only. Queries, fragments and embedded credentials are not supported by this approval workflow.">{(props) => <Input {...props} type="text" inputMode="url" value={url} maxLength={4096} autoComplete="off" onChange={(e) => setUrl(e.target.value)} />}</Field>}
+  return <Modal open onClose={onClose} title="Private URL analysis" description="Input goes only to the EWAGuard backend. The AI receives an opaque reference. No analysis runs until you review and approve."><div className="space-y-4"><SensitiveInformationNotice context="URL_ANALYSIS" continuation="private analysis preparation" onAcknowledged={() => setAcknowledged(true)} />
+    {acknowledged && <form onSubmit={submit} className="space-y-4"><Field id="private-url" label="URL to analyze" required hint="Public HTTP(S) URLs only. Queries, fragments and embedded credentials are not supported by this approval workflow.">{(props) => <Input {...props} type="text" inputMode="url" value={url} maxLength={4096} autoComplete="off" onChange={(e) => setUrl(e.target.value)} />}</Field>
       {error && <p role="alert" className="text-sm text-danger-700">{error}</p>}<Button type="submit">Prepare approval request</Button><p className="text-xs leading-5 text-slate-500">Preparation may use an AI request. Confirmation is a separate step. Private input is cleared when this dialog closes.</p></form>}
     </div></Modal>;
 }
