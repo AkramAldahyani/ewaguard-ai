@@ -48,7 +48,7 @@ const navSections = [
 function SidebarContent({ onNavigate }) {
   const { user } = useAuth();
   const sections = user.role === 'IT_SECURITY_ADMIN'
-    ? [{ label: 'Administration', items: [{ label: 'Administrator workspace', to: '/admin', icon: Home }, { label: 'Incident Queue', to: '/admin/incidents', icon: ShieldAlert }] }]
+    ? [{ label: 'Administration', items: [{ label: 'Administrator workspace', to: '/admin', icon: Home }, { label: 'Incident Queue', to: '/admin/incidents', icon: ShieldAlert }, { label: 'Training programs', to: '/admin/training', icon: GraduationCap }] }]
     : navSections;
   return (
     <>
@@ -159,7 +159,7 @@ function Shell() {
 
   useEffect(() => {
     const page = navSections.flatMap((section) => section.items).find((item) => item.to === pathname)?.label;
-    const incidentPage = pathname.startsWith('/admin/incidents') ? 'Incident Queue' : pathname.startsWith('/incidents/') ? 'Incident details' : null;
+    const incidentPage = pathname.startsWith('/admin/incidents') ? 'Incident Queue' : pathname.startsWith('/incidents/') ? 'Incident details' : pathname.startsWith('/admin/training') ? 'Training management' : pathname.startsWith('/training/') ? 'Training course' : null;
     document.title = `${page ?? incidentPage ?? (pathname === '/admin' ? 'Administrator workspace' : 'Workspace')} | EWAGuard AI`;
     if (previousPath.current !== pathname) {
       if (mobileDialogRef.current.open) mobileDialogRef.current.close();

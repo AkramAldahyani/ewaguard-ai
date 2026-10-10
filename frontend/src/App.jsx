@@ -10,7 +10,9 @@ import { LoginPage } from './pages/LoginPage.jsx';
 import { AdminWorkspace, UnauthorizedPage } from './pages/AccessPages.jsx';
 import { FileAnalyzerPage } from './features/file/FileAnalyzerPage.jsx';
 import { UrlAnalyzerPage } from './features/url/UrlAnalyzerPage.jsx';
-import { CertificatesPage, MonthlyQuizPage, TrainingPage } from './pages/employee/AwarenessPages.jsx';
+import { CertificatesPage, MonthlyQuizPage } from './pages/employee/AwarenessPages.jsx';
+import { AdminTrainingDetailPage, AdminTrainingListPage } from './features/training/AdminTrainingPages.jsx';
+import { EmployeeTrainingDetailPage, EmployeeTrainingListPage } from './features/training/EmployeeTrainingPages.jsx';
 import { CommunityPage, ProfilePage } from './pages/employee/WorkspacePages.jsx';
 import { IncidentListPage, IncidentDetailPage } from './features/incidents/IncidentPages.jsx';
 import { PasswordSecurityPage } from './features/password/PasswordSecurityPage.jsx';
@@ -38,7 +40,8 @@ export function AppRoutes() {
             <Route path="password-security" element={<PasswordSecurityPage />} />
             <Route path="incidents" element={<IncidentListPage />} />
             <Route path="incidents/:id" element={<IncidentDetailPage />} />
-            <Route path="training" element={<TrainingPage />} />
+            <Route path="training" element={<EmployeeTrainingListPage />} />
+            <Route path="training/:id" element={<EmployeeTrainingDetailPage />} />
             <Route path="monthly-quiz" element={<MonthlyQuizPage />} />
             <Route path="certificates" element={<CertificatesPage />} />
             <Route path="community" element={<CommunityPage />} />
@@ -48,6 +51,9 @@ export function AppRoutes() {
             <Route path="admin" element={<AdminWorkspace />} />
             <Route path="admin/incidents" element={<IncidentListPage admin />} />
             <Route path="admin/incidents/:id" element={<IncidentDetailPage admin />} />
+            <Route path="admin/training" element={<AdminTrainingListPage />} />
+            <Route path="admin/training/new" element={<AdminTrainingDetailPage />} />
+            <Route path="admin/training/:id" element={<AdminTrainingDetailPage />} />
           </Route>
           <Route path="unauthorized" element={<UnauthorizedPage />} />
           <Route path="design-system" element={<DesignSystemPage />} />
