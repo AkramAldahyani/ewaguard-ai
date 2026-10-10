@@ -29,7 +29,8 @@ export function createUrlAnalysisRouter({ database, config, threatIntelligence =
         createdAt: { gte: new Date(now.getTime() - 15 * 60_000), lte: now },
       }, orderBy: { createdAt: 'desc' }, select: { id: true } });
       if (!ack) return fail(res, 403, 'URL_ACKNOWLEDGEMENT_REQUIRED', 'A current URL analysis acknowledgement is required.');
-      return res.status(201).json(await submitUrlAnalysis(database, { userId: req.user.id, acknowledgementId: ack.id, input: req.body.url }, analyzer));
+      const response = await submitUrlAnalysis(database, { userId: req.user.id, acknowledgementId: ack.id, input: req.body.url }, analyzer);
+      return res.status(response.incident.state === 'PENDING' ? 202 : 201).json(response);
     } catch (error) {
       if (error instanceof UrlAnalysisError) return fail(res, 400, error.code, error.message);
       return next(error);

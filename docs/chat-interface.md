@@ -135,4 +135,6 @@ Non-streaming responses expose no intermediate provider tool activity. History
 returns at most 50 receipts per message page; very old failed requests without
 messages may need their retained request ID for API recovery. Browser memory is
 not securely erased. AI factuality validation is heuristic. The existing large
-frontend bundle warning remains. RAG and incident creation remain out of scope.
+frontend bundle warning remains. RAG remains postponed. Phase 10A now records
+qualifying incidents after approved analysis and displays the verified receipt or
+pending recovery state; see [Incident Engine](incident-engine.md).

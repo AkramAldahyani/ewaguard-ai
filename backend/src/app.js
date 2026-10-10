@@ -1,4 +1,6 @@
 import express from 'express';
+import { createIncidentRouter } from './routes/incidents.js';
+import { createAnalysisEscalationRouter } from './routes/analysis-escalations.js';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
@@ -28,6 +30,9 @@ export function createApp(config, dependencies = {}) {
   app.use(helmet());
   app.use(cors({ origin: config.trustedOrigins, credentials: true, methods: ['GET', 'POST', 'HEAD', 'OPTIONS'] }));
   app.use(cookieParser());
+  app.use('/api/admin/incidents', createIncidentRouter({ database, config, admin: true }));
+  app.use('/api/incidents', createIncidentRouter({ database, config }));
+  app.use('/api/analysis-escalations', createAnalysisEscalationRouter({ database, config }));
   // Email has its own bounded parser after authentication and acknowledgement.
   app.use('/api/analysis/email', createEmailAnalysisRouter({ database, config, ...dependencies.emailAnalysis, gate: gates.EMAIL }));
   app.use('/api/analysis/url', createUrlAnalysisRouter({ database, config, threatIntelligence, ...dependencies.urlAnalysis, gate: gates.URL }));

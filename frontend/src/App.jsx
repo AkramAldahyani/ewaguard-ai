@@ -11,7 +11,8 @@ import { AdminWorkspace, UnauthorizedPage } from './pages/AccessPages.jsx';
 import { FileAnalyzerPage } from './features/file/FileAnalyzerPage.jsx';
 import { UrlAnalyzerPage } from './features/url/UrlAnalyzerPage.jsx';
 import { CertificatesPage, MonthlyQuizPage, TrainingPage } from './pages/employee/AwarenessPages.jsx';
-import { CommunityPage, IncidentsPage, ProfilePage } from './pages/employee/WorkspacePages.jsx';
+import { CommunityPage, ProfilePage } from './pages/employee/WorkspacePages.jsx';
+import { IncidentListPage, IncidentDetailPage } from './features/incidents/IncidentPages.jsx';
 import { PasswordSecurityPage } from './features/password/PasswordSecurityPage.jsx';
 import { AssistantPage } from './features/chat/AssistantPage.jsx';
 import { ChatShowcase } from './features/chat/ChatShowcase.jsx';
@@ -35,7 +36,8 @@ export function AppRoutes() {
             <Route path="analyze/url" element={<UrlAnalyzerPage />} />
             <Route path="analyze/file" element={<FileAnalyzerPage />} />
             <Route path="password-security" element={<PasswordSecurityPage />} />
-            <Route path="incidents" element={<IncidentsPage />} />
+            <Route path="incidents" element={<IncidentListPage />} />
+            <Route path="incidents/:id" element={<IncidentDetailPage />} />
             <Route path="training" element={<TrainingPage />} />
             <Route path="monthly-quiz" element={<MonthlyQuizPage />} />
             <Route path="certificates" element={<CertificatesPage />} />
@@ -44,6 +46,8 @@ export function AppRoutes() {
           </Route>
           <Route element={<ProtectedRoute roles={['IT_SECURITY_ADMIN']} />}>
             <Route path="admin" element={<AdminWorkspace />} />
+            <Route path="admin/incidents" element={<IncidentListPage admin />} />
+            <Route path="admin/incidents/:id" element={<IncidentDetailPage admin />} />
           </Route>
           <Route path="unauthorized" element={<UnauthorizedPage />} />
           <Route path="design-system" element={<DesignSystemPage />} />

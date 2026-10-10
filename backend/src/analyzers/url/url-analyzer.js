@@ -1,4 +1,5 @@
 import { buildIncidentAssistance } from '../../assistance/incident-assistance.js';
+import { completeAnalysisEscalation } from '../../incidents/incident-engine.js';
 import { createHash } from 'node:crypto';
 import { normalizeUrl } from './url-normalization.js';
 import { localUrlIndicators, classifyUrl } from './url-local.js';
@@ -43,7 +44,8 @@ export function createUrlAnalyzer({ resolveTarget = resolvePublicTarget, tlsInsp
 
 export async function submitUrlAnalysis(database, { userId, acknowledgementId, input }, analyzer) {
   const result = await analyzer(input);
-  return persistUrlAnalysis(database, { userId, acknowledgementId, result });
+  const saved = await persistUrlAnalysis(database, { userId, acknowledgementId, result });
+  return { ...saved, incident: await completeAnalysisEscalation(database, { userId, analyzerType: 'URL', analysisId: saved.analysisId }) };
 }
 
 export async function persistUrlAnalysis(database, { userId, acknowledgementId, result }) {

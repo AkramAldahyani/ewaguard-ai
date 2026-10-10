@@ -14,7 +14,8 @@ security, Phase 5B sensitive-information acknowledgement, Phase 6A email analysi
 Phase 6B URL analysis, Phase 6C file analysis, Phase 7A central risk evaluation,
 Phase 7B incident assistance, Phase 8A secure OpenAI/chat backend, and Phase 8B1
 controlled tool registry, Phase 8B2A durable approvals, and Phase 8B2B Responses
-function calling with multi-round budget accounting, and Phase 8C employee chat integration.**
+function calling with multi-round budget accounting, Phase 8C employee chat integration,
+and Phase 10A automatic incident creation. Phase 9 remains postponed pending approved source documents.**
 Employees sign in using short-lived HTTP-only JWT cookies. Administrators must
 enroll and verify TOTP before receiving an authenticated session. See
 [RBAC and MFA operations](docs/rbac-mfa.md) for enrollment and key configuration.
@@ -38,10 +39,15 @@ SHA-256 lookup only. See [file analyzer architecture and privacy](docs/file-anal
 
 Phase 7A computes deterministic final risk for all three analyzers, with separate
 confidence, coverage, reasons and recommendations. See [Central Risk Engine](docs/risk-engine.md).
-Run `npm run test:risk` for its policy and UI matrix. No incident creation is enabled.
+Run `npm run test:risk` for its policy and UI matrix.
 Phase 7B adds deterministic employee next-step guidance derived from completed risk
 results. See [Incident Assistance](docs/incident-assistance.md) and run
-`npm run test:assistance`. No incident is created or administrator contacted.
+`npm run test:assistance`. Guidance itself performs no remediation or administrator contact.
+
+Phase 10A records incidents automatically for finalized HIGH/CRITICAL email, URL
+and file analyses, including approved AI analysis. See [Incident Engine](docs/incident-engine.md)
+for ownership, atomic evidence/history, idempotency, retry and retention controls.
+No administrator incident dashboard or Socket.IO notifications are implemented.
 
 See [database architecture and setup](docs/database.md) for the 32 tables,
 relationships, privacy boundaries, validation commands and pgvector prerequisite.

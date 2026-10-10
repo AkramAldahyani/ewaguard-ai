@@ -51,7 +51,7 @@ export function createFileAnalysisRouter({ database, config, threatIntelligence,
       await receiveFile(upload, req);
       if (req.aborted || !req.file || Object.keys(req.body ?? {}).length) throw new FileAnalysisError();
       const result = await submitFileAnalysis(database, { userId: req.user.id, acknowledgementId: ack.id, upload: req.file }, analyzer);
-      return res.status(201).json(result);
+      return res.status(result.incident.state === 'PENDING' ? 202 : 201).json(result);
     } catch (error) {
       if (req.destroyed && !req.complete) return;
       if (error instanceof multer.MulterError) {

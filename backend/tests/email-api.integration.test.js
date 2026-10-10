@@ -1,4 +1,5 @@
 import { buildIncidentAssistance } from '../src/assistance/incident-assistance.js';
+import { cleanupTestIncidents } from './incident-cleanup.js';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
@@ -31,6 +32,7 @@ test('Phase 6A2 HTTP and real PostgreSQL privacy boundaries', async (t) => {
   for (const method of ['info', 'warn', 'error', 'log']) t.mock.method(console, method, (...args) => logs.push(args.join(' ')));
   t.after(async () => {
     for (const server of servers) await new Promise((resolve) => server.close(resolve));
+    await cleanupTestIncidents(database, ids);
     await database.emailAnalysis.deleteMany({ where: { userId: { in: ids } } });
     await database.disclaimerAcknowledgement.deleteMany({ where: { userId: { in: ids } } });
     await database.user.deleteMany({ where: { id: { in: ids } } });
@@ -150,7 +152,7 @@ test('Phase 6A2 HTTP and real PostgreSQL privacy boundaries', async (t) => {
       assert.equal(response.status, 201);
       assert.equal(response.headers.get('cache-control'), 'no-store');
       const data = await response.json();
-      assert.deepEqual(Object.keys(data).sort(), ['analysisId', 'createdAt', 'result']);
+      assert.deepEqual(Object.keys(data).sort(), ['analysisId', 'createdAt', 'incident', 'result']);
       assert.equal(data.result.analyzer, 'EMAIL');
       assert.equal(data.result.inputType, inputType);
       assert.equal(data.result.provisionalClassification, 'SUSPICIOUS');
@@ -168,7 +170,7 @@ test('Phase 6A2 HTTP and real PostgreSQL privacy boundaries', async (t) => {
       assert.deepEqual(row.evidence, minimizeEmailEvidence(data.result));
       assert.equal(row.evidence.assistance, undefined);
       assert.deepEqual(data.result.assistance, buildIncidentAssistance({ analyzerType: 'EMAIL', riskResult: row.evidence.risk }));
-      assert.equal(await database.incident.count({ where: { reporterId: employee.id } }), 0);
+      assert.equal(data.incident.state, 'RECORDED');
       for (const key of ['senderDomain', 'replyToDomain']) assert.equal(row[key], null);
       const ack = await database.disclaimerAcknowledgement.findUniqueOrThrow({ where: { id: row.acknowledgementId } });
       assert.equal(ack.context, 'EMAIL_ANALYSIS');

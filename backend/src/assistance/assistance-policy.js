@@ -32,8 +32,8 @@ export const ASSISTANCE_POLICY = freeze({
   escalation: {
     NONE: 'Independent verification is the next step. Use the approved IT/security channel if new concerns arise.',
     OPTIONAL: 'Contact IT/security if the source cannot be verified or uncertainty remains.',
-    RECOMMENDED: 'Contact IT/security through the approved reporting channel. No report has been sent automatically.',
-    URGENT: 'Contact IT/security urgently through the approved reporting channel. No report has been sent automatically.',
+    RECOMMENDED: 'Contact IT/security through the approved reporting channel. Administrator notifications are not enabled.',
+    URGENT: 'Contact IT/security urgently through the approved reporting channel. Administrator notifications are not enabled.',
   },
   actions: {
     NORMAL_CAUTION: 'Continue with normal caution.',
@@ -124,5 +124,5 @@ export const ASSISTANCE_POLICY = freeze({
     summary: 'Reported suspected execution or compromise requires immediate attention even when the analyzer risk is lower. Stop interaction and follow company containment procedures.' },
   urgencyOrder: ['ROUTINE', 'CAUTION', 'URGENT', 'IMMEDIATE'],
   unknownReasonText: 'Some risk reasons are not covered by this guidance policy. Verify independently or contact IT/security.',
-  disclaimer: 'Guidance only. EWAGuard has not created an incident, contacted IT/security, or performed any remediation. Use your organization\'s approved reporting channel and follow its procedures. Never submit passwords, MFA codes, or restricted evidence.',
+  disclaimer: 'Guidance only. Check the separate incident receipt for recording status. Administrator notifications and automated remediation are not enabled. Use your organization\'s approved reporting channel and follow its procedures. Never submit passwords, MFA codes, or restricted evidence.',
 });

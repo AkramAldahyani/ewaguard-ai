@@ -1,16 +1,10 @@
 import { useState } from 'react';
-import { MessageSquareText, ShieldAlert, ShieldCheck, UserRound } from 'lucide-react';
+import { MessageSquareText, ShieldCheck, UserRound } from 'lucide-react';
 import { Badge, Button, Card, StatePanel } from '../../components/ui/index.jsx';
 import { Modal } from '../../components/ui/Dialog.jsx';
 import { PageHeader } from '../../components/PageHeader.jsx';
 import { FeatureOutline, PreviewPage, PrivacyReminder } from '../../components/employee/PortalPreview.jsx';
 import { useAuth } from '../../context/auth-context.js';
-
-export function IncidentsPage() {
-  return <PreviewPage title="My Incidents" description="A future view of security reports you are authorized to follow, with clear status and next steps.">
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(16rem,1fr)]"><Card className="p-6"><StatePanel icon={ShieldAlert} title="No live incident data connected yet" description="Your incident records and timelines will appear when incident management is available. This is not a count of your open incidents." /><p className="mt-5 text-sm leading-6 text-slate-600">Need to report something now? Use your organization’s approved IT/security reporting channel.</p></Card><FeatureOutline title="Follow a report" items={['See the status of your authorized incidents.', 'Review permitted evidence and recommended next steps.', 'Follow updates as the security team investigates and resolves the report.']} /></div>
-  </PreviewPage>;
-}
 
 export function CommunityPage() {
   const [submissionInfo, setSubmissionInfo] = useState(false);

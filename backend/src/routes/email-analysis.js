@@ -52,7 +52,7 @@ export function createEmailAnalysisRouter({ database, config, analyzer, gate = c
       const response = await submitEmailAnalysis(database, {
         userId: req.user.id, acknowledgementId: req.emailAcknowledgementId, input: inputFor(req),
       }, analyzer);
-      return res.status(201).json(response);
+      return res.status(response.incident.state === 'PENDING' ? 202 : 201).json(response);
     } catch (error) {
       if (error instanceof EmailAnalysisError) {
         return fail(res, error.code === 'EMAIL_INPUT_TOO_LARGE' ? 413 : 400, error.code, error.message);

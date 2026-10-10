@@ -74,7 +74,7 @@ export function createChatFlow(api = chatApi, uuid = () => crypto.randomUUID()) 
     }
     const results = [...resultsById.values()];
     // Human-review parameters must never be copied into conversation/result state.
-    const safe = Object.fromEntries(['status', 'toolMetadata', 'resultUnavailable', 'explanation'].filter((key) => payload[key] !== undefined).map((key) => [key, payload[key]]));
+    const safe = Object.fromEntries(['status', 'toolMetadata', 'resultUnavailable', 'explanation', 'incident'].filter((key) => payload[key] !== undefined).map((key) => [key, payload[key]]));
     set({ requests: merge(state.requests, [{ ...old, ...safe, approval, verifiedResults: results }], 'requestId') });
   }
   async function refreshHistory(id, signal, token, older = false) {

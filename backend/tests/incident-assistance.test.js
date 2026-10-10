@@ -136,7 +136,7 @@ test('all HIGH/CRITICAL analyzers preserve evidence and never ask for public upl
   for (const type of ['EMAIL', 'URL', 'FILE']) for (const level of ['HIGH', 'CRITICAL']) {
     const result = build(type, level);
     assert.ok(result.evidencePreservationGuidance.length); assert.match(result.avoidActions.join(' '), /Do not delete information/);
-    assert.match(result.disclaimer, /has not created an incident, contacted IT\/security, or performed any remediation/);
+    assert.match(result.disclaimer, /Check the separate incident receipt for recording status/);
   }
 });
 test('invalid contexts, classifications and unsupported versions fail safely', () => {

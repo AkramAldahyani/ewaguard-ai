@@ -1,0 +1,36 @@
+import { useState } from 'react';
+import { Button, Card, Field, Select, Textarea } from '../../components/ui/index.jsx';
+import { Modal } from '../../components/ui/Dialog.jsx';
+import { label, personName } from './incident-flow.js';
+
+export function AssigneeOptions({ state }) {
+  return <>{state.assignees.map((person) => <option key={person.id} value={person.id}>{personName(person)}</option>)}</>;
+}
+export function AssigneeFeedback({ state, flow }) {
+  return <>{state.assigneeLoading && <p role="status" className="mt-2 text-xs text-slate-500">Loading eligible administrators…</p>}{state.assigneeError && <div role="alert" className="mt-2 text-sm text-danger-700">{state.assigneeError}<Button variant="ghost" size="sm" onClick={() => flow.assignees()}>Retry administrators</Button></div>}{state.moreAssignees && <Button variant="ghost" size="sm" disabled={state.assigneeLoading} onClick={() => flow.assignees(true)}>Load more administrators</Button>}</>;
+}
+export function IncidentActions({ state, flow }) {
+  const { incident, allowedTransitions = [], noteNotice } = state.data;
+  const [assignee, setAssignee] = useState(incident.assignee?.id ?? '');
+  const [status, setStatus] = useState('');
+  const [body, setBody] = useState(''); const [visibility, setVisibility] = useState('SECURITY_TEAM');
+  const [acknowledged, setAcknowledged] = useState(false); const [confirmation, setConfirmation] = useState(null);
+  const [error, setError] = useState('');
+  const prepare = (operation, input, title, description) => { setError(''); setConfirmation({ operation, input, title, description }); };
+  const submitNote = (event) => {
+    event.preventDefault();
+    if (!body.trim() || body.length > 4000 || !acknowledged || !noteNotice?.version) { setError('Enter a note of 1–4,000 characters and acknowledge the information notice.'); return; }
+    prepare('notes', { body: body.trim(), visibility, acknowledged, noticeVersion: noteNotice.version },
+      visibility === 'REPORTER' ? 'Publish employee-visible update?' : 'Save internal investigation note?',
+      visibility === 'REPORTER' ? 'The reporting employee will be able to read this update. Check that every detail is appropriate to share.' : 'This note will be visible only to authorized security administrators.');
+  };
+  return <Card className="p-5 sm:p-6"><h2 className="text-lg font-bold">Manage incident</h2><p className="mt-1 text-sm leading-6 text-slate-500">Changes are recorded in the investigation history.</p><fieldset disabled={state.busy} className="mt-5 space-y-6">
+    <form onSubmit={(event) => { event.preventDefault(); prepare('assignment', { assigneeId: assignee || null }, 'Change assignment?', `Assign this incident to ${assignee ? personName(state.assignees.find((p) => p.id === assignee) ?? incident.assignee) : 'no administrator (unassigned)'}.`); }}><Field id="incident-assignee" label="Assigned administrator">{(props) => <Select {...props} value={assignee} onChange={(event) => setAssignee(event.target.value)}><option value="">Unassigned</option>{incident.assignee && !state.assignees.some((p) => p.id === incident.assignee.id) && <option value={incident.assignee.id} disabled>{personName(incident.assignee)} (current)</option>}<AssigneeOptions state={state} /></Select>}</Field><AssigneeFeedback state={state} flow={flow} /><Button className="mt-3" variant="secondary" type="submit" disabled={state.busy || assignee === (incident.assignee?.id ?? '')}>Review assignment</Button></form>
+    <form className="border-t border-slate-100 pt-5" onSubmit={(event) => { event.preventDefault(); if (allowedTransitions.includes(status)) prepare('status', { status }, 'Change incident status?', `${label(incident.status)} → ${label(status)}. This status change will be visible to the reporting employee.`); }}><Field id="incident-next-status" label="Next status">{(props) => <Select {...props} value={status} onChange={(event) => setStatus(event.target.value)}><option value="">Select a supported transition</option>{allowedTransitions.map((value) => <option key={value} value={value}>{label(value)}</option>)}</Select>}</Field><Button className="mt-3" variant="secondary" type="submit" disabled={state.busy || !allowedTransitions.includes(status)}>Review status change</Button></form>
+    <form className="space-y-4 border-t border-slate-100 pt-5" onSubmit={submitNote}><h3 className="font-bold">Add investigation note</h3><Field id="incident-note-visibility" label="Who can read this note?">{(props) => <Select {...props} value={visibility} onChange={(event) => { setVisibility(event.target.value); setAcknowledged(false); }}><option value="SECURITY_TEAM">Internal — security team only</option><option value="REPORTER">Shared — reporting employee and security team</option></Select>}</Field><div className={`rounded-xl border p-3 text-sm leading-6 ${visibility === 'REPORTER' ? 'border-warning-300 bg-warning-50 text-warning-900' : 'border-slate-200 bg-slate-50 text-slate-700'}`}>{visibility === 'REPORTER' ? 'Employee-visible update: the reporting employee will see the complete text.' : 'Internal investigation note: only authorized security administrators can read it.'}</div><Field id="incident-note" label={visibility === 'REPORTER' ? 'Update for the employee' : 'Internal note'} hint={`${body.length} / 4,000 characters`} required>{(props) => <Textarea {...props} maxLength={4000} value={body} onChange={(event) => { setBody(event.target.value); setAcknowledged(false); }} />}</Field><p className="text-xs leading-5 text-slate-600">{noteNotice?.message ?? 'The information notice is unavailable. Refresh the incident before adding a note.'}</p><label className="flex items-start gap-3 text-sm leading-6"><input className="mt-1 size-4 shrink-0 accent-brand-600" type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} /><span>I have reviewed the notice and confirm this content is appropriate for the selected audience.</span></label>{error && <p role="alert" className="text-sm text-danger-700">{error}</p>}<Button type="submit" disabled={state.busy || !body.trim() || !acknowledged || !noteNotice?.version}>{visibility === 'REPORTER' ? 'Review employee-visible update' : 'Review internal note'}</Button></form>
+    </fieldset>{state.busy && <p role="status" className="mt-4 text-sm text-brand-700">Saving change…</p>}
+    <Modal open={Boolean(confirmation)} onClose={() => { if (!state.busy) setConfirmation(null); }} title={confirmation?.title ?? 'Review change'} description={confirmation?.description} footer={<><Button variant="secondary" disabled={state.busy} onClick={() => setConfirmation(null)}>Cancel</Button><Button disabled={state.busy} onClick={async () => { const change = confirmation; if (!change || state.busy) return; setConfirmation(null); const saved = await flow.mutate(change.operation, change.input); if (saved) { setBody(''); setAcknowledged(false); } }}>Confirm change</Button></>}>
+      <p className="text-xs font-semibold text-slate-500">{incident.reference}</p>{confirmation?.operation === 'notes' && <p className="mt-3 max-h-64 overflow-y-auto whitespace-pre-wrap break-words rounded-lg bg-slate-50 p-3 text-sm">{confirmation.input.body}</p>}
+    </Modal>
+  </Card>;
+}

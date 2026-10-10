@@ -4,7 +4,10 @@ Phase 8B2 is split into two implementation subphases. **8B2A and 8B2B are implem
 8B2B reuses the unchanged encrypted approval state machine for Responses function
 calling and adds separately budgeted model rounds and saved-result explanation.
 Phase 8C now supplies the employee approval UI described in [chat interface](chat-interface.md).
-RAG, incident creation and chat file uploads are not included.
+RAG and chat file uploads are not included. Phase 10A adds automatic incident
+recording after completed approved analyses; see [Incident Engine](incident-engine.md).
+Completed status retrieval may now retry incident recording from the stored source,
+but never repeats analysis or grants the model incident-creation authority.
 
 ## Architecture
 

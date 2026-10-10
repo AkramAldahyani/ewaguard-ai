@@ -1,4 +1,5 @@
 import { buildIncidentAssistance } from '../../assistance/incident-assistance.js';
+import { completeAnalysisEscalation } from '../../incidents/incident-engine.js';
 import { inspectFile } from './file-inspection.js';
 import { createFileTempStore } from './file-temp.js';
 import { createFileScanners } from './file-scanners.js';
@@ -83,5 +84,6 @@ export async function submitFileAnalysis(database, { userId, acknowledgementId, 
     evidence: result, analyzedAt: now, deletedAt: now, expiresAt: new Date(now.getTime() + 30 * 86400_000),
     ...riskColumns(result.risk),
   }, select: { id: true, createdAt: true } });
-  return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result: { ...result, assistance } };
+  return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result: { ...result, assistance },
+    incident: await completeAnalysisEscalation(database, { userId, analyzerType: 'FILE', analysisId: stored.id }) };
 }

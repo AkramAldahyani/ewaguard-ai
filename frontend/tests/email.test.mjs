@@ -119,7 +119,7 @@ test('employee email UI, state transitions and API contract', async (t) => {
   await t.test('incident assistance renders urgency, escalation and safe next steps', () => {
     const html = render(EmailResults, { analysis });
     for (const title of ['What should I do now?', 'Immediate actions', 'Actions to avoid', 'Escalation recommendation', analysis.result.assistance.urgency, analysis.result.assistance.escalationRecommendation.level]) assert.ok(html.includes(title));
-    assert.match(html, /has not created an incident/);
+    assert.match(html, /separate incident receipt/);
     assert.doesNotMatch(html, /<button[^>]*>Create Incident|href="[^"]*create-incident/);
   });
   await t.test('structured result renders all sections from real analyzer output', () => {

@@ -127,7 +127,10 @@ test('Phase 8A HTTP and PostgreSQL chat boundaries (mock provider, $0)', async (
     await database.aiUsage.deleteMany({ where: { id: { in: ledgerIds } } });
   });
   await t.test('budget is reserved atomically across simultaneous admissions', async () => {
-    const blocker = await entry({ chargedMicros: CHAT_LIMITS.budgetMicros - 1500 });
+    // Preserve the real ledger. Reserve relative to existing usage, not an
+    // assumption that this shared development database has never been used.
+    const existing = await database.aiUsage.aggregate({ _sum: { chargedMicros: true } });
+    const blocker = await entry({ chargedMicros: CHAT_LIMITS.budgetMicros - (existing._sum.chargedMicros ?? 0) - 1500 });
     let release; const gate = new Promise((resolve) => { release = resolve; });
     let entered; const started = new Promise((resolve) => { entered = resolve; });
     respond = async () => { entered(); await gate; return result(); };

@@ -19,7 +19,7 @@ test('employee assistance display across urgency levels and confidence states', 
       const assistance = make(level, ['PROVIDER_UNAVAILABLE', 'INSUFFICIENT_EVIDENCE']); const html = render(assistance);
       for (const phrase of ['What should I do now?', urgency, escalation, 'Immediate actions', 'Actions to avoid', 'Escalation recommendation', 'Assistance policy 1.0']) assert.ok(html.includes(phrase));
       assert.match(html, /evidence is incomplete/); assert.match(html, /checks were unavailable/);
-      assert.match(html, /Independent verification/); assert.match(html, /has not created an incident/);
+      assert.match(html, /Independent verification/); assert.match(html, /separate incident receipt/);
       assert.doesNotMatch(html, /<button\b|<a\b|<input\b|Everything is safe|This is safe|>Create Incident</i);
       if (['HIGH', 'CRITICAL'].includes(level)) { assert.match(html, /border-l-4/); assert.match(html, /Preserve evidence/); assert.match(html, /Contact IT\/security/); }
       else assert.doesNotMatch(html, /border-l-4/);

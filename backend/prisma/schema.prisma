@@ -509,6 +509,8 @@ model FileAnalysis {
 }
 
 model Incident {
+  sourceKey          String?            @unique @db.VarChar(80)
+  escalationMetadata Json               @default("{}")
   id                 String             @id @default(uuid()) @db.Uuid
   number             Int                @unique @default(autoincrement())
   title              String             @db.VarChar(200)

@@ -1,5 +1,6 @@
 import { Badge, Button, RiskBadge } from '../../components/ui/index.jsx';
 import { IncidentAssistance } from '../../components/IncidentAssistance.jsx';
+import { IncidentReceipt } from '../../components/IncidentReceipt.jsx';
 
 export function ChatEvidence({ result }) {
   const data = result?.data; const risk = data?.risk;
@@ -22,6 +23,7 @@ export function ChatReceipt({ request, busy, acknowledged, onRecover, onReview, 
     <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-900">{approval ? approvalLabels[approval.status] ?? 'Saved analysis request' : approvalId ? 'Saved analysis approval' : 'Request findings and recovery'}</h3><Badge>{approval?.toolName === 'analyze_email' ? 'Email' : approval?.toolName === 'analyze_url' ? 'URL' : 'Backend record'}</Badge></div>
     {approval?.status === 'PENDING' && <p className="text-sm leading-6 text-slate-600">Review the exact private input before approving. Expires {new Date(approval.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. The server verifies expiration before execution.</p>}
     {['REJECTED', 'EXPIRED'].includes(approval?.status) && <p className="text-sm text-slate-600">This request cannot run. Use Private analysis to deliberately prepare a new operation.</p>}
+    <IncidentReceipt incident={request.incident} analysisId={approval?.analysisId} analyzerType={approval?.toolName === 'analyze_email' ? 'EMAIL' : 'URL'} />
     {request.resultUnavailable && <p className="text-sm text-slate-600">The completed result is no longer available. This approval remains consumed.</p>}
     <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" disabled={busy} onClick={onRecover}>Retrieve saved status</Button>{approvalId && (!approval || approval.status === 'PENDING') && <Button size="sm" disabled={busy} onClick={() => onReview(approvalId)}>Review private request</Button>}{approval?.status === 'COMPLETED' && hasResults && <Button size="sm" variant="subtle" disabled={busy || !acknowledged || Boolean(request.explanation)} onClick={() => onExplain(approval.id)}>Explain with AI</Button>}</div>
     {request.explanation?.status === 'UNAVAILABLE' && <p role="status" className="text-sm text-slate-600">AI explanation unavailable. The completed analysis and deterministic guidance remain available below. No new scan was performed.</p>}

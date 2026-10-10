@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { completeAnalysisEscalation } from '../../incidents/incident-engine.js';
 import { UUID } from '../chat-policy.js';
 import { analyzeEmail } from '../../analyzers/email/email-analyzer.js';
 import { persistEmailAnalysis } from '../../analyzers/email/email-submission.js';
@@ -56,6 +57,8 @@ export function createApprovalService({ database, config, gates, emailAnalyzer =
     });
     if (value.approval.status === 'COMPLETED') {
       if (!value.approval.analysisId) return { ...value, resultUnavailable: true };
+      value.incident = await completeAnalysisEscalation(database, { userId: request.auth.userId,
+        analyzerType: typeOf(value.approval.toolName), analysisId: value.approval.analysisId });
       try {
         value.result = await tools.execute({ auth: request.auth, conversationId: request.conversationId, name: 'get_analysis_result',
           argumentsJson: JSON.stringify({ analyzerType: typeOf(value.approval.toolName), analysisId: value.approval.analysisId }) });
@@ -143,12 +146,15 @@ export function createApprovalService({ database, config, gates, emailAnalyzer =
         : await analyzeUrl(parameters.url);
       // A successful scan survives disconnects, expired sessions and later AI
       // failures. Analysis and receipt commit atomically; network I/O is finished.
-      await database.$transaction(async (tx) => {
+      const savedAnalysis = await database.$transaction(async (tx) => {
         const input = { userId: claimed.userId, acknowledgementId: claimed.acknowledgementId, result };
         const saved = await (type === 'EMAIL' ? persistEmailAnalysis : persistUrlAnalysis)(tx, input);
         await tx.toolApproval.update({ where: { id: claimed.id }, data: { status: 'COMPLETED', completedAt: new Date(),
           ...(type === 'EMAIL' ? { emailAnalysisId: saved.analysisId } : { urlAnalysisId: saved.analysisId }) } });
+        return saved;
       });
+      // Escalate even if the session/conversation expired while scanning.
+      await completeAnalysisEscalation(database, { userId: claimed.userId, analyzerType: type, analysisId: savedAnalysis.analysisId });
       return { ...await get(request), replayed: false };
     } catch (error) {
       if (claimed) {

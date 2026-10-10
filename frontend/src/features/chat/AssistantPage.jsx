@@ -27,7 +27,7 @@ export function ChatWelcome({ busy, onPrompt }) {
     <h2>How can <span className="assistant-brand-name">EWAGuard AI</span> help you today?</h2>
     <p className="assistant-welcome-subtitle">Get trusted cybersecurity guidance, analyze suspicious activity, and learn how to stay secure.</p>
     <div className="assistant-suggestions">{suggestions.map(({ title, prompt, icon: Icon }) => <button key={title} type="button" disabled={busy} className="assistant-suggestion" onClick={() => onPrompt(prompt)}><Icon className="size-5 text-brand-700" aria-hidden="true" /><span className="assistant-suggestion-title">{title}</span><span className="assistant-suggestion-prompt">{prompt}</span><ArrowUpRight className="assistant-suggestion-arrow size-4" aria-hidden="true" /></button>)}</div>
-    <p className="assistant-welcome-note">Company-policy and Bahrain PDPL sources are not connected. No incidents are created here.</p>
+    <p className="assistant-welcome-note">Company-policy and Bahrain PDPL sources are not connected. Approved analyses may automatically record security incidents.</p>
   </section>;
 }
 

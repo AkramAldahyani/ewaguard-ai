@@ -1,5 +1,9 @@
 # Phase 0 architecture
 
+This document records foundation decisions. Current Phase 10A analysis-to-incident
+orchestration is documented in [Incident Engine](incident-engine.md); authentication,
+analyzers and database services described in later phase documents are operational.
+
 The repository uses npm workspaces and one root lockfile. All application code is
 JavaScript with ES modules. Dependencies are assigned to the workspace that uses them.
 
