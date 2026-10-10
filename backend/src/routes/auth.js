@@ -5,6 +5,7 @@ import { cancelMfa, completeMfa, mfaCookie, securityEvent, startMfa } from '../a
 import { authCookie, issueAccessToken, verifyAccessToken } from '../auth/auth-token.js';
 import { createAuthenticate } from '../middleware/authenticate.js';
 import { createTrustedOrigin } from '../middleware/trusted-origin.js';
+import { revokeSession } from '../auth/session.js';
 
 export function createAuthRouter({ database, config }) {
   const router = Router();
@@ -78,8 +79,9 @@ export function createAuthRouter({ database, config }) {
       res.clearCookie(cookie.name, { ...cookie.options, maxAge: undefined });
       res.clearCookie(pending.name, { ...pending.options, maxAge: undefined });
       await cancelMfa(database, req.cookies?.[pending.name], config);
-      let userId;
-      try { userId = verifyAccessToken(req.cookies?.[cookie.name], config).sub; } catch { /* Always clear. */ }
+      const claims = await revokeSession(database, config, req.cookies?.[cookie.name]);
+      if (claims) req.app.locals.realtime?.disconnectSession(claims.jti);
+      const userId = claims?.sub;
       securityEvent('logout', userId);
       return res.status(204).end();
     } catch (error) { return next(error); }

@@ -2,6 +2,7 @@ import { createIncidentApi } from './incident-api.js';
 
 export const statuses = ['NEW', 'UNDER_INVESTIGATION', 'CONTAINED', 'RESOLVED', 'FALSE_POSITIVE', 'CLOSED'];
 export const categories = ['PHISHING', 'MALWARE', 'CREDENTIAL_COMPROMISE', 'DATA_EXPOSURE', 'SUSPICIOUS_ACTIVITY', 'OTHER'];
+export const sources = ['EMAIL_ANALYSIS', 'URL_ANALYSIS', 'FILE_ANALYSIS', 'INCIDENT_ASSISTANCE', 'MANUAL_REPORT'];
 export const label = (value) => typeof value === 'string' ? value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (s) => s.toUpperCase()) : 'Unavailable';
 export const personName = (person) => person ? `${person.firstName ?? ''} ${person.lastName ?? ''}`.trim() || 'Security administrator' : 'Unassigned';
 export function incidentError(error) {
@@ -14,7 +15,9 @@ export function incidentError(error) {
 }
 export function incidentQuery(filters = {}, page = 1) {
   const query = { page, pageSize: 20 };
-  for (const key of ['reference', 'severity', 'status', 'type', 'assigneeId']) if (filters[key]) query[key] = filters[key].trim();
+  for (const key of ['reference', 'severity', 'status', 'type', 'assigneeId', 'source', 'sort']) if (filters[key]) query[key] = filters[key].trim();
+  if (query.source && !sources.includes(query.source)) throw new Error('Select a supported source.');
+  if (query.sort && !['created_desc', 'created_asc', 'updated_desc', 'severity_desc'].includes(query.sort)) throw new Error('Select a supported sort order.');
   if (query.reference && !/^INC-\d{4}-\d{6,10}$/.test(query.reference)) throw new Error('Enter a complete reference, such as INC-2026-000123.');
   for (const [key, suffix] of [['createdFrom', 'T00:00:00.000Z'], ['createdTo', 'T23:59:59.999Z']]) if (filters[key]) {
     const date = new Date(filters[key] + suffix);
@@ -23,12 +26,6 @@ export function incidentQuery(filters = {}, page = 1) {
   }
   if (query.createdFrom && query.createdTo && query.createdFrom > query.createdTo) throw new Error('The start date must be on or before the end date.');
   return query;
-}
-export function sortIncidents(items, sort) {
-  const copy = [...items];
-  if (sort === 'severity') return copy.sort((a, b) => ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].indexOf(a.severity) - ['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].indexOf(b.severity));
-  if (sort === 'updated') return copy.sort((a, b) => Date.parse(b.updatedAt) - Date.parse(a.updatedAt));
-  return copy;
 }
 // Employee notes omit visibility in the API; explicit private/redacted values fail closed.
 export const visibleNotes = (items, admin) => items.filter((note) => !note.redactedAt &&

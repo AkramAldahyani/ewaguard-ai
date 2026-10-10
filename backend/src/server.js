@@ -4,6 +4,9 @@ import { createFileTempStore } from './analyzers/file/file-temp.js';
 import { purgeExpiredChats } from './ai/chat-service.js';
 import { purgeExpiredApprovals } from './ai/tools/approval-service.js';
 
+import { createServer } from 'node:http';
+import { attachRealtime } from './notifications/realtime.js';
+
 try {
   const config = parseConfig();
   await createFileTempStore().cleanupStale();
@@ -20,7 +23,10 @@ try {
   void cleanupApprovals();
   const approvalRetentionTimer = setInterval(cleanupApprovals, 60_000);
   approvalRetentionTimer.unref();
-  const server = app.listen(config.port, config.host, () => {
+  const server = createServer(app);
+  const realtime = attachRealtime(server, { database: app.locals.database, config });
+  app.locals.realtime = realtime;
+  server.listen(config.port, config.host, () => {
     console.info(JSON.stringify({ level: 'INFO', event: 'server_started', port: config.port }));
   });
   server.on('error', () => {
@@ -36,7 +42,7 @@ try {
     console.info(JSON.stringify({ level: 'INFO', event: 'server_stopping' }));
     const deadline = setTimeout(() => process.exit(1), 10000);
     deadline.unref();
-    server.close(async () => {
+    void realtime.close().then(async () => {
       clearTimeout(deadline);
       await app.locals.database.$disconnect();
     });

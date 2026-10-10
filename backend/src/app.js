@@ -1,4 +1,5 @@
 import express from 'express';
+import { createNotificationRouter } from './routes/notifications.js';
 import { createIncidentRouter } from './routes/incidents.js';
 import { createAnalysisEscalationRouter } from './routes/analysis-escalations.js';
 import cors from 'cors';
@@ -30,6 +31,7 @@ export function createApp(config, dependencies = {}) {
   app.use(helmet());
   app.use(cors({ origin: config.trustedOrigins, credentials: true, methods: ['GET', 'POST', 'HEAD', 'OPTIONS'] }));
   app.use(cookieParser());
+  app.use('/api/notifications', createNotificationRouter({ database, config }));
   app.use('/api/admin/incidents', createIncidentRouter({ database, config, admin: true }));
   app.use('/api/incidents', createIncidentRouter({ database, config }));
   app.use('/api/analysis-escalations', createAnalysisEscalationRouter({ database, config }));

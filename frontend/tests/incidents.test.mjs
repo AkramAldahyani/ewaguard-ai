@@ -6,7 +6,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { createServer } from 'vite';
 import { createIncidentApi } from '../src/features/incidents/incident-api.js';
-import { createIncidentFlow, incidentQuery, sortIncidents, visibleNotes } from '../src/features/incidents/incident-flow.js';
+import { createIncidentFlow, incidentQuery, visibleNotes } from '../src/features/incidents/incident-flow.js';
+import { projectIncidentDetail } from '../../backend/src/incidents/incident-detail.js';
+import { buildIncidentAssistance } from '../../backend/src/assistance/incident-assistance.js';
 
 const incident = { id: 'synthetic-id', reference: 'INC-2026-000123', title: 'Email analysis requires review', type: 'SUSPICIOUS_ACTIVITY',
   detectionSource: 'EMAIL_ANALYSIS', severity: 'HIGH', riskScore: 60, status: 'NEW', createdAt: '2026-10-10T10:00:00.000Z', updatedAt: '2026-10-10T10:00:00.000Z' };
@@ -46,12 +48,16 @@ test('filters validate full references and date ranges without unsupported field
   assert.throws(() => incidentQuery({ reference: 'partial' }));
   assert.throws(() => incidentQuery({ createdFrom: '2026-02-30' }));
   assert.throws(() => incidentQuery({ createdFrom: '2026-10-11', createdTo: '2026-10-10' }));
-  assert.deepEqual(incidentQuery({ createdFrom: '2026-10-10', createdTo: '2026-10-10', source: 'EMAIL', sort: 'risk' }),
-    { page: 1, pageSize: 20, createdFrom: '2026-10-10T00:00:00.000Z', createdTo: '2026-10-10T23:59:59.999Z' });
+  assert.deepEqual(incidentQuery({ createdFrom: '2026-10-10', createdTo: '2026-10-10', source: 'EMAIL_ANALYSIS', sort: 'severity_desc' }),
+    { page: 1, pageSize: 20, source: 'EMAIL_ANALYSIS', sort: 'severity_desc', createdFrom: '2026-10-10T00:00:00.000Z', createdTo: '2026-10-10T23:59:59.999Z' });
+  assert.throws(() => incidentQuery({ source: 'EMAIL', sort: 'risk' }));
 });
-test('page-only sorting is deterministic and never mutates backend results', () => {
-  const items = [{ ...incident }, { ...incident, id: 'second', severity: 'CRITICAL', updatedAt: '2026-10-11T00:00:00Z' }];
-  assert.equal(sortIncidents(items, 'severity')[0].id, 'second'); assert.equal(sortIncidents(items, 'updated')[0].id, 'second'); assert.equal(items[0].id, incident.id);
+test('source and full-result sorting are sent to the server on every page', async () => {
+  const { flow, calls } = setup();
+  await flow.load({ source: 'FILE_ANALYSIS', sort: 'severity_desc' });
+  await flow.load(flow.getSnapshot().filters, 2);
+  assert.equal(calls[1][1].source, 'FILE_ANALYSIS'); assert.equal(calls[1][1].sort, 'severity_desc'); assert.equal(calls[1][1].page, 2);
+  assert.deepEqual(flow.getSnapshot().list.items, [incident]);
 });
 test('failed list request has actionable safe error and supports retry', async () => {
   let fail = true; const { flow } = setup({}, { list: async () => { if (fail) throw new Error('SECRET_SERVER_PAYLOAD'); return page(); } });
@@ -137,13 +143,14 @@ test('incident API uses existing cookie transport and only supported endpoints',
 test('incident interfaces render actual components with safe role-specific states', async (t) => {
   const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: false }, appType: 'custom' }); t.after(() => server.close());
   const ui = await server.ssrLoadModule('/src/features/incidents/IncidentComponents.jsx');
+  const assessmentUi = await server.ssrLoadModule('/src/features/incidents/IncidentAssessment.jsx');
   const actions = await server.ssrLoadModule('/src/features/incidents/IncidentActions.jsx');
   const { AppRoutes } = await server.ssrLoadModule('/src/App.jsx'); const { AuthContext } = await server.ssrLoadModule('/src/context/auth-context.js');
   const render = (component, props) => renderToStaticMarkup(createElement(MemoryRouter, null, createElement(component, props)));
   await t.test('employee list and details include only authorized operational fields', () => {
     const row = { ...incident, description: 'PRIVATE_SENTINEL', reporter: person, assignee: person, aiSummary: 'PRIVATE_SENTINEL' };
     const html = render(ui.IncidentResults, { items: [row], admin: false }) + render(ui.IncidentOverview, { incident: row, admin: false });
-    for (const text of ['INC-2026-000123', 'High risk', 'Email Analysis', '60 / 100', 'not available']) assert.ok(html.includes(text));
+    for (const text of ['INC-2026-000123', 'High risk', 'Email Analysis', '60 / 100', 'unavailable']) assert.ok(html.includes(text));
     assert.doesNotMatch(html, /PRIVATE_SENTINEL|Security Reviewer/); assert.match(html, /href="\/incidents\/synthetic-id"/);
   });
   await t.test('admin queue includes urgency, assignment, table and mobile cards', () => {
@@ -178,8 +185,29 @@ test('incident interfaces render actual components with safe role-specific state
     assert.match(route('/incidents', 'EMPLOYEE'), /<h1[^>]*>My Incidents/);
     assert.match(route('/incidents/synthetic-id', 'EMPLOYEE'), /Loading incident details/);
     assert.match(route('/admin/incidents', 'IT_SECURITY_ADMIN'), /<h1[^>]*>Incident Queue/);
+    assert.match(route('/admin/incidents', 'IT_SECURITY_ADMIN'), /Sort all matching incidents/);
+    assert.match(route('/admin/incidents', 'IT_SECURITY_ADMIN'), /filter-source/);
+    assert.doesNotMatch(route('/admin/incidents', 'IT_SECURITY_ADMIN'), /Sort this page|on this page/);
     assert.match(route('/admin/incidents/synthetic-id', 'IT_SECURITY_ADMIN'), /Investigation workspace/);
     assert.doesNotMatch(route('/admin/incidents', 'EMPLOYEE'), /<h1[^>]*>Incident Queue/);
     assert.doesNotMatch(route('/incidents', 'IT_SECURITY_ADMIN'), /<h1[^>]*>My Incidents/);
+  });
+  await t.test('risk explanations, normalized evidence, source and persisted assistance render together', () => {
+    const analysisId = '11111111-1111-4111-8111-111111111111';
+    const risk = { analyzerType: 'FILE', score: 60, riskLevel: 'HIGH', version: '1.0', confidence: 'LIMITED_CONFIDENCE', reasonCodes: ['FILE_CLAMAV_DETECTION'] };
+    const row = { sourceKey: `FILE:${analysisId}`, detectionSource: 'FILE_ANALYSIS', riskRuleVersion: '1.0', riskScore: 60, severity: 'HIGH',
+      evidence: [{ snapshot: { analyzerType: 'FILE', analysisId, risk, scannerStatuses: { clamav: 'DETECTED', yara: 'UNAVAILABLE' },
+        sha256: 'a'.repeat(64), sizeBytes: '12', assistance: buildIncidentAssistance({ analyzerType: 'FILE', riskResult: risk }) } }] };
+    const assessment = projectIncidentDetail(row, true);
+    const html = render(assessmentUi.IncidentAssessment, { assessment, admin: true });
+    for (const text of ['Limited Confidence', 'ClamAV returned', 'Detected', analysisId, 'Immediate actions', 'SHA-256', 'not a new scan']) assert.ok(html.includes(text), text);
+    const employee = render(assessmentUi.IncidentAssessment, { assessment, admin: false });
+    assert.doesNotMatch(employee, /SHA-256|aaaaaaaa/);
+  });
+  await t.test('missing historical fields have explicit explanations, never fabricated guidance', () => {
+    const assessment = projectIncidentDetail({ riskRuleVersion: '1.0', evidence: [] }, false);
+    const html = render(assessmentUi.IncidentAssessment, { assessment, admin: false });
+    assert.match(html, /not saved with this historical incident/); assert.match(html, /has not been regenerated/);
+    assert.doesNotMatch(html, /Immediate actions|ClamAV returned/);
   });
 });

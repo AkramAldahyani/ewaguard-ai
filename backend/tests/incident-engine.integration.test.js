@@ -7,6 +7,7 @@ import { parseConfig, databaseUrl } from '../src/config/env.js';
 import { createApp } from '../src/app.js';
 import { authCookie, issueAccessToken } from '../src/auth/auth-token.js';
 import { createIncidentFromAnalysis } from '../src/incidents/incident-engine.js';
+import { createIncidentManagement } from '../src/incidents/incident-management.js';
 import { analyzeEmail } from '../src/analyzers/email/email-analyzer.js';
 import { createUrlAnalyzer } from '../src/analyzers/url/url-analyzer.js';
 import { createFileAnalyzer } from '../src/analyzers/file/file-analyzer.js';
@@ -72,6 +73,8 @@ test('Phase 10A incident engine: PostgreSQL transactions, HTTP and approved anal
       assert.equal(incident.evidence.length, 1); assert.equal(incident.events.length, 1);
       assert.equal(incident.events[0].actorId, null); assert.equal(incident.events[0].details.source, 'AUTOMATED_RISK_ENGINE');
       assert.equal(incident.evidence[0].snapshot.analysisId, row.id); assert.equal(incident.evidence[0].snapshot.evidenceCoverage.conflicting, true);
+      assert.equal(incident.evidence[0].snapshot.assistance.version, '1.0');
+      assert.equal(incident.evidence[0].snapshot.assistance.riskLevel, level);
       assert.doesNotMatch(JSON.stringify(incident), /RAW_BODY_SENTINEL|SECRET_|user:|token=/);
       assert.equal((await escalate(row, type)).reference, response.reference);
       await assert.rejects(escalate(row, type, other.id), { code: 'INCIDENT_SOURCE_NOT_FOUND' });
@@ -106,6 +109,10 @@ test('Phase 10A incident engine: PostgreSQL transactions, HTTP and approved anal
     assert.equal((await escalate(row)).reference, recorded.reference);
     const evidence = await database.incidentEvidence.findFirstOrThrow({ where: { incident: { sourceKey: `EMAIL:${row.id}` } } });
     assert.equal(evidence.emailAnalysisId, null); assert.equal(evidence.snapshot.analysisId, row.id);
+    const detail = await createIncidentManagement(database).detail(owner, false, evidence.incidentId);
+    assert.equal(detail.incident.assessment.source.analysisId, row.id);
+    assert.equal(detail.incident.assessment.guidance.status, 'AVAILABLE');
+    assert.equal(detail.incident.assessment.risk.status, 'AVAILABLE');
   });
   function failingStore() {
     return new Proxy(database, { get(target, property) {
@@ -173,7 +180,7 @@ test('Phase 10A incident engine: PostgreSQL transactions, HTTP and approved anal
     const recovered = await post(failed.data.incident.retryPath);
     assert.equal(recovered.status, 200); assert.equal(recovered.data.incident.state, 'RECORDED'); assert.equal(scans, before);
   });
-  await t.test('approved AI workflow uses the same engine; no OpenAI or notifications required', async () => {
+  await t.test('approved AI workflow uses the same engine and persists admin alerts without OpenAI', async () => {
     const conversation = await database.chatSession.create({ data: { ownerId: owner.id, expiresAt: new Date(Date.now() + 3600000) } });
     const path = `/api/tool-approvals/conversations/${conversation.id}/requests`;
     const prepared = await post(path, { requestId: randomUUID(), toolName: 'analyze_email', parameters: highInput });
@@ -184,7 +191,12 @@ test('Phase 10A incident engine: PostgreSQL transactions, HTTP and approved anal
     const replay = await post(`${path}/${prepared.data.approval.id}/decision`, { decision: 'CONFIRM' });
     assert.equal(replay.data.incident.reference, completed.data.incident.reference); assert.equal(scans, before);
     assert.equal(await database.aiUsage.count({ where: { userId: owner.id } }), 0);
-    assert.equal(await database.notification.count({ where: { recipientId: { in: users } } }), 0);
+    assert.equal(await database.notification.count({ where: { recipientId: { in: [owner.id, other.id] } } }), 0);
+    const alerts = await database.notification.findMany({ where: { recipientId: admin.id } });
+    assert.ok(alerts.length > 0);
+    assert.equal(new Set(alerts.map((item) => item.eventKey)).size, alerts.length);
+    assert.ok(alerts.every((item) => item.audience === 'IT_SECURITY_ADMIN' && ['HIGH', 'CRITICAL'].includes(item.severity)));
+    assert.doesNotMatch(JSON.stringify(alerts), /RAW_BODY_SENTINEL|SECRET_|PRIVATE_/);
     assert.equal((await post('/api/auth/logout')).status, 204);
   });
 });

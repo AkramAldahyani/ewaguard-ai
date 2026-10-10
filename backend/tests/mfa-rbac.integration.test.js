@@ -74,7 +74,7 @@ test('RBAC and MFA with real PostgreSQL and HTTP requests', async (t) => {
     assert.equal((await request('/api/admin/workspace', employeeCookie)).status, 403);
     assert.equal((await login(employee, { role: 'IT_SECURITY_ADMIN' })).status, 401);
     const forgedRole = jwt.sign({ role: 'IT_SECURITY_ADMIN', mfa: 'fake' }, config.jwtSecret,
-      { subject: employee.id, issuer: 'ewaguard-api', audience: 'ewaguard-web', expiresIn: 60 });
+      { subject: employee.id, issuer: 'ewaguard-api', audience: 'ewaguard-web', jwtid: randomUUID(), expiresIn: 60 });
     assert.equal((await request('/api/admin/workspace', `ewaguard_access=${forgedRole}`)).status, 403);
   });
   await t.test('horizontal boundaries return identical missing and inaccessible responses', async () => {

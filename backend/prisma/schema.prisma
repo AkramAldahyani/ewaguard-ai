@@ -544,6 +544,10 @@ model Incident {
   notifications      Notification[]     @relation("Notification_incident")
 
   @@index([status, severity, createdAt])
+  @@index([createdAt, id])
+  @@index([updatedAt, id])
+  @@index([severity, createdAt, id])
+  @@index([detectionSource, createdAt, id])
   @@index([reporterId, createdAt])
   @@index([departmentId, createdAt])
   @@index([reporterId])
@@ -611,6 +615,10 @@ model IncidentComment {
 }
 
 model Notification {
+  eventKey    String?          @db.VarChar(120)
+  audience    RoleName?
+  kind        String?          @db.VarChar(40)
+  severity    Severity?
   id          String           @id @default(uuid()) @db.Uuid
   type        NotificationType
   title       String           @db.VarChar(160)
@@ -625,11 +633,22 @@ model Notification {
   recipient   User             @relation("Notification_recipient", fields: [recipientId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   incident    Incident?        @relation("Notification_incident", fields: [incidentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
+  @@unique([recipientId, eventKey])
   @@index([recipientId, readAt, createdAt])
   @@index([expiresAt])
   @@index([recipientId])
   @@index([incidentId])
+  @@index([recipientId, createdAt, id])
   @@map("notifications")
+}
+
+// Token identifiers only; never store the JWT or cookie. Expired entries can be purged.
+model RevokedSession {
+  id        String   @id @db.Uuid
+  expiresAt DateTime @db.Timestamptz(3)
+
+  @@index([expiresAt])
+  @@map("revoked_sessions")
 }
 
 model KnowledgeDocument {

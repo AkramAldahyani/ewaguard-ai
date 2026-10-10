@@ -1,4 +1,6 @@
 import { ManagementError, STATUSES, TRANSITIONS, NOTE_NOTICE, invalid, uuid, fields, choice, timestamp, pagination, noteInput } from './management-policy.js';
+import { projectIncidentDetail } from './incident-detail.js';
+import { persistIncidentNotifications } from '../notifications/notification-service.js';
 
 const person = { id: true, firstName: true, lastName: true };
 const summarySelect = { id: true, number: true, title: true, severity: true, riskScore: true,
@@ -26,9 +28,13 @@ export function createIncidentManagement(database) {
   }
   return {
     async list(user, admin, query) {
-      const paging = pagination(query, ['status', 'severity', 'type', 'reference', 'createdFrom', 'createdTo',
+      const paging = pagination(query, ['status', 'severity', 'type', 'reference', 'createdFrom', 'createdTo', 'source', 'sort',
         ...(admin ? ['assigneeId', 'reporterId', 'departmentId'] : [])]);
       const where = scope(user, admin);
+      if (query.source !== undefined) where.detectionSource = choice(query.source, ['EMAIL_ANALYSIS', 'URL_ANALYSIS', 'FILE_ANALYSIS', 'INCIDENT_ASSISTANCE', 'MANUAL_REPORT']);
+      const sort = query.sort === undefined ? 'created_desc' : choice(query.sort, ['created_desc', 'created_asc', 'updated_desc', 'severity_desc']);
+      const sorting = { created_desc: orderBy, created_asc: [{ createdAt: 'asc' }, { id: 'asc' }],
+        updated_desc: [{ updatedAt: 'desc' }, { id: 'desc' }], severity_desc: [{ severity: 'desc' }, ...orderBy] };
       if (query.status !== undefined) where.status = choice(query.status, STATUSES);
       if (query.severity !== undefined) where.severity = choice(query.severity, ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL']);
       if (query.type !== undefined) where.type = choice(query.type, ['PHISHING', 'MALWARE', 'CREDENTIAL_COMPROMISE', 'DATA_EXPOSURE', 'SUSPICIOUS_ACTIVITY', 'OTHER']);
@@ -46,13 +52,19 @@ export function createIncidentManagement(database) {
         where.number = Number(number);
         where.AND = [{ createdAt: { gte: new Date(`${year}-01-01T00:00:00Z`), lt: new Date(`${Number(year) + 1}-01-01T00:00:00Z`) } }];
       }
-      const rows = await database.incident.findMany({ where, select: admin ? adminSelect : summarySelect, ...pageArgs(paging) });
+      const rows = await database.incident.findMany({ where, select: admin ? adminSelect : summarySelect, ...pageArgs(paging), orderBy: sorting[sort] });
       return pageResult(rows.map(summary), paging.page, paging.pageSize);
     },
     async detail(user, admin, id) {
-      const row = await find(user, admin, id, admin ? { ...adminSelect, description: true, riskRuleVersion: true } : summarySelect);
+      const row = await find(user, admin, id, { ...(admin ? { ...adminSelect, description: true } : summarySelect),
+        riskRuleVersion: true, sourceKey: true, escalationMetadata: true,
+        evidence: { take: 1, orderBy: [{ createdAt: 'asc' }, { id: 'asc' }], select: { snapshot: true } } });
       if (admin) await audit(database, user, row.id, 'INCIDENT_VIEWED');
-      return { incident: summary(row), ...(admin ? { allowedTransitions: TRANSITIONS[row.status], noteNotice: NOTE_NOTICE } : {}) };
+      const assessment = projectIncidentDetail(row, admin);
+      const fields = admin ? { ...adminSelect, description: true, riskRuleVersion: true } : summarySelect;
+      const safe = Object.fromEntries(Object.keys(fields).map((key) => [key, row[key]]));
+      return { incident: { ...summary(safe), assessment },
+        ...(admin ? { allowedTransitions: TRANSITIONS[row.status], noteNotice: NOTE_NOTICE } : {}) };
     },
     async assignees(query) {
       const paging = pagination(query);
@@ -130,6 +142,9 @@ export function createIncidentManagement(database) {
         const updated = await tx.incident.update({ where: { id }, data: change, select: adminSelect });
         if (eventType) await tx.incidentEvent.create({ data: { incidentId: id, actorId: user.id, type: eventType, details } });
         await audit(tx, user, id, operation === 'notes' ? 'INCIDENT_NOTE_ADDED' : `INCIDENT_${eventType}`, details);
+        const kind = operation === 'assignment' ? 'INCIDENT_ASSIGNED' : operation === 'status' ? 'STATUS_CHANGED'
+          : note.visibility === 'REPORTER' ? 'EMPLOYEE_UPDATE' : 'INVESTIGATION_UPDATED';
+        await persistIncidentNotifications(tx, { ...row, ...change }, kind, `change:${id}:${updatedAt.toISOString()}`);
         return { incident: summary(updated), ...(noteId ? { noteId } : {}) };
       });
     },

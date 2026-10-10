@@ -1,4 +1,5 @@
 import { projectToolResult } from '../ai/tools/tool-results.js';
+import { persistIncidentNotifications } from '../notifications/notification-service.js';
 import { INCIDENT_ESCALATION_POLICY as POLICY, escalationDecision } from './escalation-policy.js';
 
 const sources = Object.freeze({ EMAIL: 'emailAnalysis', URL: 'urlAnalysis', FILE: 'fileAnalysis' });
@@ -45,6 +46,7 @@ export async function createIncidentFromAnalysis(database, { analyzerType, analy
       const snapshot = {
         analysisId, analyzerType, analyzedAt: row.analyzedAt.toISOString(),
         risk: safe.risk, indicatorCodes: safe.indicatorCodes,
+        assistance: safe.assistance,
         scannerStatuses: safe.scannerStatuses, providerStatuses: safe.providerStatuses,
         evidenceCoverage: coverage(row.evidence.risk.evidenceCoverage),
         checks: minimizedChecks(analyzerType, row.evidence),
@@ -66,6 +68,7 @@ export async function createIncidentFromAnalysis(database, { analyzerType, analy
         reference: reference(incident), severity: incident.severity, status: incident.status,
         createdAt: incident.createdAt.toISOString(), urgent: decision.urgent,
       } } });
+      await persistIncidentNotifications(tx, incident, 'INCIDENT_CREATED', `created:${incident.id}`);
       return receipt(incident, true);
     });
   } catch (error) {

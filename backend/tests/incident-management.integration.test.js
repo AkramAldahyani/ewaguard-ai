@@ -20,7 +20,7 @@ test('Phase 10B1 incident management: PostgreSQL and HTTP authorization', async 
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
     await database.auditLog.deleteMany({ where: { actorId: { in: users } } });
-    for (const table of ['incidentComment', 'incidentEvent']) await database[table].deleteMany({ where: { incidentId: { in: incidents } } });
+    for (const table of ['notification', 'incidentComment', 'incidentEvent', 'incidentEvidence']) await database[table].deleteMany({ where: { incidentId: { in: incidents } } });
     await database.incident.deleteMany({ where: { id: { in: incidents } } });
     await database.user.deleteMany({ where: { id: { in: users } } });
     await database.$disconnect();
@@ -162,12 +162,62 @@ test('Phase 10B1 incident management: PostgreSQL and HTTP authorization', async 
     } });
     const service = createIncidentManagement(store); const version = await current();
     const before = await database.incidentEvent.count({ where: { incidentId: row.id } });
+    const notificationsBefore = await database.notification.count({ where: { incidentId: row.id } });
     await assert.rejects(service.mutate(admin, row.id, 'status', { status: 'CONTAINED', expectedUpdatedAt: version }));
     await assert.rejects(service.mutate(admin, row.id, 'notes', { body: 'ROLLBACK_SENTINEL', visibility: 'SECURITY_TEAM', acknowledged: true, noticeVersion: NOTE_NOTICE.version, expectedUpdatedAt: version }));
     assert.equal(await current(), version);
     assert.equal(await database.incidentEvent.count({ where: { incidentId: row.id } }), before);
     assert.equal(await database.incidentComment.count({ where: { incidentId: row.id, body: 'ROLLBACK_SENTINEL' } }), 0);
-    assert.equal(await database.notification.count({ where: { incidentId: row.id } }), 0);
+    assert.equal(await database.notification.count({ where: { incidentId: row.id } }), notificationsBefore);
+  });
+  await t.test('source filtering and global sorting remain owner-scoped across pages', async () => {
+    const reader = await user(); const outsider = await user();
+    const sortRows = [];
+    for (const [index, severity] of ['LOW', 'HIGH', 'CRITICAL', 'MEDIUM', 'HIGH'].entries()) {
+      const item = await incident(reader.id);
+      sortRows.push(await database.incident.update({ where: { id: item.id }, data: { severity,
+        detectionSource: index === 4 ? 'URL_ANALYSIS' : 'FILE_ANALYSIS',
+        createdAt: new Date(`2026-01-0${index + 1}T00:00:00Z`), updatedAt: new Date(`2026-02-0${5 - index}T00:00:00Z`) } }));
+    }
+    await incident(outsider.id);
+    for (const sort of ['created_desc', 'created_asc', 'updated_desc', 'severity_desc']) {
+      const all = [];
+      for (let p = 1; p <= 2; p++) {
+        const response = await request(`${own}?source=FILE_ANALYSIS&sort=${sort}&pageSize=2&page=${p}`, { actor: reader });
+        assert.equal(response.status, 200); assert.equal(response.data.hasMore, p === 1); all.push(...response.data.items);
+      }
+      const expected = [...sortRows.slice(0, 4)].sort((a, b) => sort === 'created_asc' ? a.createdAt - b.createdAt :
+        sort === 'updated_desc' ? b.updatedAt - a.updatedAt : sort === 'severity_desc' ?
+          ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].indexOf(b.severity) - ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].indexOf(a.severity) || b.createdAt - a.createdAt : b.createdAt - a.createdAt);
+      assert.deepEqual(all.map((r) => r.id), expected.map((r) => r.id));
+      const adminList = await request(`${root}?source=FILE_ANALYSIS&sort=${sort}&reporterId=${reader.id}&pageSize=100`);
+      assert.deepEqual(adminList.data.items.map((r) => r.id), expected.map((r) => r.id));
+    }
+    for (const query of ['source=UNKNOWN', 'sort=DROP_TABLE', 'sort=created_desc&sort=updated_desc']) assert.equal((await request(`${own}?${query}`, { actor: reader })).status, 400);
+    const tied = sortRows.slice(0, 4);
+    await database.incident.updateMany({ where: { id: { in: tied.map((item) => item.id) } }, data: {
+      severity: 'HIGH', createdAt: new Date('2026-01-01T00:00:00Z'), updatedAt: new Date('2026-01-01T00:00:00Z') } });
+    const first = await request(`${own}?source=FILE_ANALYSIS&sort=severity_desc&pageSize=2`, { actor: reader });
+    const second = await request(`${own}?source=FILE_ANALYSIS&sort=severity_desc&pageSize=2&page=2`, { actor: reader });
+    assert.deepEqual([...first.data.items, ...second.data.items].map((item) => item.id), tied.map((item) => item.id).sort().reverse());
+  });
+  await t.test('detail projection exposes saved assessment but preserves ownership, MFA and internal field boundaries', async () => {
+    const target = await incident(); const sourceId = randomUUID();
+    await database.incident.update({ where: { id: target.id }, data: { sourceKey: `FILE:${sourceId}`, detectionSource: 'FILE_ANALYSIS' } });
+    await database.incidentEvidence.create({ data: { incidentId: target.id, summary: 'SECRET_RAW_SUMMARY', snapshot: {
+      analyzerType: 'FILE', analysisId: sourceId, risk: { analyzerType: 'FILE', score: 60, riskLevel: 'HIGH', version: '1.0', confidence: 'LIMITED_CONFIDENCE', reasonCodes: ['FILE_CLAMAV_DETECTION'] },
+      scannerStatuses: { clamav: 'DETECTED' }, sha256: 'b'.repeat(64), sizeBytes: '512', body: 'SECRET_BODY',
+    } } });
+    const employee = await request(`${own}/${target.id}`, { actor: owner });
+    assert.equal(employee.data.incident.assessment.risk.confidence, 'LIMITED_CONFIDENCE');
+    assert.equal(employee.data.incident.assessment.guidance.reason, 'GUIDANCE_NOT_SAVED');
+    assert.equal(employee.data.incident.assessment.evidence.file, undefined);
+    const privileged = await request(`${root}/${target.id}`);
+    assert.equal(privileged.data.incident.assessment.evidence.file.sha256, 'b'.repeat(64));
+    assert.doesNotMatch(JSON.stringify(employee.data), /SECRET_|INTERNAL_DESCRIPTION|PRIVATE_AI|PRIVATE_INDICATOR|sha256/);
+    assert.doesNotMatch(JSON.stringify(privileged.data.incident.assessment), /SECRET_/);
+    assert.equal((await request(`${own}/${target.id}`, { actor: other })).status, 404);
+    assert.equal((await request(`${root}/${target.id}`, { mfa: false })).status, 401);
   });
   await t.test('read and write rate limits return consistent bounded errors', async () => {
     const limiterAdmin = await user('IT_SECURITY_ADMIN');
