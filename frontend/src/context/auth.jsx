@@ -6,6 +6,7 @@ import { clearConsentSession, configureConsentSession } from '../features/discla
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [expiresAt, setExpiresAt] = useState(null);
+  const [sessionId, setSessionId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [sessionExpired, setSessionExpired] = useState(false);
 
@@ -13,6 +14,7 @@ export function AuthProvider({ children }) {
     clearConsentSession();
     setUser(null);
     setExpiresAt(null);
+    setSessionId(null);
     setSessionExpired(expired);
   }, []);
 
@@ -20,7 +22,7 @@ export function AuthProvider({ children }) {
     const controller = new AbortController();
     let active = true;
     apiRequest('/api/auth/me', { signal: controller.signal })
-      .then((payload) => { if (active) { configureConsentSession(payload.user.id, payload.session); setUser(payload.user); setExpiresAt(payload.session.expiresAt); } })
+      .then((payload) => { if (active) { configureConsentSession(payload.user.id, payload.session); setUser(payload.user); setExpiresAt(payload.session.expiresAt); setSessionId(payload.session.id); } })
       .catch((error) => { if (active && error.name !== 'AbortError') clearSession(false); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; controller.abort(); };
@@ -47,6 +49,7 @@ export function AuthProvider({ children }) {
     configureConsentSession(payload.user.id, payload.session);
     setUser(payload.user);
     setExpiresAt(payload.session.expiresAt);
+    setSessionId(payload.session.id);
     setSessionExpired(false);
     return payload.user;
   }, [clearSession]);
@@ -56,16 +59,18 @@ export function AuthProvider({ children }) {
     configureConsentSession(payload.user.id, payload.session);
     setUser(payload.user);
     setExpiresAt(payload.session.expiresAt);
+    setSessionId(payload.session.id);
     setSessionExpired(false);
     return payload.user;
   }, []);
 
   const logout = useCallback(async () => {
+    window.dispatchEvent(new CustomEvent('ewaguard:signing-out'));
     try { await apiRequest('/api/auth/logout', { method: 'POST' }); }
     finally { clearSession(false); }
   }, [clearSession]);
 
-  const value = useMemo(() => ({ user, loading, sessionExpired, login, logout, verifyMfa }),
-    [user, loading, sessionExpired, login, logout, verifyMfa]);
+  const value = useMemo(() => ({ user, sessionId, loading, sessionExpired, login, logout, verifyMfa }),
+    [user, sessionId, loading, sessionExpired, login, logout, verifyMfa]);
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

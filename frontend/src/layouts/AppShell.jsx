@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import {
-  Award, Bell, Bot, CalendarDays, ChevronRight, FileSearch, GraduationCap, Home, KeyRound,
+  Award, Bot, CalendarDays, ChevronRight, FileSearch, GraduationCap, Home, KeyRound,
   Link2, LogOut, Menu, MessageSquareText, Search, ShieldAlert, Upload, UserRound, X,
 } from 'lucide-react';
 import { BrandLogo } from '../components/BrandLogo.jsx';
@@ -10,6 +10,8 @@ import { cn } from '../lib/cn.js';
 import userAvatar from '../assets/illustrations/user_avatar.png';
 import adminAvatar from '../assets/illustrations/admin_avatar.png';
 import { useAuth } from '../context/auth-context.js';
+import { NotificationProvider } from '../features/notifications/NotificationProvider.jsx';
+import { NotificationBell } from '../features/notifications/NotificationBell.jsx';
 
 const navSections = [
   {
@@ -104,6 +106,9 @@ function SidebarContent({ onNavigate }) {
 }
 
 export function AppShell() {
+  return <NotificationProvider><Shell /></NotificationProvider>;
+}
+function Shell() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
   const mobileDialogRef = useRef(null);
@@ -187,7 +192,7 @@ export function AppShell() {
           </div>
           <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
             <span className="hidden sm:inline-flex"><Tooltip label="Search will be available in a later phase"><IconButton label="Search unavailable" disabled><Search className="size-[1.1rem]" /></IconButton></Tooltip></span>
-            <span className="hidden sm:inline-flex"><Tooltip label="Notifications are not connected yet"><IconButton label="Notifications unavailable" disabled><Bell className="size-[1.1rem]" /></IconButton></Tooltip></span>
+            <NotificationBell />
             <span className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
             <NavLink aria-label={user.role === 'IT_SECURITY_ADMIN' ? 'Administrator workspace' : 'Your profile'} to={user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/profile'} className="flex items-center gap-3 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-100">
               <img src={avatar} alt="" className="size-9 rounded-full border border-slate-200 bg-white object-cover shadow-sm" />

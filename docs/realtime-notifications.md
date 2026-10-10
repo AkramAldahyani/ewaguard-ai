@@ -1,8 +1,8 @@
 # Phase 10C1 — Authenticated notification backend
 
-This subphase implements the backend only. Phase 10C2 must connect the React bell,
-notification panel and incident views to this contract. No browser notification UI,
-Socket.IO client bundle, training, or later-phase functionality is enabled here.
+Phase 10C1 implements the backend contract described below. Phase 10C2 now connects
+the React bell, notification panel and incident views to it; see the frontend
+completion section at the end. No training or later-phase work is included.
 
 ## Transport and session security
 
@@ -171,3 +171,122 @@ The local generated Prisma client was regenerated. Frontend production output wa
 rebuilt for validation; frontend source is unchanged. No Git commands, paid APIs,
 database reset, migration removal, deterministic risk-policy or AI-budget changes
 were performed. Phase 10C1 is complete; Phase 10C as a whole awaits 10C2.
+
+## Phase 10C2 — Frontend integration
+
+The application shell now provides one memory-only notification store per
+authenticated user, role and session ID. Both employee and administrator headers
+have an accessible notification bell with the server unread count (99+ visually
+for large counts). A known unread CRITICAL notification adds an urgent indicator.
+The panel displays only minimized returned notification fields, with severity,
+reference, local timestamp, read/unread text, incident navigation, explicit read
+actions, pagination and loading/empty/error/retry states. A native modal dialog
+provides focus containment, Escape handling and focus return; the panel fits
+narrow viewports and scrolls. Navigation closes it. No automatic toast is emitted,
+so recovery or repeated events cannot generate toast spam.
+
+The client uses `/api/realtime` on the same origin with cookies, no auth/query
+credentials and no client room requests. Vite now forwards WebSocket upgrades
+as well as HTTP requests at that path. The frontend uses the existing list,
+unread-count and read APIs, plus `/api/auth/me` to verify identity following socket
+failures. No backend code, database schema or migration changed in 10C2.
+
+All documented socket events are consumed centrally. Invalidation bursts coalesce
+over 150 ms; events during an inbox request schedule one follow-up. Reconnection
+is bounded to five retries with 1/2/4/8/16-second delays, then a user-triggered
+Reconnect action. Each ready event fetches persisted state and invalidates active
+incident views. Visibility/resume and opening the panel also reconcile REST state.
+The UI reports actual connecting/live/reconnecting/offline status. Authorization
+or identity/session changes clear notification data and end the application
+session. Logout disconnects and clears the notification store immediately, before
+the existing logout request finishes. Unmount removes listeners, timers and
+connections, aborts requests and rejects late results. React effect restarts do
+not create duplicate listeners or revive old responses.
+
+Notification IDs are deduplicated. A successful read retrieves the authoritative
+count rather than assuming a decrement. Live reconciliation replaces the inbox
+with its latest page; older pages remain available with Load more. This prevents
+mixing stale cursor pages with new arrivals. The urgency marker reflects unread
+CRITICAL items in the loaded results, not an unbounded scan of historical alerts.
+API failures retain same-session content when safe and explicitly report the
+failure; unauthorized responses clear it. No notification payload or credential
+is written to localStorage or logged, and React renders all text without HTML
+injection. Employee rendering also rejects administrator-only notification kinds.
+Backend recipient, MFA, role and ownership checks remain authoritative.
+
+Active incident lists refresh with their applied filters, sort and page intact.
+New incidents appear where those constraints permit; the bell/panel provides
+access to alerts that are outside the current page or filters. Existing severity
+styling and stored severity are preserved. Employee detail refresh retrieves only
+the existing authorized history and shared-note endpoints. Detail history/note
+pagination is preserved during live refresh.
+
+Administrator form changes mark the current detail as being edited. Live signals
+then set a pending-refresh notice rather than replacing the record or remounting
+the form. Typing while a background request is in flight also prevents its result
+from replacing the form's record. Draft text, audience, acknowledgement, assignment
+and status remain in component memory with the original `updatedAt`. Submission
+therefore retains backend stale-edit protection. Manual refresh/retry requires an
+explicit discard confirmation while editing. Existing successful-write, conflict
+and ambiguous-write recovery behavior remains unchanged; writes are never replayed
+automatically. Unedited details refresh normally.
+
+### Files changed in 10C2
+
+* New `frontend/src/features/notifications/notification-api.js`
+* New `frontend/src/features/notifications/notification-flow.js`
+* New `frontend/src/features/notifications/notification-context.js`
+* New `frontend/src/features/notifications/NotificationProvider.jsx`
+* New `frontend/src/features/notifications/NotificationBell.jsx`
+* `frontend/src/layouts/AppShell.jsx`, `frontend/src/context/auth.jsx`
+* `frontend/src/features/incidents/incident-flow.js`
+* `frontend/src/features/incidents/IncidentPages.jsx`, `IncidentActions.jsx`
+* `frontend/vite.config.js`, `frontend/package.json`, `package-lock.json`
+* New `frontend/tests/notifications.test.mjs`
+* New `frontend/tests/notification-transport.test.mjs`
+* `docs/realtime-notifications.md`
+
+### Verification and browser QA
+
+Final executed validation on 2026-10-10:
+
+| Command | Result |
+| --- | --- |
+| `node --test --test-concurrency=1 frontend/tests/*.mjs` | 173 passed, 0 failed |
+| `npm.cmd test` | 423 backend checks passed, 0 failed |
+| `npm.cmd run lint` | Passed, no warnings |
+| `npm.cmd run build` | Passed; existing large-bundle warning remains |
+| `npm.cmd run check:backend` | Passed |
+| `npm.cmd run prisma:validate` | Passed |
+| `npm.cmd run db:status` | All 9 migrations applied; schema up to date |
+| `npm.cmd audit --audit-level=low` | 0 vulnerabilities |
+
+Frontend tests cover counts, pagination, read behavior, event coalescing, recovery,
+connection bounds, authorization failures, logout/unmount, effect restarts, late
+responses, role visibility, escaped rendering, empty/error/loading states and live
+incident refresh/draft preservation. A real loopback Socket.IO test exercises the
+frontend store through Vite's WebSocket proxy with synthetic API responses. This
+is transport verification, not browser visual verification. The Node transport
+fixture supplies a synthetic Cookie header explicitly; production browser options
+use `withCredentials: true` and no custom headers.
+
+Browser inventory returned no browsers and opening the in-app browser was
+unavailable. No visual, browser-console, native focus or mobile interaction
+verification is claimed. Manual QA before visual sign-off:
+
+1. At desktop and 390px width, open the bell with keyboard and pointer; check
+   count, HIGH/CRITICAL labels, text wrapping, scrolling, Tab/Escape/focus return.
+2. As each role, open an authorized incident from the panel, mark an alert read,
+   load older notifications and confirm count changes across two tabs.
+3. Disconnect the network, verify interrupted status, reconnect and confirm
+   persisted missed notifications appear without duplicate announcements.
+4. With an administrator draft in progress, update that incident in another tab.
+   Confirm the draft survives, discard requires confirmation, and a stale submit
+   refreshes without silently overwriting the other administrator's change.
+5. Verify employee status/shared updates arrive, private investigation notes do
+   not, and logout/expiry remove content and the socket. Inspect browser console
+   and network for errors. Use approved synthetic fixtures, never paid scans.
+
+Phase 10C is functionally complete after 10C2. The five-second backend dispatch
+latency, per-process backend admission limits, existing production bundle-size
+warning and pending browser visual sign-off remain. No Phase 11A work is started.

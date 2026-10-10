@@ -32,11 +32,12 @@ export const visibleNotes = (items, admin) => items.filter((note) => !note.redac
   (admin || note.visibility === undefined || note.visibility === 'REPORTER'));
 
 export function createIncidentFlow({ admin = false, id = null, api = createIncidentApi(admin) } = {}) {
-  const initial = () => ({ loading: true, busy: false, error: '', message: '', data: null, list: null,
+  const initial = () => ({ loading: true, busy: false, editing: false, livePending: false, liveRefreshing: false, error: '', message: '', data: null, list: null,
     history: null, notes: null, historyLoading: false, notesLoading: false, historyError: '', notesError: '',
     assignees: [], assigneePage: 0, moreAssignees: false, assigneeLoading: false, assigneeError: '', filters: {}, page: 1 });
   let state = initial(); let generation = 0; const controllers = new Set(); const listeners = new Set();
   const sequences = {};
+  let liveRunning = false;
   const set = (patch) => { state = { ...state, ...patch }; listeners.forEach((fn) => fn()); };
   function ticket(key) {
     const controller = new AbortController(); controllers.add(controller);
@@ -52,37 +53,48 @@ export function createIncidentFlow({ admin = false, id = null, api = createIncid
   const flow = {
     subscribe(fn) { listeners.add(fn); return () => listeners.delete(fn); },
     getSnapshot: () => state,
+    setEditing(editing) { set({ editing }); },
+    async liveRefresh() {
+      if (state.editing || state.busy || state.loading || state.historyLoading || state.notesLoading || liveRunning) { set({ livePending: true }); return; }
+      liveRunning = true;
+      try { await flow.load(state.filters, state.page, true); }
+      finally { liveRunning = false; }
+      if (state.livePending && !state.editing && !state.busy && !state.loading) void flow.liveRefresh();
+    },
     clear() { generation++; controllers.forEach((c) => c.abort()); controllers.clear(); set(initial()); },
-    async load(filters = state.filters, page = state.page) {
+    async load(filters = state.filters, page = state.page, background = false) {
       if (state.busy) return;
       let query;
       try { query = incidentQuery(filters, page); } catch (error) { set({ error: error.message }); return; }
       const job = ticket('main');
       sequences.history = (sequences.history ?? 0) + 1;
       sequences.notes = (sequences.notes ?? 0) + 1;
-      set({ loading: true, data: null, list: null, history: null, notes: null, error: '', filters, page });
+      const historyPage = state.history?.page ?? 1; const notesPage = state.notes?.page ?? 1;
+      set({ ...(background ? { liveRefreshing: true } : { loading: true, data: null, list: null, history: null, notes: null, editing: false }), livePending: false, error: '', filters, page });
       try {
         if (id) {
           const data = await api.detail(id, job.signal);
           if (!job.valid()) return;
+          // A draft may start while the background request is in flight.
+          if (background && state.editing) { set({ livePending: true, liveRefreshing: false }); return; }
           set({ data, loading: false });
-          await Promise.all([flow.section('history', 1), flow.section('notes', 1)]);
+          await Promise.all([flow.section('history', background ? historyPage : 1, background), flow.section('notes', background ? notesPage : 1, background)]);
         } else {
           const list = await api.list(query, job.signal);
           if (job.valid()) set({ list, loading: false });
         }
       } catch (error) { if (job.valid() && error.name !== 'AbortError' && !denied(error)) set({ loading: false, error: incidentError(error) }); }
-      finally { job.done(); }
+      finally { job.done(); if (job.valid()) { set({ liveRefreshing: false }); if (!background && state.livePending && !state.editing) void flow.liveRefresh(); } }
     },
-    async section(kind, page) {
+    async section(kind, page, background = false) {
       if (!state.data || !['history', 'notes'].includes(kind)) return;
       const job = ticket(kind);
-      set({ [kind]: null, [`${kind}Loading`]: true, [`${kind}Error`]: '' });
+      set({ ...(!background ? { [kind]: null } : {}), [`${kind}Loading`]: true, [`${kind}Error`]: '' });
       try {
         const result = await api[kind](id, page, job.signal);
         if (job.valid()) set({ [kind]: { ...result, items: kind === 'notes' ? visibleNotes(result.items, admin) : result.items }, [`${kind}Loading`]: false });
       } catch (error) { if (job.valid() && error.name !== 'AbortError' && !denied(error)) set({ [`${kind}Loading`]: false, [`${kind}Error`]: incidentError(error) }); }
-      finally { job.done(); }
+      finally { job.done(); if (job.valid() && state.livePending && !state.editing && !state.busy && !state.loading && !state.historyLoading && !state.notesLoading && !liveRunning) void flow.liveRefresh(); }
     },
     async assignees(more = false) {
       if (!admin || state.assigneeLoading) return;
