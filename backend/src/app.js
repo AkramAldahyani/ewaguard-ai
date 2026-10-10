@@ -1,5 +1,6 @@
 import express from 'express';
 import { createTrainingRouter } from './routes/training.js';
+import { createMonthlyQuizRouter } from './routes/monthly-quizzes.js';
 import { createNotificationRouter } from './routes/notifications.js';
 import { createIncidentRouter } from './routes/incidents.js';
 import { createAnalysisEscalationRouter } from './routes/analysis-escalations.js';
@@ -34,6 +35,8 @@ export function createApp(config, dependencies = {}) {
   app.use(cookieParser());
   app.use('/api/admin/training', createTrainingRouter({ database, config, admin: true }));
   app.use('/api/training', createTrainingRouter({ database, config }));
+  app.use('/api/admin/monthly-quizzes', createMonthlyQuizRouter({ database, config, admin: true }));
+  app.use('/api/monthly-quizzes', createMonthlyQuizRouter({ database, config }));
   app.use('/api/notifications', createNotificationRouter({ database, config }));
   app.use('/api/admin/incidents', createIncidentRouter({ database, config, admin: true }));
   app.use('/api/incidents', createIncidentRouter({ database, config }));

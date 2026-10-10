@@ -1,16 +1,10 @@
-import { Award, CalendarDays } from 'lucide-react';
+import { Award } from 'lucide-react';
 import { Link, NavLink } from 'react-router';
 import { Badge, Button, Card, StatePanel } from '../../components/ui/index.jsx';
 import { FeatureOutline, PreviewPage } from '../../components/employee/PortalPreview.jsx';
 
 function AwarenessNavigation() {
   return <nav aria-label="Security awareness" className="mb-6 flex flex-wrap gap-2">{[['/training', 'My Training'], ['/monthly-quiz', 'Monthly Quiz'], ['/certificates', 'Certificates']].map(([to, label]) => <NavLink key={to} to={to} className={({ isActive }) => `rounded-xl border px-4 py-2.5 text-sm font-semibold ${isActive ? 'border-navy-900 bg-navy-900 text-white' : 'border-slate-200 bg-white text-slate-600 hover:border-brand-300'}`}>{label}</NavLink>)}</nav>;
-}
-
-export function MonthlyQuizPage() {
-  return <PreviewPage section="Security awareness" title="Monthly Quiz" description="A regular opportunity to revisit security topics and put your understanding into practice.">
-    <AwarenessNavigation /><div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(16rem,1fr)]"><Card className="p-6"><StatePanel icon={CalendarDays} title="Monthly quizzes are coming later" description="No published quiz or participation data is connected. Monthly quizzes will be separate from course assessments." action={<Button disabled>Start monthly quiz</Button>} /><div className="mt-6 border-t border-slate-100 pt-5"><h2 className="font-bold">Your quiz history</h2><p className="mt-2 text-sm leading-6 text-slate-600">Completed attempts, results, and historical scores will appear here. No scores have been loaded.</p></div></Card><FeatureOutline title="What you can expect" items={['Administrator-reviewed questions on approved awareness topics.', 'Clear results and explanations when a quiz is completed.', 'Historical scores shown objectively, without assumed improvement.']} /></div>
-  </PreviewPage>;
 }
 
 export function CertificatesPage() {

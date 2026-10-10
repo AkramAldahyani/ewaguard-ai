@@ -13,9 +13,9 @@ export function TrainingFeedback({ loading, error, retry, empty, emptyTitle = 'N
   if (empty) return <Card className="p-5 sm:p-6"><StatePanel icon={GraduationCap} title={emptyTitle} description={emptyDescription} /></Card>;
   return null;
 }
-export function TrainingPager({ result, onChange, disabled = false }) {
+export function TrainingPager({ result, onChange, disabled = false, ariaLabel = 'Training pages' }) {
   if (!result) return null;
-  return <nav aria-label="Training pages" className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4"><span className="text-sm text-slate-500">Page {result.page}</span><div className="flex gap-2"><Button variant="secondary" size="sm" disabled={disabled || result.page <= 1} onClick={() => onChange(result.page - 1)}>Previous</Button><Button variant="secondary" size="sm" disabled={disabled || !result.hasMore} onClick={() => onChange(result.page + 1)}>Next</Button></div></nav>;
+  return <nav aria-label={ariaLabel} className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4"><span className="text-sm text-slate-500">Page {result.page}</span><div className="flex gap-2"><Button variant="secondary" size="sm" disabled={disabled || result.page <= 1} onClick={() => onChange(result.page - 1)}>Previous</Button><Button variant="secondary" size="sm" disabled={disabled || !result.hasMore} onClick={() => onChange(result.page + 1)}>Next</Button></div></nav>;
 }
 export function ProgressBar({ progress }) {
   const percent = Math.max(0, Math.min(100, progress?.progressPercent ?? 0));

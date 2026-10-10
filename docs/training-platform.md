@@ -1,6 +1,6 @@
 # Phase 11A — Training platform foundation
 
-Phase 11A1 implements the training backend, and Phase 11A2 connects administrator and employee interfaces. Phase 11B1 adds the secure course-quiz backend, and Phase 11B2 connects administrator and employee quiz interfaces. Certificates, monthly quizzes, AI content generation, and awareness analytics are not implemented.
+Phase 11A1 implements the training backend, and Phase 11A2 connects administrator and employee interfaces. Phase 11B1 adds the secure course-quiz backend, and Phase 11B2 connects administrator and employee quiz interfaces. Phase 11C1 adds the independent monthly-quiz backend, and Phase 11C2 connects administrator and employee monthly-quiz interfaces. Certificates, AI content generation, and awareness analytics are not implemented.
 
 ## Storage and lifecycle
 
@@ -109,5 +109,45 @@ Only an active assignment owner with completed reading may start a published qui
 The administrator program workspace now includes a Course quiz tab for quiz-required programs. It supports bounded draft authoring, multiple-choice and true/false options, question and option editing, question reordering/removal, passing thresholds, attempt limits, answer-key preview, explicit approval/publication dialogs, and paginated attempt scores. Approved and published content is read-only. The tab preserves its unsaved draft when switching course views. A stale-edit conflict keeps unsaved questions visible, retrieves the latest quiz separately, and requires explicit discard before further writes.
 
 The employee course reader now embeds an assessment panel for quiz-required assignments. It shows reading prerequisites or publication unavailability, starts/resumes permitted attempts, preserves unsent choices while navigating questions, allows answer review and confirmation before submission, and displays server-scored results, permitted explanations, attempt history and remaining-attempt messaging. A passing result refreshes server-authoritative training progress. Correct answers and explanations are rendered only after an authorized submitted-result response. All content is rendered as React text, and protected quiz data stays in component memory rather than browser storage.
+
+## Phase 11C1 independent monthly quiz API
+
+Monthly quizzes use the existing `Quiz(kind=MONTHLY)`, `MonthlyQuiz`, `MonthlyQuizAssignment`, question, option, attempt, and answer models. There is exactly one quiz record for each UTC calendar month (`YYYY-MM`) in this organization. The period is immutable, including after archive; replacement publication and version swapping are not supported. The database's unique period constraint and immutable published/attempted-content triggers preserve history. No schema change or migration is needed.
+
+Publication makes the quiz available organization-wide to active authenticated employees. A monthly assignment is created once when an employee first starts; its `assignedById` refers to the quiz creator as publication authority. This avoids pre-creating records for employees who never participate. Administrators explicitly approve a saved draft before publishing. The configured opening and closing timestamps must fall in the selected UTC month, with a closing time at or before the first instant of the next month. Publication is refused after the deadline. `UNPUBLISHED`, `OPEN`, `UPCOMING`, `CLOSED`, and `ARCHIVED` are computed availability states; the stored quiz lifecycle is `DRAFT`, `APPROVED`, `PUBLISHED`, or `ARCHIVED`. Closing occurs at the deadline without mutating the record. New attempts and unsubmitted attempts cannot be submitted once closed or archived; submitted results remain reviewable by their owners.
+
+Administrator endpoints under `/api/admin/monthly-quizzes`:
+
+| Method | Relative path | Behavior |
+| --- | --- | --- |
+| GET | `/` | Paginated search/filter (`period`, `status`, `search`, `sort=period_desc|period_asc`) |
+| POST | `/` | Create draft `{ period, opensAt, closesAt, title, passingPercent, maxAttempts, questions }` |
+| GET | `/:id` | Full administrator quiz preview, topics, policy, window, and lifecycle |
+| POST | `/:id/edit` | Replace draft questions and window with create shape excluding `period`, plus `expectedUpdatedAt` |
+| POST | `/:id/approve` | Explicit content approval with `expectedUpdatedAt` |
+| POST | `/:id/publish` | Publish approved quiz with `expectedUpdatedAt` |
+| POST | `/:id/archive` | Archive with `expectedUpdatedAt`; preserve attempts and results |
+| GET | `/:id/report` | Paginated minimal employee attempt scores and participation counts |
+
+Each question includes `text`, `type` (`MULTIPLE_CHOICE` or `TRUE_FALSE`), `topic` (an approved training topic), `explanation`, integer `points`, and ordered `{ text, isCorrect }` options. The same bounded plain-text validation and one-correct-answer rule as course quizzes apply. Reports distinguish employees who started from employees who submitted and show the current active-employee population only as a present-time context, not a historical denominator.
+
+Employee endpoints under `/api/monthly-quizzes`:
+
+| Method | Relative path | Behavior |
+| --- | --- | --- |
+| GET | `/` | Paginated published quizzes and own attempted archived quizzes, with availability and best score |
+| GET | `/history` | Paginated own month-by-month submitted results |
+| GET | `/:id` | Open quiz questions without answers/explanations, plus own attempt summaries |
+| POST | `/:id/attempts` | Start or resume an attempt, body `{}` |
+| POST | `/:id/attempts/:attemptId/submit` | Submit `{ "answers": [{ "questionId": "uuid", "selectedOptionId": "uuid" }] }` |
+| GET | `/:id/attempts/:attemptId` | Review own submitted result and permitted explanations |
+
+The database scores weighted points transactionally. Assignment, attempt identity, every question and option, window, status, and attempt limit are checked server-side. The same answer submission is idempotent, while altered retries conflict. Monthly attempts never set `TrainingProgress` or course completion. The month-by-month representative score is the **highest submitted percentage** in that month; a tie selects the earliest attempt. The history delta compares that score with the preceding **recorded** month, which may be more than one calendar month earlier. No trend is invented for the oldest recorded month. Employee APIs omit answer keys before submission and never return another employee's attempts. Existing cookie authentication, employee ownership, administrator MFA/RBAC, origin checks, per-user rate limits, no-store responses, and minimized audit metadata apply.
+
+## Phase 11C2 monthly quiz interfaces
+
+The administrator navigation opens a paginated monthly quiz queue with title search, month and lifecycle filters, and server-wide period sorting. The detail workspace provides draft scheduling in UTC, topic-tagged multiple-choice and true/false question editing, answer-key preview, explicit approval/publication, archiving, and a paginated participation report. An edit uses the saved quiz `updatedAt`; a stale conflict blocks submission and preserves the local draft until the administrator explicitly loads the latest version. Only one record is permitted per UTC calendar month. Closing is determined by the saved schedule; there is no separate close operation.
+
+The employee route lists available months, their window and attempt availability, and separate month-by-month history. An eligible employee can start or resume an in-progress attempt, navigate questions with unsent choices held in page state, review selections, confirm submission, and view the server-scored result and previous attempts. Unsent choices are not persisted across reloads. The history displays the backend-selected best submitted attempt and its percentage-point delta from the previous recorded month. These monthly results do not change course progress. All requests use the existing cookie-authenticated client; no answers or results are stored in localStorage.
 
 Validation executed for this subphase: 435 backend tests (including 12 training tests), 173 frontend regression tests, and 27 database invariant tests passed. Lint, production build, backend syntax checks (including all new modules), and Prisma validation passed. Migration status reported all nine existing migrations current; dependency audit reported zero vulnerabilities. The production build retains its existing large-bundle warning. No Git commands, paid API calls, database resets, schema changes, or migration rewrites were performed. A separate master development specification was not found in the repository; implementation follows AGENTS.md, existing architecture documents, and the phase requirements.

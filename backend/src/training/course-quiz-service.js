@@ -79,6 +79,8 @@ function review(a, quiz) {
       correctOptionId: q.options.find((o) => o.isCorrect).id, explanation: q.explanation };
   }) };
 }
+// Shared authoring and safe serialization rules for independent monthly quizzes.
+export { questions as quizQuestions, adminQuiz, employeeQuiz, attemptSummary, draft as validateQuizDraft, review as quizReview };
 export function createCourseQuizService(database) {
   return {
     async adminDetail(id) {
