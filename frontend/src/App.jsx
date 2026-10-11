@@ -7,7 +7,8 @@ import { DesignSystemPage } from './pages/DesignSystemPage.jsx';
 import { HomePage } from './pages/HomePage.jsx';
 import { PlaceholderPage } from './pages/PlaceholderPage.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
-import { AdminWorkspace, UnauthorizedPage } from './pages/AccessPages.jsx';
+import { UnauthorizedPage } from './pages/AccessPages.jsx';
+import { AdminDashboardPage } from './features/dashboard/AdminDashboardPage.jsx';
 import { FileAnalyzerPage } from './features/file/FileAnalyzerPage.jsx';
 import { UrlAnalyzerPage } from './features/url/UrlAnalyzerPage.jsx';
 import { EmployeeCertificateListPage, EmployeeCertificateDetailPage } from './features/certificates/EmployeeCertificatePages.jsx';
@@ -55,7 +56,7 @@ export function AppRoutes() {
             <Route path="profile" element={<ProfilePage />} />
           </Route>
           <Route element={<ProtectedRoute roles={['IT_SECURITY_ADMIN']} />}>
-            <Route path="admin" element={<AdminWorkspace />} />
+            <Route path="admin" element={<AdminDashboardPage />} />
             <Route path="admin/incidents" element={<IncidentListPage admin />} />
             <Route path="admin/incidents/:id" element={<IncidentDetailPage admin />} />
             <Route path="admin/training" element={<AdminTrainingListPage />} />

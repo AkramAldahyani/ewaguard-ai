@@ -4,6 +4,7 @@ import { createMonthlyQuizRouter } from './routes/monthly-quizzes.js';
 import { createCertificateRouter } from './routes/certificates.js';
 import { createCommunityRouter } from './routes/community.js';
 import { createAdminCommunityRouter } from './routes/admin-community.js';
+import { createDashboardRouter } from './routes/dashboard.js';
 import { createNotificationRouter } from './routes/notifications.js';
 import { createIncidentRouter } from './routes/incidents.js';
 import { createAnalysisEscalationRouter } from './routes/analysis-escalations.js';
@@ -44,6 +45,7 @@ export function createApp(config, dependencies = {}) {
   app.use('/api/certificates', createCertificateRouter({ database, config }));
   app.use('/api/community', createCommunityRouter({ database, config }));
   app.use('/api/admin/community', createAdminCommunityRouter({ database, config }));
+  app.use('/api/admin/dashboard', createDashboardRouter({ database, config }));
   app.use('/api/notifications', createNotificationRouter({ database, config }));
   app.use('/api/admin/incidents', createIncidentRouter({ database, config, admin: true }));
   app.use('/api/incidents', createIncidentRouter({ database, config }));

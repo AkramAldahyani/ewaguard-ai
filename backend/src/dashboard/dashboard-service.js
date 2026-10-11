@@ -1,0 +1,66 @@
+import { createNotificationService } from '../notifications/notification-service.js';
+
+const openStatuses = ['NEW', 'UNDER_INVESTIGATION', 'CONTAINED'];
+const activeEmployee = { status: 'ACTIVE', deactivatedAt: null, role: { name: 'EMPLOYEE' } };
+const currentTraining = { revokedAt: null, employee: activeEmployee, training: { status: 'PUBLISHED' } };
+const monthlyParticipation = { revokedAt: null, employee: activeEmployee,
+  monthlyQuiz: { quiz: { status: { in: ['PUBLISHED', 'ARCHIVED'] } } } };
+const fullName = (person) => person ? `${person.firstName} ${person.lastName}`.trim() : null;
+const reference = (row) => `INC-${row.createdAt.getUTCFullYear()}-${String(row.number).padStart(6, '0')}`;
+
+export function createDashboardService(database) {
+  return {
+    async overview(user) {
+      const notifications = createNotificationService(database);
+      const [activeEmployees, totalIncidents, openIncidents, highOpen, criticalOpen, awaitingAssignment,
+        publishedPrograms, assignedEmployees, activeAssignments, completedAssignments, inProgressAssignments,
+        publishedMonthlyQuizzes, monthlyParticipations, monthlySubmitted, certificatesIssued, pendingPosts,
+        recentIncidents, recentPendingPosts, unread, recentNotifications] = await Promise.all([
+        database.user.count({ where: activeEmployee }),
+        database.incident.count(),
+        database.incident.count({ where: { status: { in: openStatuses } } }),
+        database.incident.count({ where: { status: { in: openStatuses }, severity: 'HIGH' } }),
+        database.incident.count({ where: { status: { in: openStatuses }, severity: 'CRITICAL' } }),
+        database.incident.count({ where: { status: { in: openStatuses }, assigneeId: null } }),
+        database.trainingProgram.count({ where: { status: 'PUBLISHED' } }),
+        database.user.count({ where: { ...activeEmployee, trainingAssignments: { some: {
+          revokedAt: null, training: { status: 'PUBLISHED' } } } } }),
+        database.trainingAssignment.count({ where: currentTraining }),
+        database.trainingProgress.count({ where: { assignment: currentTraining, status: 'COMPLETED' } }),
+        database.trainingProgress.count({ where: { assignment: currentTraining, status: 'IN_PROGRESS' } }),
+        database.monthlyQuiz.count({ where: { quiz: { status: 'PUBLISHED' } } }),
+        database.monthlyQuizAssignment.count({ where: monthlyParticipation }),
+        database.monthlyQuizAssignment.count({ where: { ...monthlyParticipation,
+          attempts: { some: { status: 'SUBMITTED' } } } }),
+        database.certificate.count({ where: { revokedAt: null } }),
+        database.communityPost.count({ where: { status: 'PENDING_REVIEW' } }),
+        database.incident.findMany({ take: 6, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+          select: { id: true, number: true, severity: true, status: true, createdAt: true,
+            assignee: { select: { firstName: true, lastName: true } } } }),
+        database.communityPost.findMany({ where: { status: 'PENDING_REVIEW' }, take: 5,
+          orderBy: [{ submittedAt: 'desc' }, { id: 'desc' }],
+          select: { id: true, title: true, category: true, submittedAt: true,
+            author: { select: { firstName: true, lastName: true } } } }),
+        notifications.unread(user),
+        notifications.list(user, { limit: '5' }),
+      ]);
+      return {
+        generatedAt: new Date().toISOString(),
+        metrics: {
+          employees: { active: activeEmployees },
+          incidents: { total: totalIncidents, open: openIncidents, highOpen, criticalOpen, awaitingAssignment },
+          awareness: { publishedPrograms, assignedEmployees, activeAssignments, completedAssignments,
+            inProgressAssignments, publishedMonthlyQuizzes, monthlyParticipations, monthlySubmitted,
+            certificatesIssued },
+          community: { pendingPosts },
+        },
+        recentIncidents: recentIncidents.map((row) => ({ id: row.id, reference: reference(row),
+          severity: row.severity, status: row.status, createdAt: row.createdAt,
+          assigneeName: fullName(row.assignee), urgent: row.severity === 'HIGH' || row.severity === 'CRITICAL' })),
+        pendingPosts: recentPendingPosts.map((row) => ({ id: row.id, title: row.title, category: row.category,
+          submittedAt: row.submittedAt, authorName: fullName(row.author) })),
+        notifications: { unreadCount: unread.unreadCount, items: recentNotifications.items },
+      };
+    },
+  };
+}

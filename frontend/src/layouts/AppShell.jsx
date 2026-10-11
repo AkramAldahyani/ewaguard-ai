@@ -48,7 +48,7 @@ const navSections = [
 function SidebarContent({ onNavigate }) {
   const { user } = useAuth();
   const sections = user.role === 'IT_SECURITY_ADMIN'
-    ? [{ label: 'Administration', items: [{ label: 'Administrator workspace', to: '/admin', icon: Home }, { label: 'Incident Queue', to: '/admin/incidents', icon: ShieldAlert }, { label: 'Training programs', to: '/admin/training', icon: GraduationCap }, { label: 'Monthly quizzes', to: '/admin/monthly-quizzes', icon: CalendarDays }, { label: 'Certificates', to: '/admin/certificates', icon: Award }, { label: 'Community moderation', to: '/admin/community', icon: FileSearch }] }]
+    ? [{ label: 'Administration', items: [{ label: 'Administrator dashboard', to: '/admin', icon: Home }, { label: 'Incident Queue', to: '/admin/incidents', icon: ShieldAlert }, { label: 'Training programs', to: '/admin/training', icon: GraduationCap }, { label: 'Monthly quizzes', to: '/admin/monthly-quizzes', icon: CalendarDays }, { label: 'Certificates', to: '/admin/certificates', icon: Award }, { label: 'Community moderation', to: '/admin/community', icon: FileSearch }] }]
     : navSections;
   return (
     <>
@@ -160,7 +160,7 @@ function Shell() {
   useEffect(() => {
     const page = navSections.flatMap((section) => section.items).find((item) => item.to === pathname)?.label;
     const incidentPage = pathname.startsWith('/admin/incidents') ? 'Incident Queue' : pathname.startsWith('/incidents/') ? 'Incident details' : pathname.startsWith('/admin/training') ? 'Training management' : pathname.startsWith('/admin/monthly-quizzes') ? 'Monthly quiz management' : pathname.startsWith('/admin/certificates') ? 'Certificate management' : pathname.startsWith('/admin/community') ? 'Community moderation' : pathname.startsWith('/certificates/') ? 'Certificate details' : pathname.startsWith('/monthly-quiz/') ? 'Monthly quiz' : pathname.startsWith('/training/') ? 'Training course' : null;
-    document.title = `${page ?? incidentPage ?? (pathname === '/admin' ? 'Administrator workspace' : 'Workspace')} | EWAGuard AI`;
+    document.title = `${page ?? incidentPage ?? (pathname === '/admin' ? 'Administrator dashboard' : 'Workspace')} | EWAGuard AI`;
     if (previousPath.current !== pathname) {
       if (mobileDialogRef.current.open) mobileDialogRef.current.close();
       mainRef.current?.focus();
@@ -194,7 +194,7 @@ function Shell() {
             <span className="hidden sm:inline-flex"><Tooltip label="Search will be available in a later phase"><IconButton label="Search unavailable" disabled><Search className="size-[1.1rem]" /></IconButton></Tooltip></span>
             <NotificationBell />
             <span className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
-            <NavLink aria-label={user.role === 'IT_SECURITY_ADMIN' ? 'Administrator workspace' : 'Your profile'} to={user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/profile'} className="flex items-center gap-3 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-100">
+            <NavLink aria-label={user.role === 'IT_SECURITY_ADMIN' ? 'Administrator dashboard' : 'Your profile'} to={user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/profile'} className="flex items-center gap-3 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-100">
               <img src={avatar} alt="" className="size-9 rounded-full border border-slate-200 bg-white object-cover shadow-sm" />
               <span className="hidden text-left xl:block"><span className="block text-sm font-bold text-slate-800">{user.firstName} {user.lastName}</span><span className="block text-[0.7rem] text-slate-500">{roleLabel}</span></span>
             </NavLink>

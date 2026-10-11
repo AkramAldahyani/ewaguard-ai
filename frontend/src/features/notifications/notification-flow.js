@@ -20,7 +20,7 @@ const errorText = (error) => error?.status === 429 ? 'Too many requests. Wait a 
 
 // One memory-only store and socket per mounted authenticated session.
 export function createNotificationFlow({ userId, role, sessionId, api = notificationApi,
-  socketFactory = () => io(socketOptions), onUnauthorized = () => {}, schedule = setTimeout, cancel = clearTimeout } = {}) {
+  socketFactory = () => io({ ...socketOptions }), onUnauthorized = () => {}, schedule = setTimeout, cancel = clearTimeout } = {}) {
   const initial = () => ({ items: [], unreadCount: null, nextCursor: null, loading: true, refreshing: false,
     moreLoading: false, marking: [], error: '', connection: 'connecting' });
   let state = initial(); let active = false; let generation = 0; let socket; let attempt = 0;
