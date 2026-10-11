@@ -23,6 +23,7 @@ test('Phase 11B1 course quizzes: authenticated HTTP and PostgreSQL', async (t) =
       await tx.$executeRawUnsafe('ALTER TABLE quiz_options DISABLE TRIGGER option_history');
       await tx.$executeRawUnsafe('ALTER TABLE quiz_questions DISABLE TRIGGER question_history');
       await tx.auditLog.deleteMany({ where: { actorId: { in: users } } });
+      await tx.certificate.deleteMany({ where: { progress: { assignment: { trainingId: { in: programs } } } } });
       await tx.trainingProgress.deleteMany({ where: { assignment: { trainingId: { in: programs } } } });
       await tx.quizAnswer.deleteMany({ where: { attempt: { quizId: { in: quizIds } } } });
       await tx.quizAttempt.deleteMany({ where: { quizId: { in: quizIds } } });
@@ -124,6 +125,7 @@ test('Phase 11B1 course quizzes: authenticated HTTP and PostgreSQL', async (t) =
     assert.equal((await request(submitPath, { actor: employee, body: { answers: bad, scorePercent: 100 } })).status, 400);
     const failed = await request(submitPath, { actor: employee, body: { answers: bad } });
     assert.equal(failed.status, 200, JSON.stringify(failed.data)); assert.equal(failed.data.attempt.passed, false); assert.equal(Number(failed.data.attempt.scorePercent), 0);
+    assert.equal(await db.certificate.count({ where: { progress: { assignmentId } } }), 0);
     assert.equal((await request(`${own}/${assignmentId}`, { actor: employee })).data.assignment.progress.status, 'IN_PROGRESS');
     assert.equal((await request(submitPath, { actor: employee, body: { answers: bad } })).data.attempt.id, first.data.attempt.id);
     assert.equal((await request(submitPath, { actor: employee, body: { answers: wrong } })).status, 409);
@@ -137,6 +139,11 @@ test('Phase 11B1 course quizzes: authenticated HTTP and PostgreSQL', async (t) =
     assert.equal(Number(passed.data.attempt.scorePercent), 100);
     const progress = (await request(`${own}/${assignmentId}`, { actor: employee })).data.assignment.progress;
     assert.equal(progress.status, 'COMPLETED'); assert.ok(progress.completedAt);
+    const earned = await request('/api/certificates', { actor: employee });
+    assert.equal(earned.status, 200); assert.equal(earned.data.items.length, 1);
+    assert.equal(earned.data.items[0].scorePercent, 100);
+    assert.match(earned.data.items[0].certificateNumber, /^[0-9a-f-]{36}$/);
+    assert.equal(await db.certificate.count({ where: { progress: { assignmentId } } }), 1);
     assert.equal((await request(`${ownPath(assignmentId)}/attempts`, { actor: employee, body: {} })).status, 409);
     assert.equal((await request(ownPath(assignmentId), { actor: employee })).data.attemptsRemaining, 0);
     const report = await request(`${adminPath}/attempts?pageSize=1`);
@@ -156,6 +163,10 @@ test('Phase 11B1 course quizzes: authenticated HTTP and PostgreSQL', async (t) =
     const boundaryResult = await request(`${ownPath(id)}/attempts/${a.data.attempt.id}/submit`, { actor: other, body: { answers: boundary } });
     assert.equal(boundaryResult.status, 200); assert.equal(Number(boundaryResult.data.attempt.scorePercent), 75);
     assert.equal(boundaryResult.data.attempt.passed, true);
+    const boundaryCertificate = (await request('/api/certificates', { actor: other })).data.items[0];
+    assert.equal(boundaryCertificate.scorePercent, 75);
+    assert.notEqual(boundaryCertificate.certificateNumber,
+      (await request('/api/certificates', { actor: employee })).data.items[0].certificateNumber);
     assert.equal((await request(`${own}/${id}`, { actor: other })).data.assignment.progress.status, 'COMPLETED');
     assert.equal((await request(`${ownPath(id)}/attempts`, { actor: other, body: {} })).status, 409);
     const limited = await request(`${root}/${programId}/assignments`, { body: { employeeId: exhaustedEmployee.id } });
@@ -172,6 +183,7 @@ test('Phase 11B1 course quizzes: authenticated HTTP and PostgreSQL', async (t) =
     }
     assert.equal((await request(`${ownPath(limitedId)}/attempts`, { actor: exhaustedEmployee, body: {} })).status, 409);
     assert.equal((await request(`${own}/${limitedId}`, { actor: exhaustedEmployee })).data.assignment.progress.status, 'IN_PROGRESS');
+    assert.equal((await request('/api/certificates', { actor: exhaustedEmployee })).data.items.length, 0);
   });
   await t.test('publication and history remain immutable at the database boundary', async () => {
     const quiz = await db.quiz.findUnique({ where: { id: quizIds[0] }, include: { questions: true } });

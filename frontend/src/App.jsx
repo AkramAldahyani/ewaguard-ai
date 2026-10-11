@@ -10,7 +10,8 @@ import { LoginPage } from './pages/LoginPage.jsx';
 import { AdminWorkspace, UnauthorizedPage } from './pages/AccessPages.jsx';
 import { FileAnalyzerPage } from './features/file/FileAnalyzerPage.jsx';
 import { UrlAnalyzerPage } from './features/url/UrlAnalyzerPage.jsx';
-import { CertificatesPage } from './pages/employee/AwarenessPages.jsx';
+import { EmployeeCertificateListPage, EmployeeCertificateDetailPage } from './features/certificates/EmployeeCertificatePages.jsx';
+import { AdminCertificateListPage, AdminCertificateDetailPage } from './features/certificates/AdminCertificatePages.jsx';
 import { AdminMonthlyDetailPage, AdminMonthlyListPage } from './features/monthly-quizzes/AdminMonthlyPages.jsx';
 import { EmployeeMonthlyDetailPage, EmployeeMonthlyListPage } from './features/monthly-quizzes/EmployeeMonthlyPages.jsx';
 import { AdminTrainingDetailPage, AdminTrainingListPage } from './features/training/AdminTrainingPages.jsx';
@@ -46,7 +47,8 @@ export function AppRoutes() {
             <Route path="training/:id" element={<EmployeeTrainingDetailPage />} />
             <Route path="monthly-quiz" element={<EmployeeMonthlyListPage />} />
             <Route path="monthly-quiz/:id" element={<EmployeeMonthlyDetailPage />} />
-            <Route path="certificates" element={<CertificatesPage />} />
+            <Route path="certificates" element={<EmployeeCertificateListPage />} />
+            <Route path="certificates/:id" element={<EmployeeCertificateDetailPage />} />
             <Route path="community" element={<CommunityPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
@@ -60,6 +62,8 @@ export function AppRoutes() {
             <Route path="admin/monthly-quizzes" element={<AdminMonthlyListPage />} />
             <Route path="admin/monthly-quizzes/new" element={<AdminMonthlyDetailPage />} />
             <Route path="admin/monthly-quizzes/:id" element={<AdminMonthlyDetailPage />} />
+            <Route path="admin/certificates" element={<AdminCertificateListPage />} />
+            <Route path="admin/certificates/:id" element={<AdminCertificateDetailPage />} />
           </Route>
           <Route path="unauthorized" element={<UnauthorizedPage />} />
           <Route path="design-system" element={<DesignSystemPage />} />

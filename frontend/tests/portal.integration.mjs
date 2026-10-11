@@ -17,7 +17,7 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
     return renderToStaticMarkup(createElement(AuthContext.Provider, { value: { logout: async () => {}, ...session } },
       createElement(MemoryRouter, { initialEntries: [path] }, createElement(AppRoutes))));
   }
-  const pages = [['/', 'Welcome, Portal'], ['/assistant', 'EWAGuard AI'], ['/analyze/email', 'Analyze Email'], ['/analyze/url', 'Analyze URL'], ['/analyze/file', 'Analyze File'], ['/password-security', 'Password Security'], ['/incidents', 'My Incidents'], ['/training', 'My Training'], ['/monthly-quiz', 'Monthly quizzes'], ['/certificates', 'Certificates'], ['/community', 'Security Community'], ['/profile', 'Profile']];
+  const pages = [['/', 'Welcome, Portal'], ['/assistant', 'EWAGuard AI'], ['/analyze/email', 'Analyze Email'], ['/analyze/url', 'Analyze URL'], ['/analyze/file', 'Analyze File'], ['/password-security', 'Password Security'], ['/incidents', 'My Incidents'], ['/training', 'My Training'], ['/monthly-quiz', 'Monthly quizzes'], ['/certificates', 'My Certificates'], ['/community', 'Security Community'], ['/profile', 'Profile']];
   await t.test('all employee destinations render with complete navigation', () => {
     for (const [path, title] of pages) {
       const html = render(path);
@@ -29,7 +29,7 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
   await t.test('only the local assistant composer accepts preview text; file selection never exists', () => {
     for (const [path] of pages.filter(([path]) => !['/profile', '/incidents'].includes(path))) {
       const html = render(path);
-      if (!['/assistant', '/password-security', '/analyze/email', '/analyze/url', '/analyze/file', '/training', '/monthly-quiz'].includes(path)) assert.match(html, /Preview only/);
+      if (!['/assistant', '/password-security', '/analyze/email', '/analyze/url', '/analyze/file', '/training', '/monthly-quiz', '/certificates'].includes(path)) assert.match(html, /Preview only/);
       for (const control of html.matchAll(/<(?:input|textarea)\b[^>]*>/g)) {
         if (path === '/assistant') assert.match(control[0], /id="chat-message"/);
         else if (path !== '/password-security' && !['/analyze/email', '/analyze/file', '/analyze/url', '/training', '/monthly-quiz'].includes(path)) assert.match(control[0], /disabled=""/);

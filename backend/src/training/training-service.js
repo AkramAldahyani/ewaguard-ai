@@ -1,4 +1,5 @@
 import { courseInput, expected, fail, fields, identifier, pageInput, searchText, topics } from './training-policy.js';
+import { issueEligibleCertificate } from '../certificates/certificate-service.js';
 
 const person = { id: true, firstName: true, lastName: true };
 const summary = { id: true, title: true, description: true, topic: true, version: true, estimatedMinutes: true,
@@ -153,6 +154,7 @@ export function createTrainingService(database) {
           startedAt: current?.startedAt ?? now, lastActivityAt: now, status: finalComplete ? 'COMPLETED' : 'IN_PROGRESS',
           materialCompletedAt: materialComplete ? (current?.materialCompletedAt ?? now) : null, completedAt: finalComplete ? now : null };
         const progress = await tx.trainingProgress.upsert({ where: { assignmentId: id }, create: { assignmentId: id, ...data }, update: data, select: progressSelect });
+        if (finalComplete) await issueEligibleCertificate(tx, id);
         return { progress };
       });
     },

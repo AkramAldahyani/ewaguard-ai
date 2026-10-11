@@ -1,4 +1,5 @@
 import { expected, fail, fields, identifier, pageInput } from './training-policy.js';
+import { issueEligibleCertificate } from '../certificates/certificate-service.js';
 
 const missing = () => fail('Quiz or assignment not found.', 404, 'QUIZ_NOT_FOUND');
 const conflict = (message) => fail(message, 409, 'QUIZ_CONFLICT');
@@ -220,6 +221,7 @@ export function createCourseQuizService(database) {
           earnedPoints: earned, possiblePoints: possible, scorePercent: Math.round(earned * 10000 / possible) / 100, passed } });
         if (passed && assignment.progress.status !== 'COMPLETED') await tx.trainingProgress.update({ where: { assignmentId: assignment.id }, data: {
           status: 'COMPLETED', completedAt: new Date(), lastActivityAt: new Date(), qualifyingAttemptId: a.id } });
+        if (passed) await issueEligibleCertificate(tx, assignment.id);
         await audit(tx, user, training.id, 'COURSE_QUIZ_SUBMITTED', { quizId: quiz.id, attemptId: a.id, passed });
         return review(await tx.quizAttempt.findUnique({ where: { id: a.id }, include: { answers: true } }), quiz);
       });

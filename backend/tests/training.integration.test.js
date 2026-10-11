@@ -17,6 +17,7 @@ test('Phase 11A1 training foundation: PostgreSQL and authenticated HTTP', async 
   t.after(async () => {
     await new Promise((resolve) => server.close(resolve));
     await database.auditLog.deleteMany({ where: { actorId: { in: users } } });
+    await database.certificate.deleteMany({ where: { progress: { assignment: { trainingId: { in: programs } } } } });
     await database.trainingProgress.deleteMany({ where: { assignment: { trainingId: { in: programs } } } });
     await database.trainingAssignment.deleteMany({ where: { trainingId: { in: programs } } });
     await database.trainingProgram.deleteMany({ where: { id: { in: programs } } });
@@ -111,13 +112,45 @@ test('Phase 11A1 training foundation: PostgreSQL and authenticated HTTP', async 
     assert.ok(completed.data.progress.materialCompletedAt); assert.equal(completed.data.progress.completedAt, null);
     assert.deepEqual((await advance({ sectionKey: 'takeaways', acknowledged: true })).data, completed.data);
   });
+  let materialCertificate;
   await t.test('explicit material-only course completes after all acknowledgements', async () => {
     const material = await create(false); await change(material, 'review'); await change(material, 'publish');
     const result = await request(`${root}/${material.id}/assignments`, { body: { employeeId: employee.id } }); const id = result.data.assignment.id;
     await request(`${own}/${id}/start`, { actor: employee, body: {} });
     await request(`${own}/${id}/sections`, { actor: employee, body: { sectionKey: 'intro', acknowledged: true } });
-    const done = await request(`${own}/${id}/sections`, { actor: employee, body: { sectionKey: 'takeaways', acknowledged: true } });
-    assert.equal(done.data.progress.status, 'COMPLETED'); assert.ok(done.data.progress.completedAt);
+    const completions = await Promise.all([1, 2].map(() => request(`${own}/${id}/sections`, { actor: employee, body: { sectionKey: 'takeaways', acknowledged: true } })));
+    assert.ok(completions.every((done) => done.status === 200 && done.data.progress.status === 'COMPLETED' && done.data.progress.completedAt));
+    assert.equal(await database.certificate.count({ where: { progress: { assignmentId: id } } }), 1);
+    const certificates = await request('/api/certificates', { actor: employee });
+    assert.equal(certificates.status, 200); assert.equal(certificates.data.items.length, 1);
+    materialCertificate = certificates.data.items[0];
+    assert.equal(materialCertificate.trainingId, material.id); assert.equal(materialCertificate.scorePercent, null);
+    assert.equal(await database.certificate.count({ where: { progress: { assignment: { trainingId: program.id } } } }), 0);
+  });
+  await t.test('certificate ownership, administrator MFA, verification, PDF, and historical reconciliation', async () => {
+    const cert = materialCertificate, ownCert = `/api/certificates/${cert.id}`;
+    assert.equal((await request(ownCert, { actor: employee })).data.certificate.certificateNumber, cert.certificateNumber);
+    assert.equal((await request(ownCert, { actor: other })).status, 404);
+    assert.equal((await request(`${ownCert}/pdf`, { actor: other })).status, 404);
+    assert.equal((await request('/api/certificates', { actor: other })).data.items.length, 0);
+    assert.equal((await request(`/api/admin/certificates/verify/${cert.certificateNumber}`, { actor: employee })).status, 403);
+    assert.equal((await request(`/api/admin/certificates/verify/${cert.certificateNumber}`, { actor: noMfa })).status, 401);
+    assert.equal((await request(`/api/admin/certificates/verify/${cert.certificateNumber}`, { actor: null })).status, 401);
+    const verified = await request(`/api/admin/certificates/verify/${cert.certificateNumber}`);
+    assert.equal(verified.status, 200); assert.equal(verified.data.trainingCompletionConfirmed, true);
+    const found = await request('/api/admin/certificates?search=Synthetic%20Training&status=ISSUED');
+    assert.equal(found.status, 200); assert.ok(found.data.items.some((row) => row.id === cert.id));
+    const response = await fetch(`http://127.0.0.1:${server.address().port}${ownCert}/pdf`, { headers: {
+      Origin: config.frontendUrl, Cookie: `${authCookie(config).name}=${issueAccessToken(employee.id, config)}` } });
+    assert.equal(response.status, 200); assert.match(response.headers.get('content-type'), /^application\/pdf/);
+    assert.match(response.headers.get('content-disposition'), /^attachment;/);
+    assert.match(response.headers.get('cache-control'), /no-store/);
+    assert.equal(Buffer.from(await response.arrayBuffer()).subarray(0, 5).toString(), '%PDF-');
+    await database.certificate.delete({ where: { id: cert.id } });
+    const historical = await request('/api/certificates', { actor: employee });
+    assert.equal(historical.data.items.length, 1);
+    assert.notEqual(historical.data.items[0].certificateNumber, cert.certificateNumber);
+    assert.equal((await request('/api/certificates', { actor: employee })).data.items.length, 1);
   });
   await t.test('bounded server pagination, search, filters and progress reporting', async () => {
     const first = await request(`${root}?search=${marker}&pageSize=1&sort=title_asc`);

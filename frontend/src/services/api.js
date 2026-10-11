@@ -8,13 +8,14 @@ export class ApiError extends Error {
 }
 
 export async function apiRequest(path, options = {}) {
+  const { responseType, ...fetchOptions } = options;
   const response = await fetch(path, {
     credentials: 'include',
-    ...options,
+    ...fetchOptions,
     headers: { ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
   });
   if (response.status === 204) return null;
-  const payload = await response.json().catch(() => null);
+  const payload = response.ok && responseType === 'blob' ? null : await response.json().catch(() => null);
   if (!response.ok) {
     const error = new ApiError(
       response.status,
@@ -25,6 +26,12 @@ export async function apiRequest(path, options = {}) {
       window.dispatchEvent(new CustomEvent('ewaguard:session-expired'));
     }
     throw error;
+  }
+  if (responseType === 'blob') {
+    if (!response.headers.get('content-type')?.toLowerCase().startsWith('application/pdf')) {
+      throw new ApiError(response.status, 'INVALID_PDF', 'The certificate PDF could not be downloaded.');
+    }
+    return response.blob();
   }
   return payload;
 }
