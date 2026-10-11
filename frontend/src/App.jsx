@@ -16,7 +16,9 @@ import { AdminMonthlyDetailPage, AdminMonthlyListPage } from './features/monthly
 import { EmployeeMonthlyDetailPage, EmployeeMonthlyListPage } from './features/monthly-quizzes/EmployeeMonthlyPages.jsx';
 import { AdminTrainingDetailPage, AdminTrainingListPage } from './features/training/AdminTrainingPages.jsx';
 import { EmployeeTrainingDetailPage, EmployeeTrainingListPage } from './features/training/EmployeeTrainingPages.jsx';
-import { CommunityPage, ProfilePage } from './pages/employee/WorkspacePages.jsx';
+import { ProfilePage } from './pages/employee/WorkspacePages.jsx';
+import { AdminCommunityPage } from './features/community/AdminCommunityPage.jsx';
+import { EmployeeCommunityPage } from './features/community/EmployeeCommunityPage.jsx';
 import { IncidentListPage, IncidentDetailPage } from './features/incidents/IncidentPages.jsx';
 import { PasswordSecurityPage } from './features/password/PasswordSecurityPage.jsx';
 import { AssistantPage } from './features/chat/AssistantPage.jsx';
@@ -49,7 +51,7 @@ export function AppRoutes() {
             <Route path="monthly-quiz/:id" element={<EmployeeMonthlyDetailPage />} />
             <Route path="certificates" element={<EmployeeCertificateListPage />} />
             <Route path="certificates/:id" element={<EmployeeCertificateDetailPage />} />
-            <Route path="community" element={<CommunityPage />} />
+            <Route path="community" element={<EmployeeCommunityPage />} />
             <Route path="profile" element={<ProfilePage />} />
           </Route>
           <Route element={<ProtectedRoute roles={['IT_SECURITY_ADMIN']} />}>
@@ -64,6 +66,7 @@ export function AppRoutes() {
             <Route path="admin/monthly-quizzes/:id" element={<AdminMonthlyDetailPage />} />
             <Route path="admin/certificates" element={<AdminCertificateListPage />} />
             <Route path="admin/certificates/:id" element={<AdminCertificateDetailPage />} />
+            <Route path="admin/community" element={<AdminCommunityPage />} />
           </Route>
           <Route path="unauthorized" element={<UnauthorizedPage />} />
           <Route path="design-system" element={<DesignSystemPage />} />

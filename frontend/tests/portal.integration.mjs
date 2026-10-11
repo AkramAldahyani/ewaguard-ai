@@ -26,12 +26,13 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
       assert.doesNotMatch(html, /Administrator workspace/);
     }
   });
-  await t.test('only the local assistant composer accepts preview text; file selection never exists', () => {
+  await t.test('operational employee pages replace previews and file selection remains controlled', () => {
     for (const [path] of pages.filter(([path]) => !['/profile', '/incidents'].includes(path))) {
       const html = render(path);
-      if (!['/assistant', '/password-security', '/analyze/email', '/analyze/url', '/analyze/file', '/training', '/monthly-quiz', '/certificates'].includes(path)) assert.match(html, /Preview only/);
+      if (['/', '/community'].includes(path)) assert.doesNotMatch(html, /Preview only/);
       for (const control of html.matchAll(/<(?:input|textarea)\b[^>]*>/g)) {
         if (path === '/assistant') assert.match(control[0], /id="chat-message"/);
+        else if (path === '/community') assert.doesNotMatch(control[0], /disabled=""/);
         else if (path !== '/password-security' && !['/analyze/email', '/analyze/file', '/analyze/url', '/training', '/monthly-quiz'].includes(path)) assert.match(control[0], /disabled=""/);
         else if (['/analyze/email', '/analyze/file', '/analyze/url'].includes(path)) {
           assert.match(control[0], /type="checkbox"/);
@@ -40,6 +41,7 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
       }
       assert.doesNotMatch(html, /type="file"/);
     }
+    assert.match(render('/community'), /Community feed|My submissions/);
     assert.doesNotMatch(render('/'), /68%|Representative only/);
   });
   await t.test('email and file analysis require the active disclaimer before their preview step', () => {

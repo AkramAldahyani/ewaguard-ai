@@ -48,7 +48,7 @@ const navSections = [
 function SidebarContent({ onNavigate }) {
   const { user } = useAuth();
   const sections = user.role === 'IT_SECURITY_ADMIN'
-    ? [{ label: 'Administration', items: [{ label: 'Administrator workspace', to: '/admin', icon: Home }, { label: 'Incident Queue', to: '/admin/incidents', icon: ShieldAlert }, { label: 'Training programs', to: '/admin/training', icon: GraduationCap }, { label: 'Monthly quizzes', to: '/admin/monthly-quizzes', icon: CalendarDays }, { label: 'Certificates', to: '/admin/certificates', icon: Award }] }]
+    ? [{ label: 'Administration', items: [{ label: 'Administrator workspace', to: '/admin', icon: Home }, { label: 'Incident Queue', to: '/admin/incidents', icon: ShieldAlert }, { label: 'Training programs', to: '/admin/training', icon: GraduationCap }, { label: 'Monthly quizzes', to: '/admin/monthly-quizzes', icon: CalendarDays }, { label: 'Certificates', to: '/admin/certificates', icon: Award }, { label: 'Community moderation', to: '/admin/community', icon: FileSearch }] }]
     : navSections;
   return (
     <>
@@ -159,7 +159,7 @@ function Shell() {
 
   useEffect(() => {
     const page = navSections.flatMap((section) => section.items).find((item) => item.to === pathname)?.label;
-    const incidentPage = pathname.startsWith('/admin/incidents') ? 'Incident Queue' : pathname.startsWith('/incidents/') ? 'Incident details' : pathname.startsWith('/admin/training') ? 'Training management' : pathname.startsWith('/admin/monthly-quizzes') ? 'Monthly quiz management' : pathname.startsWith('/admin/certificates') ? 'Certificate management' : pathname.startsWith('/certificates/') ? 'Certificate details' : pathname.startsWith('/monthly-quiz/') ? 'Monthly quiz' : pathname.startsWith('/training/') ? 'Training course' : null;
+    const incidentPage = pathname.startsWith('/admin/incidents') ? 'Incident Queue' : pathname.startsWith('/incidents/') ? 'Incident details' : pathname.startsWith('/admin/training') ? 'Training management' : pathname.startsWith('/admin/monthly-quizzes') ? 'Monthly quiz management' : pathname.startsWith('/admin/certificates') ? 'Certificate management' : pathname.startsWith('/admin/community') ? 'Community moderation' : pathname.startsWith('/certificates/') ? 'Certificate details' : pathname.startsWith('/monthly-quiz/') ? 'Monthly quiz' : pathname.startsWith('/training/') ? 'Training course' : null;
     document.title = `${page ?? incidentPage ?? (pathname === '/admin' ? 'Administrator workspace' : 'Workspace')} | EWAGuard AI`;
     if (previousPath.current !== pathname) {
       if (mobileDialogRef.current.open) mobileDialogRef.current.close();

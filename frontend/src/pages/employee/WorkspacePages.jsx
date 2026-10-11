@@ -1,19 +1,7 @@
-import { useState } from 'react';
-import { MessageSquareText, ShieldCheck, UserRound } from 'lucide-react';
-import { Badge, Button, Card, StatePanel } from '../../components/ui/index.jsx';
-import { Modal } from '../../components/ui/Dialog.jsx';
+import { ShieldCheck, UserRound } from 'lucide-react';
+import { Card } from '../../components/ui/index.jsx';
 import { PageHeader } from '../../components/PageHeader.jsx';
-import { FeatureOutline, PreviewPage, PrivacyReminder } from '../../components/employee/PortalPreview.jsx';
 import { useAuth } from '../../context/auth-context.js';
-
-export function CommunityPage() {
-  const [submissionInfo, setSubmissionInfo] = useState(false);
-  return <PreviewPage title="Security Community" description="A shared space for reviewed security warnings, practical tips, and awareness learning." actions={<Button variant="secondary" onClick={() => setSubmissionInfo(true)}>Submit a post · Preview</Button>}>
-    <div className="grid gap-6 xl:grid-cols-[minmax(0,1.5fr)_minmax(16rem,1fr)]"><Card className="p-6"><StatePanel icon={MessageSquareText} title="Approved posts will appear here" description="The community feed is not connected yet. No employee posts, authors, or moderation results are shown." />
-      <article className="mt-6 rounded-xl border border-slate-200 p-5"><div className="flex flex-wrap items-center gap-2"><Badge>Post layout preview</Badge><span className="text-xs text-slate-500">No published content</span></div><h2 className="mt-4 font-bold">Space for an approved security post</h2><p className="mt-2 text-sm leading-6 text-slate-600">A published card will show its category, title, permitted author information, and reviewed content.</p></article></Card><FeatureOutline title="Shared with care" items={['Submit appropriate cybersecurity content when submissions are enabled.', 'Every submission goes to the security team for review.', 'Only approved posts become visible to other employees.']} /></div>
-    <Modal open={submissionInfo} onClose={() => setSubmissionInfo(false)} title="Post submissions are coming later" description="This entry point is a preview. No post or attachment can be submitted yet." footer={<Button onClick={() => setSubmissionInfo(false)}>Understood</Button>}><PrivacyReminder /></Modal>
-  </PreviewPage>;
-}
 
 export function ProfilePage() {
   const { user } = useAuth();
