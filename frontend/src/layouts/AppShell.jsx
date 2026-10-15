@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import {
-  Award, Bot, CalendarDays, ChevronRight, FileSearch, GraduationCap, Home, KeyRound,
+  Activity, Award, BookOpenCheck, Bot, CalendarDays, ChevronRight, FileSearch, GraduationCap, Home, KeyRound,
   Link2, LogOut, Menu, MessageSquareText, Search, ShieldAlert, Upload, UserRound, X,
 } from 'lucide-react';
 import { BrandLogo } from '../components/BrandLogo.jsx';
@@ -48,7 +48,7 @@ const navSections = [
 function SidebarContent({ onNavigate }) {
   const { user } = useAuth();
   const sections = user.role === 'IT_SECURITY_ADMIN'
-    ? [{ label: 'Administration', items: [{ label: 'Administrator dashboard', to: '/admin', icon: Home }, { label: 'Incident Queue', to: '/admin/incidents', icon: ShieldAlert }, { label: 'Training programs', to: '/admin/training', icon: GraduationCap }, { label: 'Monthly quizzes', to: '/admin/monthly-quizzes', icon: CalendarDays }, { label: 'Certificates', to: '/admin/certificates', icon: Award }, { label: 'Community moderation', to: '/admin/community', icon: FileSearch }] }]
+    ? [{ label: 'Administration', items: [{ label: 'Administrator dashboard', to: '/admin', icon: Home }, { label: 'Security analytics', to: '/admin/analytics/security', icon: Activity }, { label: 'Incident awareness', to: '/admin/incident-awareness', icon: BookOpenCheck }, { label: 'Awareness analytics', to: '/admin/analytics/awareness', icon: BookOpenCheck }, { label: 'Incident Queue', to: '/admin/incidents', icon: ShieldAlert }, { label: 'Training programs', to: '/admin/training', icon: GraduationCap }, { label: 'Monthly quizzes', to: '/admin/monthly-quizzes', icon: CalendarDays }, { label: 'Certificates', to: '/admin/certificates', icon: Award }, { label: 'Community moderation', to: '/admin/community', icon: FileSearch }] }]
     : navSections;
   return (
     <>
@@ -159,7 +159,7 @@ function Shell() {
 
   useEffect(() => {
     const page = navSections.flatMap((section) => section.items).find((item) => item.to === pathname)?.label;
-    const incidentPage = pathname.startsWith('/admin/incidents') ? 'Incident Queue' : pathname.startsWith('/incidents/') ? 'Incident details' : pathname.startsWith('/admin/training') ? 'Training management' : pathname.startsWith('/admin/monthly-quizzes') ? 'Monthly quiz management' : pathname.startsWith('/admin/certificates') ? 'Certificate management' : pathname.startsWith('/admin/community') ? 'Community moderation' : pathname.startsWith('/certificates/') ? 'Certificate details' : pathname.startsWith('/monthly-quiz/') ? 'Monthly quiz' : pathname.startsWith('/training/') ? 'Training course' : null;
+    const incidentPage = pathname.startsWith('/admin/incident-awareness') ? 'Incident awareness' : pathname.startsWith('/admin/analytics/security') ? 'Security analytics' : pathname.startsWith('/admin/analytics/awareness') ? 'Awareness analytics' : pathname.startsWith('/admin/incidents') ? 'Incident Queue' : pathname.startsWith('/incidents/') ? 'Incident details' : pathname.startsWith('/admin/training') ? 'Training management' : pathname.startsWith('/admin/monthly-quizzes') ? 'Monthly quiz management' : pathname.startsWith('/admin/certificates') ? 'Certificate management' : pathname.startsWith('/admin/community') ? 'Community moderation' : pathname.startsWith('/certificates/') ? 'Certificate details' : pathname.startsWith('/monthly-quiz/') ? 'Monthly quiz' : pathname.startsWith('/training/') ? 'Training course' : null;
     document.title = `${page ?? incidentPage ?? (pathname === '/admin' ? 'Administrator dashboard' : 'Workspace')} | EWAGuard AI`;
     if (previousPath.current !== pathname) {
       if (mobileDialogRef.current.open) mobileDialogRef.current.close();

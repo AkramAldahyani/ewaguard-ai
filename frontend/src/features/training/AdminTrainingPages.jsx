@@ -1,5 +1,5 @@
 import { cloneElement, useCallback, useEffect, useRef, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router';
 import { Archive, BookOpenCheck, Plus, RefreshCw } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader.jsx';
 import { Button, Card, Field as BaseField, Input, Select, Textarea } from '../../components/ui/index.jsx';
@@ -62,12 +62,13 @@ function AssignmentPanel({ program }) {
 }
 
 export function AdminTrainingDetailPage() {
+  const [searchParams] = useSearchParams();
   const { id } = useParams(); const creating = !id; const navigate = useNavigate();
   const [program, setProgram] = useState(null); const [draft, setDraft] = useState(emptyDraft);
   const [savedDraft, setSavedDraft] = useState(null); const [editVersion, setEditVersion] = useState(null);
   const [loading, setLoading] = useState(!creating); const [busy, setBusy] = useState(false);
   const [error, setError] = useState(''); const [notice, setNotice] = useState(''); const [stale, setStale] = useState(false);
-  const [tab, setTab] = useState('editor'); const [quizOpened, setQuizOpened] = useState(false); const [confirm, setConfirm] = useState(null); const busyRef = useRef(false);
+  const [tab, setTab] = useState(() => searchParams.get('view') === 'assignments' ? 'assignments' : 'editor'); const [quizOpened, setQuizOpened] = useState(false); const [confirm, setConfirm] = useState(null); const busyRef = useRef(false);
   const load = useCallback(async (resetDraft = false, signal) => { if (!id) return false; setLoading(true); setError(''); try { const { program: latest } = await api.detail(id, signal); if (signal?.aborted) return false;
     setProgram(latest); if (resetDraft) { const next = fromProgram(latest); setDraft(next); setSavedDraft(next); setEditVersion(latest.updatedAt); setStale(false); } return true;
   } catch (failure) { if (failure.name !== 'AbortError') { setError(trainingError(failure)); setProgram(null); } return false; } finally { if (!signal?.aborted) setLoading(false); } }, [id]);

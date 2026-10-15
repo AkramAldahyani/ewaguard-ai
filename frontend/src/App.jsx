@@ -9,6 +9,9 @@ import { PlaceholderPage } from './pages/PlaceholderPage.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { UnauthorizedPage } from './pages/AccessPages.jsx';
 import { AdminDashboardPage } from './features/dashboard/AdminDashboardPage.jsx';
+import { SecurityAnalyticsPage } from './features/analytics/SecurityAnalyticsPage.jsx';
+import { AwarenessAnalyticsPage } from './features/analytics/AwarenessAnalyticsPage.jsx';
+import { IncidentAwarenessPage } from './features/incident-awareness/IncidentAwarenessPage.jsx';
 import { FileAnalyzerPage } from './features/file/FileAnalyzerPage.jsx';
 import { UrlAnalyzerPage } from './features/url/UrlAnalyzerPage.jsx';
 import { EmployeeCertificateListPage, EmployeeCertificateDetailPage } from './features/certificates/EmployeeCertificatePages.jsx';
@@ -57,6 +60,9 @@ export function AppRoutes() {
           </Route>
           <Route element={<ProtectedRoute roles={['IT_SECURITY_ADMIN']} />}>
             <Route path="admin" element={<AdminDashboardPage />} />
+            <Route path="admin/analytics/security" element={<SecurityAnalyticsPage />} />
+            <Route path="admin/analytics/awareness" element={<AwarenessAnalyticsPage />} />
+            <Route path="admin/incident-awareness" element={<IncidentAwarenessPage />} />
             <Route path="admin/incidents" element={<IncidentListPage admin />} />
             <Route path="admin/incidents/:id" element={<IncidentDetailPage admin />} />
             <Route path="admin/training" element={<AdminTrainingListPage />} />

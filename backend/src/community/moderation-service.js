@@ -6,14 +6,15 @@ const statuses = ['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'REMOVED'];
 const transitions = { APPROVED: 'PENDING_REVIEW', REJECTED: 'PENDING_REVIEW', REMOVED: 'APPROVED' };
 const person = { id: true, firstName: true, lastName: true };
 const selection = { id: true, title: true, body: true, category: true, status: true, submittedAt: true,
-  approvedAt: true, removedAt: true, createdAt: true, updatedAt: true, author: { select: person } };
+  approvedAt: true, removedAt: true, createdAt: true, updatedAt: true, author: { select: person },
+  training: { select: { id: true, title: true, status: true } } };
 const fail = (status, code, message) => { throw new CommunityError(status, code, message); };
 const name = (user) => `${user.firstName} ${user.lastName}`.trim();
 function output(row, detail = false) {
   return { id: row.id, title: row.title, body: detail ? row.body : row.body.slice(0, 240),
     category: row.category, status: row.status, submittedAt: row.submittedAt, approvedAt: row.approvedAt,
     removedAt: row.removedAt, createdAt: row.createdAt, updatedAt: row.updatedAt,
-    author: { id: row.author.id, name: name(row.author) } };
+    author: { id: row.author.id, name: name(row.author) }, relatedTraining: row.training };
 }
 function date(value, end = false) {
   if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value) || Number.isNaN(Date.parse(`${value}T00:00:00Z`))
