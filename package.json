@@ -20,6 +20,8 @@
     "test:chat:api": "node --test backend/tests/openai-adapter.test.js backend/tests/chat-api.integration.test.js",
     "test:tools": "node --test --test-concurrency=1 backend/tests/tool-registry.test.js backend/tests/tool-authorization.integration.test.js backend/tests/tool-approvals.test.js backend/tests/tool-responses.test.js",
     "chat:purge": "node backend/scripts/purge-expired-chats.js",
+    "retention:preview": "node backend/scripts/retention-cleanup.js --preview",
+    "retention:cleanup": "node backend/scripts/retention-cleanup.js",
     "openai:verify:model": "node backend/scripts/verify-openai-model.js",
     "openai:verify:live": "node backend/scripts/verify-openai-live.js",
     "test:password": "node --test frontend/tests/password-security.test.mjs",

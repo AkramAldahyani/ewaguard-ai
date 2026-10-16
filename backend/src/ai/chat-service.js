@@ -3,6 +3,7 @@ import { createToolService } from './tools/tool-service.js';
 import { authorizeToolContext } from './tools/tool-access.js';
 import { privateAnalysisInput, runToolTurns } from './tool-orchestration.js';
 import { inputBound, paidRound } from './tool-round-budget.js';
+import { runRetentionBatch } from '../privacy/retention-service.js';
 
 // One cross-process lock protects every admission/reconciliation. Never hold it
 // across network I/O. Crashed/ambiguous requests retain their reservation.
@@ -111,7 +112,6 @@ export function createChatService({ database, provider, approvals }) {
   };
 }
 
-export async function purgeExpiredChats(database, now = new Date(), ownerId) {
-  // Usage survives via SET NULL, so deleting history never replenishes budget.
-  return withUsageLock(database, (tx) => tx.chatSession.deleteMany({ where: { ...(ownerId ? { ownerId } : {}), expiresAt: { lte: now }, aiUsage: { none: { status: 'RESERVED' } } } }));
+export async function purgeExpiredChats(database, now = new Date(), ownerId, options = {}) {
+  return runRetentionBatch(database, { ...options, now, ownerId, categories: ['chats'] });
 }

@@ -124,10 +124,10 @@ Production must inject the key through secret management. Key replacement makes
 pending requests unreadable; wait for expiry/cleanup before rotation. Encrypted
 payloads in database backups remain subject to the backup retention/key policy.
 
-Ciphertext is cleared on claim, rejection and expiration. Startup and minute-based
-cleanup clear expired pending payloads; reads/decisions also enforce expiry even
-if cleanup has not run. Metadata follows the parent conversation's deletion
-lifecycle. No raw email or URL is added to chat messages, audit logs, model context
+Ciphertext is cleared on claim, rejection and expiration. Phase 15A's opt-in,
+bounded worker replaces startup/minute cleanup; reads/decisions still enforce expiry.
+Receipts and their parent conversations are retained pending a reviewed disposal plan.
+See [privacy and retention](privacy-retention.md). No raw email or URL is added to chat messages, audit logs, model context
 or response metadata. Private review is the sole raw-parameter response.
 
 ## 8B2B handoff and explanation
@@ -147,7 +147,7 @@ running analysis or paying for a restatement. Five-minute expiry is unchanged.
 The employee reviews through the existing human-only review route, then chooses
 CONFIRM or REJECT. After COMPLETED, the optional explicit continuation is:
 `POST /api/chat/conversations/:id/approvals/:approvalId/explanation` with
-`{privacyNoticeVersion: "chat-privacy-v2"}`. It retrieves the saved sanitized result,
+`{privacyNoticeVersion: "chat-privacy-v3"}`. It retrieves the saved sanitized result,
 disables tools, reserves budget, and explains it once. A stable approval-derived
 request ID prevents duplicate paid explanations and history on browser retries.
 If no budget is available or generation fails, deterministic risk and assistance

@@ -113,9 +113,10 @@ Additive migration `20261010000200_incident_notifications` extends Notification
 with nullable `eventKey`, `audience`, `kind`, `severity`, adds deduplication/paging
 indexes, and creates the indexed `revoked_sessions` table. No existing migration
 or record is removed. Prisma client regeneration is required after deployment.
-Notification expiry is a 90-day prototype review window. No automatic purge is
-introduced; notification retention and expired revocation cleanup need an approved
-operational policy. Revocation rows contain only random session IDs and expiry.
+Notification expiry defaults to a 90-day prototype window. Phase 15A adds
+configurable periods for new rows and opt-in cleanup that respects investigations
+and holds; see [privacy and retention](privacy-retention.md). Operator approval is
+required before enabling cleanup. Revocation rows contain only random session IDs and expiry.
 
 `backend/tests/notifications.integration.test.js` uses real local PostgreSQL and
 real loopback Socket.IO clients with synthetic identities. It covers transport

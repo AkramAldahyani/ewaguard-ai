@@ -147,6 +147,25 @@ test('authentication lifecycle and security boundaries', async (t) => {
     assert.equal(logs.includes(user.passwordHash), false);
     assert.equal(logs.includes(cookie), false);
   });
+  await t.test('persistent login and logout audit is minimized and revocation is idempotent', async () => {
+    assert.equal((await request('/api/auth/logout', { method: 'POST' }, cookie)).status, 204);
+    const rows = await database.auditLog.findMany({ where: { actorId: user.id, resourceType: 'AUTHENTICATION' } });
+    for (const action of ['LOGIN_SUCCEEDED', 'LOGOUT', 'SESSION_REVOKED']) assert.ok(rows.some((r) => r.action === action && r.outcome === 'SUCCESS'));
+    assert.equal(rows.filter((r) => r.action === 'SESSION_REVOKED').length, 1);
+    for (const value of [password, user.passwordHash, user.email, cookie, loginSession.id]) assert.equal(JSON.stringify(rows).includes(value), false);
+  });
+  await t.test('audit store failure does not block login or change credential failure responses', async () => {
+    const original = database.auditLog.create;
+    database.auditLog.create = async () => { throw new Error('SECRET_AUDIT_STORE'); };
+    try {
+      assert.equal((await login(user.email, password)).status, 200);
+      const wrong = await login(user.email, 'wrong');
+      const missing = await login('absent@example.invalid', 'wrong');
+      assert.equal(wrong.status, 401);
+      assert.deepEqual(await wrong.json(), await missing.json());
+      assert.equal((await request('/api/auth/logout', { method: 'POST' }, cookie)).status, 204);
+    } finally { database.auditLog.create = original; }
+  });
 });
 
 test('login rate limiter blocks repeated failures', async (t) => {

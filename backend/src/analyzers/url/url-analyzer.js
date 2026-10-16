@@ -7,6 +7,7 @@ import { resolvePublicTarget, inspectTls } from './url-network.js';
 import { createThreatIntelligence } from '../../services/threat-intelligence.js';
 import { evaluateRisk } from '../../risk/risk-engine.js';
 import { riskColumns } from '../../risk/risk-persistence.js';
+import { retentionExpiry } from '../../privacy/retention-policy.js';
 
 export function createUrlAnalyzer({ resolveTarget = resolvePublicTarget, tlsInspector = inspectTls, threatIntelligence = createThreatIntelligence() } = {}) {
   return async (input) => {
@@ -56,7 +57,7 @@ export async function persistUrlAnalysis(database, { userId, acknowledgementId, 
   const stored = await database.urlAnalysis.create({ data: {
     userId, acknowledgementId, status: 'COMPLETED', hostname: result.normalizedUrl.hostname,
     urlSha256: createHash('sha256').update(result.normalizedUrl.redactedUrl).digest('hex'),
-    evidence: result, analyzedAt: now, expiresAt: new Date(now.getTime() + 30 * 86400_000),
+    evidence: result, analyzedAt: now, expiresAt: retentionExpiry('url', now),
     ...riskColumns(result.risk),
   }, select: { id: true, createdAt: true } });
   return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result: { ...result, assistance } };

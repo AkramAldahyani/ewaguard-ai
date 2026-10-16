@@ -4,8 +4,7 @@ import { analyzeEmail } from './email-analyzer.js';
 import { minimizeEmailEvidence } from './email-privacy.js';
 import { evaluateRisk } from '../../risk/risk-engine.js';
 import { riskColumns } from '../../risk/risk-persistence.js';
-
-export const EMAIL_RETENTION_MS = 30 * 24 * 60 * 60_000;
+import { retentionExpiry } from '../../privacy/retention-policy.js';
 
 export async function submitEmailAnalysis(database, { userId, acknowledgementId, input }, analyzer = analyzeEmail) {
   const result = await analyzer(input);
@@ -23,7 +22,7 @@ export async function persistEmailAnalysis(database, { userId, acknowledgementId
   const stored = await database.emailAnalysis.create({
     data: {
       userId, acknowledgementId, status: 'COMPLETED', analyzedAt: now,
-      expiresAt: new Date(now.getTime() + EMAIL_RETENTION_MS),
+      expiresAt: retentionExpiry('email', now),
       evidence: minimizeEmailEvidence(result),
       ...riskColumns(result.risk),
     },

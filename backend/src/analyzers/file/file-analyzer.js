@@ -7,6 +7,7 @@ import { createThreatIntelligence } from '../../services/threat-intelligence.js'
 import { FILE_PRIVACY_NOTICE } from '../../../../shared/file-policy.js';
 import { evaluateRisk } from '../../risk/risk-engine.js';
 import { riskColumns } from '../../risk/risk-persistence.js';
+import { retentionExpiry } from '../../privacy/retention-policy.js';
 
 export function fileIndicators({ file, validation }, clamav, yara, provider) {
   const values = [];
@@ -81,7 +82,7 @@ export async function submitFileAnalysis(database, { userId, acknowledgementId, 
   const stored = await database.fileAnalysis.create({ data: {
     userId, acknowledgementId, status: 'COMPLETED', sha256: result.file.sha256, sizeBytes: BigInt(result.file.size),
     extension: result.file.extension, detectedMime: result.file.mimeType, clamavStatus: scannerStatus(result.clamav.status), yaraStatus: scannerStatus(result.yara.status),
-    evidence: result, analyzedAt: now, deletedAt: now, expiresAt: new Date(now.getTime() + 30 * 86400_000),
+    evidence: result, analyzedAt: now, deletedAt: now, expiresAt: retentionExpiry('file', now),
     ...riskColumns(result.risk),
   }, select: { id: true, createdAt: true } });
   return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result: { ...result, assistance },

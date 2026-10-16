@@ -1,4 +1,5 @@
 import { ManagementError, fields, uuid, invalid } from '../incidents/management-policy.js';
+import { retentionExpiry } from '../privacy/retention-policy.js';
 
 const messages = Object.freeze({
   INCIDENT_CREATED: ['New incident', 'A new incident requires security review.'],
@@ -12,7 +13,7 @@ const admin = 'IT_SECURITY_ADMIN';
 // Called only inside the incident transaction. No socket or external I/O here.
 export async function persistIncidentNotifications(tx, incident, kind, eventKey) {
   if (!Object.hasOwn(messages, kind)) throw new Error('Unsupported notification event');
-  const expiresAt = new Date(Date.now() + 90 * 86400_000);
+  const expiresAt = retentionExpiry('notification');
   async function insert(recipientId, audience, notificationKind = kind) {
     const [title, message] = messages[notificationKind];
     await tx.notification.createMany({ data: [{ recipientId, audience, incidentId: incident.id,

@@ -68,6 +68,10 @@ export async function createIncidentFromAnalysis(database, { analyzerType, analy
         reference: reference(incident), severity: incident.severity, status: incident.status,
         createdAt: incident.createdAt.toISOString(), urgent: decision.urgent,
       } } });
+      await tx.auditLog.create({ data: { actorId: null, action: 'INCIDENT_CREATED',
+        resourceType: 'INCIDENT', resourceId: incident.id, outcome: 'SUCCESS',
+        metadata: { system: 'AUTOMATED_RISK_ENGINE', policyVersion: decision.policyVersion, analyzerType },
+        retentionUntil: new Date(now.getTime() + 90 * 86400000) } });
       await persistIncidentNotifications(tx, incident, 'INCIDENT_CREATED', `created:${incident.id}`);
       return receipt(incident, true);
     });

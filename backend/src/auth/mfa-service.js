@@ -1,15 +1,12 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes, randomUUID } from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import { Secret, TOTP } from 'otpauth';
+import { authAudit } from './auth-audit.js';
 
 const MAX_ATTEMPTS = 5;
 const digest = (value) => createHash('sha256').update(value).digest('hex');
 const eligible = (user) => user?.status === 'ACTIVE' && !user.deactivatedAt && user.role.name === 'IT_SECURITY_ADMIN';
 const clearedChallenge = { mfaChallengeHash: null, mfaChallengeExpiresAt: null, mfaChallengeCredential: null, mfaPendingSecret: null, mfaChallengeAttempts: 0 };
-
-export function securityEvent(event, userId) {
-  console.info(JSON.stringify({ level: 'SECURITY', event, ...(userId ? { userId } : {}) }));
-}
 
 export function mfaCookie(config) {
   const secure = config.nodeEnv === 'production';
@@ -54,8 +51,8 @@ function challengeClaims(token, config) {
 }
 
 export async function startMfa(database, userId, config, credentialHash) {
-  if (!config.mfaEncryptionKey) return null; // Fail closed for administrators; employee login remains available.
-  return database.$transaction(async (tx) => {
+  if (!config.mfaEncryptionKey) { await authAudit(database, 'MFA_START_FAILED', userId); return null; }
+  const result = await database.$transaction(async (tx) => {
     const user = await lockedUser(tx, userId);
     if (!eligible(user) || user.passwordHash !== credentialHash) return null;
     const now = Date.now();
@@ -72,17 +69,20 @@ export async function startMfa(database, userId, config, credentialHash) {
       mfaChallengeCredential: digest(user.passwordHash), mfaChallengeAttempts: attempts,
       mfaPendingSecret: secret ? encryptSecret(secret, user.id, config) : null,
     } });
-    securityEvent(enrollment ? 'mfa_enrollment_started' : 'mfa_challenge_started', user.id);
     return { token, enrollment, ...(enrollment ? { provisioningUri: totpFor(secret, config, user.email).toString() } : {}) };
   });
+  await authAudit(database, result ? (result.enrollment ? 'MFA_ENROLLMENT_STARTED' : 'MFA_CHALLENGE_STARTED') : 'MFA_START_FAILED', userId);
+  return result;
 }
 
 export async function completeMfa(database, token, code, config) {
-  if (!config.mfaEncryptionKey) return null;
+  if (!config.mfaEncryptionKey) { await authAudit(database, 'MFA_CHALLENGE_FAILED'); return null; }
   const claims = challengeClaims(token, config);
-  if (!claims) return null;
-  return database.$transaction(async (tx) => {
+  if (!claims) { await authAudit(database, 'MFA_CHALLENGE_FAILED'); return null; }
+  let auditUserId = null;
+  const result = await database.$transaction(async (tx) => {
     const user = await lockedUser(tx, claims.sub);
+    if (eligible(user)) auditUserId = user.id;
     if (!eligible(user) || user.mfaChallengeHash !== digest(token) ||
         !user.mfaChallengeExpiresAt || user.mfaChallengeExpiresAt.getTime() <= Date.now() ||
         user.mfaChallengeAttempts >= MAX_ATTEMPTS || user.mfaChallengeCredential !== digest(user.passwordHash)) return null;
@@ -95,23 +95,27 @@ export async function completeMfa(database, token, code, config) {
     const counter = BigInt(Math.floor(now / 30_000) + (delta ?? 0));
     if (delta === null || (user.mfaLastCounter !== null && counter <= user.mfaLastCounter)) {
       await tx.user.update({ where: { id: user.id }, data: { mfaChallengeAttempts: { increment: 1 } } });
-      securityEvent('mfa_challenge_failed', user.id);
       return null;
     }
     const enabledAt = user.mfaEnabledAt ?? new Date();
     await tx.user.update({ where: { id: user.id }, data: {
       ...clearedChallenge, mfaSecretEncrypted: encrypted, mfaEnabledAt: enabledAt, mfaLastCounter: counter,
     } });
-    securityEvent(enrollment ? 'mfa_enrollment_completed' : 'mfa_challenge_succeeded', user.id);
-    return { userId: user.id, enabledAt };
+    // Enabling administrator MFA is a durable security mutation: audit failure
+    // must roll back enrollment. Routine verification audits run after commit.
+    if (enrollment) await authAudit(tx, 'MFA_ENROLLMENT_COMPLETED', user.id, { required: true });
+    return { userId: user.id, enabledAt, enrollment };
   });
+  if (!result || !result.enrollment) await authAudit(database, result ? 'MFA_CHALLENGE_SUCCEEDED' : 'MFA_CHALLENGE_FAILED', auditUserId);
+  return result ? { userId: result.userId, enabledAt: result.enabledAt } : null;
 }
 
 export async function cancelMfa(database, token, config) {
   const claims = challengeClaims(token, config);
   if (!claims) return;
   // Preserve failure budget and expiry so cancellation cannot reset account throttling.
-  await database.user.updateMany({ where: { id: claims.sub, mfaChallengeHash: digest(token) }, data: {
+  const changed = await database.user.updateMany({ where: { id: claims.sub, mfaChallengeHash: digest(token) }, data: {
     mfaChallengeHash: null, mfaPendingSecret: null, mfaChallengeCredential: null,
   } });
+  if (changed.count) await authAudit(database, 'MFA_CANCELLED', claims.sub);
 }

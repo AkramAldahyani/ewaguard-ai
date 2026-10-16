@@ -1,7 +1,8 @@
 import { Router } from 'express';
 import { rateLimit } from 'express-rate-limit';
 import { authenticateCredentials, findActiveUser } from '../auth/auth-service.js';
-import { cancelMfa, completeMfa, mfaCookie, securityEvent, startMfa } from '../auth/mfa-service.js';
+import { cancelMfa, completeMfa, mfaCookie, startMfa } from '../auth/mfa-service.js';
+import { authAudit } from '../auth/auth-audit.js';
 import { authCookie, issueAccessToken, verifyAccessToken } from '../auth/auth-token.js';
 import { createAuthenticate } from '../middleware/authenticate.js';
 import { createTrustedOrigin } from '../middleware/trusted-origin.js';
@@ -29,10 +30,10 @@ export function createAuthRouter({ database, config }) {
   router.post('/login', loginLimiter, trustedOrigin, async (req, res, next) => {
     try {
       const input = validateLogin(req.body);
-      if (!input) return invalidCredentials(res);
+      if (!input) { await authAudit(database, 'LOGIN_FAILED'); return invalidCredentials(res); }
       const credentials = await authenticateCredentials(database, input.email, input.password);
       if (!credentials) {
-        console.warn(JSON.stringify({ level: 'WARN', event: 'login_failed' }));
+        await authAudit(database, 'LOGIN_FAILED');
         return invalidCredentials(res);
       }
       const { user, credentialHash } = credentials;
@@ -50,7 +51,7 @@ export function createAuthRouter({ database, config }) {
       const cookie = authCookie(config);
       res.cookie(cookie.name, token, cookie.options);
       res.set('Cache-Control', 'no-store');
-      console.info(JSON.stringify({ level: 'SECURITY', event: 'login_succeeded', userId: user.id }));
+      await authAudit(database, 'LOGIN_SUCCEEDED', user.id);
       return res.json({ user, session: sessionMetadata(token, config) });
     } catch (error) { return next(error); }
   });
@@ -67,7 +68,7 @@ export function createAuthRouter({ database, config }) {
       const token = issueAccessToken(user.id, config, result.enabledAt);
       res.cookie(access.name, token, access.options);
       res.clearCookie(pending.name, { ...pending.options, maxAge: undefined });
-      securityEvent('admin_authentication_succeeded', user.id);
+      await authAudit(database, 'ADMIN_AUTHENTICATION_SUCCEEDED', user.id);
       return res.json({ user, session: sessionMetadata(token, config) });
     } catch (error) { return next(error); }
   });
@@ -82,7 +83,7 @@ export function createAuthRouter({ database, config }) {
       const claims = await revokeSession(database, config, req.cookies?.[cookie.name]);
       if (claims) req.app.locals.realtime?.disconnectSession(claims.jti);
       const userId = claims?.sub;
-      securityEvent('logout', userId);
+      await authAudit(database, 'LOGOUT', userId);
       return res.status(204).end();
     } catch (error) { return next(error); }
   });

@@ -67,7 +67,7 @@ requests must satisfy the existing trusted-origin protection. Responses have
 {
   "content": "What is phishing?",
   "requestId": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
-  "privacyNoticeVersion": "chat-privacy-v2"
+  "privacyNoticeVersion": "chat-privacy-v3"
 }
 ```
 
@@ -162,10 +162,12 @@ content, role, server identity, sequence and timestamps; titles are left empty.
 No system instructions, provider payloads or raw errors are persisted in history.
 
 Sessions expire 30 days after creation, without sliding renewal. Expired history
-is inaccessible immediately. The backend attempts cleanup at startup and hourly;
-`npm run chat:purge` also runs cleanup for scheduled maintenance. Physical deletion
-can lag expiry while the backend is down, cleanup fails, or a RESERVED request
-requires review. Monitor `chat_retention_failed`. Session deletion cascades messages;
+is inaccessible immediately. Phase 15A replaces startup cleanup with an opt-in,
+bounded retention worker. `npm run retention:preview` (and the legacy `chat:purge`)
+preview eligible categories without deleting records. Explicit approval is required
+before enabling/applying cleanup. Physical deletion can lag expiry for holds,
+investigations, tool receipts, pending usage, disabled cleanup or failures.
+See [privacy and retention](privacy-retention.md). Session deletion cascades messages;
 usage rows survive with null foreign keys so deletion never restores budget.
 Database backups must follow the organization's retention policy as well.
 

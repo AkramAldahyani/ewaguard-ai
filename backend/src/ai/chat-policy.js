@@ -1,11 +1,13 @@
+import { CHAT_RETENTION_DAYS } from '../privacy/retention-policy.js';
+
 export class ChatError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
 
 export const CHAT_LIMITS = Object.freeze({ inputCharacters: 2000, contextMessages: 8, outputTokens: 500,
-  dailyRequests: 20, simultaneousRequests: 2, budgetMicros: 4_000_000, timeoutMs: 30_000, retentionDays: 30 });
-export const PRIVACY_NOTICE = Object.freeze({ version: 'chat-privacy-v2',
-  text: 'Your message, up to eight previous chat messages, and minimized authorized analysis results may be sent to OpenAI. Private history is retained for up to 30 days. Use the separate private analysis input flow for email content and URLs; those inputs are never included in OpenAI context. Analysis requires a current disclaimer acknowledgement and explicit confirmation. Do not submit confidential or restricted company information, prohibited personal information, passwords, MFA codes, credentials, private keys, or other secrets. Use approved reporting channels for sensitive incidents. Automatic secret detection is imperfect.',
+  dailyRequests: 20, simultaneousRequests: 2, budgetMicros: 4_000_000, timeoutMs: 30_000, retentionDays: CHAT_RETENTION_DAYS });
+export const PRIVACY_NOTICE = Object.freeze({ version: 'chat-privacy-v3',
+  text: 'Your message, up to eight previous chat messages, and minimized authorized analysis results may be sent to OpenAI. Private history is accessible for up to 30 days. Stored records may remain longer while cleanup is pending or records require investigation, legal hold, or tool execution review. Use the separate private analysis input flow for email content and URLs; those inputs are never included in OpenAI context. Analysis requires a current disclaimer acknowledgement and explicit confirmation. Do not submit confidential or restricted company information, prohibited personal information, passwords, MFA codes, credentials, private keys, or other secrets. Use approved reporting channels for sensitive incidents. Automatic secret detection is imperfect.',
 });
 export const INSTRUCTION_VERSION = 'ewaguard-tools-v2';
 export const SYSTEM_INSTRUCTIONS = `You are EWAGuard AI, an employee assistant for general defensive cybersecurity guidance only.

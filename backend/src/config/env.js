@@ -1,6 +1,7 @@
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_YARA_RULES } from '../analyzers/file/file-policy.js';
+import { retentionPolicy } from '../privacy/retention-policy.js';
 
 // Resolve from this module so workspace and root commands load the same file.
 // Node preserves injected environment variables over values in this file.
@@ -64,6 +65,7 @@ export function parseConfig(env = process.env) {
     trustedOrigins.push(alias.origin);
   }
   return Object.freeze({
+    retention: retentionPolicy(env),
     nodeEnv, port, host, frontendUrl: origin.origin, jwtSecret,
     trustedOrigins: Object.freeze(trustedOrigins),
     accessTokenTtlSeconds, loginRateLimitWindowMinutes, loginRateLimitMax,

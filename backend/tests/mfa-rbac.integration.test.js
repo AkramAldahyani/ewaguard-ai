@@ -84,6 +84,13 @@ test('RBAC and MFA with real PostgreSQL and HTTP requests', async (t) => {
     assert.equal(denied.status, 404); assert.equal(missing.status, 404);
     assert.deepEqual(await denied.json(), await missing.json());
   });
+  await t.test('privacy-sensitive administration rejects employees and MFA-less administrators', async () => {
+    for (const path of ['/api/admin/incidents', '/api/admin/training', '/api/admin/monthly-quizzes',
+      '/api/admin/certificates', '/api/admin/community', '/api/admin/dashboard']) {
+      assert.equal((await request(path, employeeCookie)).status, 403, path);
+      assert.equal((await request(path, accessCookie(admin))).status, 401, path);
+    }
+  });
   await t.test('admin password creates enrollment challenge, never an authenticated session', async () => {
     const result = await login(admin);
     assert.equal(result.status, 202);
@@ -187,6 +194,16 @@ test('RBAC and MFA with real PostgreSQL and HTTP requests', async (t) => {
   await t.test('no secrets, TOTP codes, cookies or passwords in logs', () => {
     const output = JSON.stringify(logs.flatMap((mock) => mock.mock.calls));
     for (const value of [secret, password, passwordHash, challenge, adminCookie, config.mfaEncryptionKey, ...submittedCodes]) assert.equal(output.includes(value), false);
+  });
+  await t.test('MFA persistent audits record committed outcomes without credentials', async () => {
+    const rows = await db.auditLog.findMany({ where: { actorId: admin.id, resourceType: 'AUTHENTICATION' } });
+    for (const action of ['MFA_ENROLLMENT_STARTED', 'MFA_ENROLLMENT_COMPLETED', 'MFA_CHALLENGE_STARTED', 'MFA_CHALLENGE_SUCCEEDED', 'ADMIN_AUTHENTICATION_SUCCEEDED', 'MFA_CANCELLED']) {
+      assert.ok(rows.some((r) => r.action === action && r.outcome === 'SUCCESS'), action);
+    }
+    assert.equal(rows.filter((r) => r.action === 'MFA_ENROLLMENT_COMPLETED').length, 1);
+    assert.ok(rows.some((r) => r.action === 'MFA_CHALLENGE_FAILED' && r.outcome === 'FAILURE'));
+    const output = JSON.stringify(rows.map(({ metadata, action, outcome }) => ({ metadata, action, outcome })));
+    for (const value of [secret, password, passwordHash, challenge, adminCookie, ...submittedCodes]) assert.equal(output.includes(value), false);
   });
 });
 

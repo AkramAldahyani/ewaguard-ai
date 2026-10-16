@@ -77,6 +77,11 @@ test('Phase 10A incident engine: PostgreSQL transactions, HTTP and approved anal
       assert.equal(incident.evidence[0].snapshot.assistance.riskLevel, level);
       assert.doesNotMatch(JSON.stringify(incident), /RAW_BODY_SENTINEL|SECRET_|user:|token=/);
       assert.equal((await escalate(row, type)).reference, response.reference);
+      const audits = await database.auditLog.findMany({ where: { resourceId: incident.id, action: 'INCIDENT_CREATED' } });
+      assert.equal(audits.length, 1, 'retry must not duplicate the creation audit');
+      assert.equal(audits[0].actorId, null);
+      assert.equal(audits[0].outcome, 'SUCCESS');
+      assert.doesNotMatch(JSON.stringify(audits), /RAW_BODY_SENTINEL|SECRET_/);
       await assert.rejects(escalate(row, type, other.id), { code: 'INCIDENT_SOURCE_NOT_FOUND' });
     }
   });
@@ -114,10 +119,10 @@ test('Phase 10A incident engine: PostgreSQL transactions, HTTP and approved anal
     assert.equal(detail.incident.assessment.guidance.status, 'AVAILABLE');
     assert.equal(detail.incident.assessment.risk.status, 'AVAILABLE');
   });
-  function failingStore() {
+  function failingStore(delegate = 'incidentEvent') {
     return new Proxy(database, { get(target, property) {
       if (property === '$transaction') return (operation) => target.$transaction((tx) => operation(new Proxy(tx, { get(inner, key) {
-        if (key === 'incidentEvent') return { create: async () => { throw new Error('SECRET_DATABASE_ERROR'); } };
+        if (key === delegate) return { create: async () => { throw new Error('SECRET_DATABASE_ERROR'); } };
         return inner[key];
       } })));
       return target[property];
@@ -126,6 +131,13 @@ test('Phase 10A incident engine: PostgreSQL transactions, HTTP and approved anal
   await t.test('history failure rolls back incident and evidence; retry recovers without analysis', async () => {
     const row = await fixture('HIGH');
     await assert.rejects(escalate(row, 'EMAIL', owner.id, failingStore()), { code: 'ESCALATION_PENDING' });
+    assert.equal(await database.incident.count({ where: { sourceKey: `EMAIL:${row.id}` } }), 0);
+    assert.equal(await database.incidentEvidence.count({ where: { emailAnalysisId: row.id } }), 0);
+    assert.equal((await escalate(row)).created, true);
+  });
+  await t.test('audit failure rolls back incident, evidence, history and notifications', async () => {
+    const row = await fixture('HIGH');
+    await assert.rejects(escalate(row, 'EMAIL', owner.id, failingStore('auditLog')), { code: 'ESCALATION_PENDING' });
     assert.equal(await database.incident.count({ where: { sourceKey: `EMAIL:${row.id}` } }), 0);
     assert.equal(await database.incidentEvidence.count({ where: { emailAnalysisId: row.id } }), 0);
     assert.equal((await escalate(row)).created, true);

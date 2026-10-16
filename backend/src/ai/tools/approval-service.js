@@ -10,6 +10,7 @@ import { toolDefinition, ToolError, TOOL_LIMITS } from './tool-registry.js';
 import { validateToolArguments } from './tool-validation.js';
 import { approvalProtection } from './approval-crypto.js';
 import { createToolService } from './tool-service.js';
+import { runRetentionBatch } from '../../privacy/retention-service.js';
 
 const missing = () => { throw new ToolError(404, 'TOOL_NOT_FOUND', 'Resource not found.'); };
 const invalid = () => { throw new ToolError(400, 'TOOL_INVALID_APPROVAL', 'Provide only the required approval fields.'); };
@@ -17,9 +18,8 @@ const typeOf = (name) => name === 'analyze_email' ? 'EMAIL' : 'URL';
 const summary = (row) => ({ id: row.id, toolName: row.toolName, status: row.status, expiresAt: row.expiresAt.toISOString(),
   analysisId: row.emailAnalysisId ?? row.urlAnalysisId ?? null });
 
-export function purgeExpiredApprovals(database, now = new Date()) {
-  return database.toolApproval.updateMany({ where: { status: 'PENDING', expiresAt: { lte: now } },
-    data: { status: 'EXPIRED', encryptedParameters: null } });
+export function purgeExpiredApprovals(database, now = new Date(), options = {}) {
+  return runRetentionBatch(database, { ...options, now, categories: ['approvalPayloads'] });
 }
 
 export function createApprovalService({ database, config, gates, emailAnalyzer = analyzeEmail, urlAnalyzer, threatIntelligence }) {

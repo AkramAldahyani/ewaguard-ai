@@ -148,6 +148,13 @@ Other integration variables in `.env.example` are reserved for later phases.
 Never put secrets in `VITE_*` variables;
 those values can become public browser code. Commit only placeholder examples.
 
+## Privacy and retention (Phase 15A)
+
+See [the data inventory and operating policy](docs/privacy-retention.md).
+Database cleanup is disabled by default. `npm.cmd run retention:preview` reports
+bounded eligible counts without deleting data. Do not enable or apply retention
+without explicit operator approval. Phase 15B remains pending.
+
 ## Architecture and boundaries
 
 See [the foundation architecture](docs/architecture.md). Follow [AGENTS.md](AGENTS.md)

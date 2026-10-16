@@ -208,8 +208,9 @@ output and secrets are not stored. No content-extraction pipeline is introduced.
 Existing ScanStatus enums map CLEAN/NO_MATCH to NO_KNOWN_DETECTION, MATCH/DETECTED
 to DETECTED, TIMEOUT/ERROR to ERROR, and unavailable to UNAVAILABLE. Detailed states
 remain in result JSON. Phase 7A fills `riskScore`, `severity`, and `riskRuleVersion`; `evidence.risk` includes confidence and reasons.
-An expiresAt value marks 30-day evidence retention; an automated evidence-deletion
-worker is not part of this phase. The pgvector schema and HNSW index are unchanged.
+An expiresAt value defaults to 30 days for evidence. Phase 15A adds configurable
+periods for new records and opt-in, dependency-aware cleanup; see
+[privacy and retention](privacy-retention.md). The pgvector schema and HNSW index are unchanged.
 
 ## Errors, concurrency, and UI
 

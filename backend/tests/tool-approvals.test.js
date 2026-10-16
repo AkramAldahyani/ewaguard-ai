@@ -10,6 +10,7 @@ import { analyzeEmail } from '../src/analyzers/email/email-analyzer.js';
 import { createUrlAnalyzer } from '../src/analyzers/url/url-analyzer.js';
 import { approvalProtection } from '../src/ai/tools/approval-crypto.js';
 import { purgeExpiredApprovals } from '../src/ai/tools/approval-service.js';
+import { retentionPolicy } from '../src/privacy/retention-policy.js';
 import { DISCLAIMER_DEFINITION } from '../../shared/disclaimer.js';
 
 test('approval ciphertext binds identity, operation, acknowledgement and exact expiry', () => {
@@ -285,7 +286,10 @@ test('8B2A durable approval HTTP boundaries with synthetic analyzers and no paid
     assert.equal((await send(path(other), input(), other)).status, 429);
     for (const row of pending) await database.toolApproval.update({ where: { id: row.id },
       data: { createdAt: new Date(Date.now() - 360000), expiresAt: new Date(Date.now() - 60000) } });
-    await purgeExpiredApprovals(database);
+    const cleanup = await purgeExpiredApprovals(database, new Date(), { ownerId: other.id,
+      apply: true, policy: retentionPolicy({ RETENTION_ENABLED: 'true' }) });
+    assert.equal(cleanup.status, 'COMPLETED');
+    await database.auditLog.deleteMany({ where: { resourceId: cleanup.runId } });
     assert.equal(await database.toolApproval.count({ where: { userId: other.id, encryptedParameters: { not: null } } }), 0);
   });
   await run('no incident, model usage or sensitive operational log is produced', async () => {

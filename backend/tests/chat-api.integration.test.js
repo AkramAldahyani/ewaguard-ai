@@ -8,6 +8,7 @@ import { databaseUrl, parseConfig } from '../src/config/env.js';
 import { authCookie, issueAccessToken } from '../src/auth/auth-token.js';
 import { CHAT_LIMITS, PRIVACY_NOTICE, modelPricing, ChatError } from '../src/ai/chat-policy.js';
 import { createChatService, purgeExpiredChats } from '../src/ai/chat-service.js';
+import { retentionPolicy } from '../src/privacy/retention-policy.js';
 
 const ORIGIN = 'http://127.0.0.1:5173';
 const answer = 'Use a second authentication factor and contact IT for help.';
@@ -202,7 +203,10 @@ test('Phase 8A HTTP and PostgreSQL chat boundaries (mock provider, $0)', async (
     await database.chatSession.update({ where: { id: session.id }, data: { expiresAt: new Date(Date.now() - 1000) } });
     assert.equal((await request(`/conversations/${session.id}`)).status, 404);
     const before = await database.aiUsage.aggregate({ where: { userId: employee.id }, _sum: { chargedMicros: true } });
-    await purgeExpiredChats(database, new Date(), employee.id);
+    const cleanup = await purgeExpiredChats(database, new Date(), employee.id, {
+      apply: true, policy: retentionPolicy({ RETENTION_ENABLED: 'true' }) });
+    await database.auditLog.deleteMany({ where: { resourceId: cleanup.runId } });
+    assert.equal(cleanup.status, 'COMPLETED');
     assert.equal(await database.chatMessage.count({ where: { sessionId: session.id } }), 0);
     assert.deepEqual(await database.aiUsage.aggregate({ where: { userId: employee.id }, _sum: { chargedMicros: true } }), before);
   });

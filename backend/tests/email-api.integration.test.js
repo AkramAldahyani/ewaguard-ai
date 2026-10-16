@@ -261,10 +261,12 @@ test('Phase 6A2 HTTP and real PostgreSQL privacy boundaries', async (t) => {
     assert.match(logout.headers.get('set-cookie'), /Expires=Thu, 01 Jan 1970/);
     assert.equal((await text(undefined, null)).status, 401);
   });
-  await t.test('captured operational logs contain no submitted sentinels or raw content', () => {
+  await t.test('operational logs and persistent authentication audits contain no submitted content', async () => {
     assert.ok(logs.some((line) => line.includes('request_failed')));
-    assert.ok(logs.some((line) => line.includes('login_succeeded')));
-    for (const sentinel of [...SENTINELS, body, headers, eml, password]) assert.ok(!logs.join('\n').includes(sentinel));
+    const audits = await database.auditLog.findMany({ where: { actorId: employee.id, resourceType: 'AUTHENTICATION' } });
+    assert.ok(audits.some((row) => row.action === 'LOGIN_SUCCEEDED' && row.outcome === 'SUCCESS'));
+    const output = logs.join('\n') + JSON.stringify(audits);
+    for (const sentinel of [...SENTINELS, body, headers, eml, password]) assert.ok(!output.includes(sentinel));
   });
   // Cleanup also runs in t.after if a test fails.
   await database.emailAnalysis.deleteMany({ where: { userId: employee.id } });
