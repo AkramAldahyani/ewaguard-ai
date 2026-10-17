@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router';
 import { createServer } from 'vite';
 import { createUrlFlow, analyzeUrl, urlErrorMessage } from '../src/features/url/url-state.js';
 import { createUrlAnalyzer } from '../../backend/src/analyzers/url/url-analyzer.js';
@@ -14,7 +15,7 @@ test('URL employee UI and state lifecycle', async (t) => {
   t.after(() => server.close());
   const { UrlAnalyzerPage, UrlInputForm } = await server.ssrLoadModule('/src/features/url/UrlAnalyzerPage.jsx');
   const { UrlResults } = await server.ssrLoadModule('/src/features/url/UrlResults.jsx');
-  const render = (C, props) => renderToStaticMarkup(createElement(C, props));
+  const render = (C, props) => renderToStaticMarkup(createElement(MemoryRouter, { initialEntries: ['/analyze/url'] }, createElement(C, props)));
   const analyzer = createUrlAnalyzer({ resolveTarget: async () => ({ addresses: ['8.8.8.8'], evidence: { status: 'RESOLVED', resolvedIpCount: 1 } }), tlsInspector: async () => ({ status: 'UNAVAILABLE' }) });
   const analysis = { analysisId: 'test-id', createdAt: new Date().toISOString(), result: await analyzer('https://example.com/login?token=VALUE_SECRET') };
   analysis.result.risk = evaluateRisk({ analyzerType: 'URL', evidence: analysis.result, evaluatedAt: analysis.createdAt });

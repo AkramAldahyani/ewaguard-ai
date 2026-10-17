@@ -91,6 +91,11 @@ test('Phase 13B2 security analytics interface', async (t) => {
     fireEvent.change(screen.getByLabelText('Reporting period'), { target: { value: 'custom' } });
     fireEvent.click(screen.getByRole('button', { name: 'Apply period' }));
     assert.match(screen.getByRole('alert').textContent, /valid start and end/);
+    for (const label of ['Start date (UTC)', 'End date (UTC)']) {
+      const input = screen.getByLabelText(label);
+      assert.equal(input.getAttribute('aria-invalid'), 'true');
+      assert.equal(input.getAttribute('aria-describedby'), screen.getByRole('alert').id);
+    }
     fireEvent.change(screen.getByLabelText('Start date (UTC)'), { target: { value: '2091-01-01' } });
     fireEvent.change(screen.getByLabelText('End date (UTC)'), { target: { value: '2091-04-01' } });
     fireEvent.click(screen.getByRole('button', { name: 'Apply period' }));

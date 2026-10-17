@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router';
 import { createServer } from 'vite';
 import { analyzeFile, createFileFlow, validateFile, fileErrorMessage } from '../src/features/file/file-state.js';
 import { FILE_MAX_BYTES, FILE_EXTENSIONS } from '../../shared/file-policy.js';
@@ -15,7 +16,7 @@ test('employee file analyzer UI, safe presentation and interaction lifecycle', a
   t.after(() => server.close());
   const { FileAnalyzerPage, FileInputForm } = await server.ssrLoadModule('/src/features/file/FileAnalyzerPage.jsx');
   const { FileResults } = await server.ssrLoadModule('/src/features/file/FileResults.jsx');
-  const render = (Component, props) => renderToStaticMarkup(createElement(Component, props));
+  const render = (Component, props) => renderToStaticMarkup(createElement(MemoryRouter, { initialEntries: ['/analyze/file'] }, createElement(Component, props)));
   const analyzer = createFileAnalyzer({
     tempStore: { withFile: async (_, operation) => operation({ filename: 'synthetic', directory: 'synthetic' }) },
     scanners: { clamav: async () => ({ status: 'UNAVAILABLE', detections: [] }), yara: async () => ({ status: 'NO_MATCH', matches: [] }) },

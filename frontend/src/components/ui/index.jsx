@@ -10,7 +10,7 @@ const buttonVariants = {
 };
 
 export function Button({ as: Component = 'button', variant = 'primary', size = 'md', className, type = 'button', children, ...props }) {
-  const sizes = { sm: 'min-h-9 px-3 text-sm', md: 'min-h-10 px-4 text-sm', lg: 'min-h-12 px-5 text-base' };
+  const sizes = { sm: 'min-h-11 px-3 text-sm', md: 'min-h-11 px-4 text-sm', lg: 'min-h-12 px-5 text-base' };
   const buttonProps = Component === 'button' ? { type } : {};
   return <Component {...buttonProps} className={cn('ui-button', buttonVariants[variant], sizes[size], className)} {...props}>{children}</Component>;
 }
@@ -20,7 +20,7 @@ export function IconButton({ label, className, children, ...props }) {
 }
 
 export function Card({ className, children, ...props }) {
-  return <section className={cn('rounded-2xl border border-slate-200/70 bg-white shadow-card', className)} {...props}>{children}</section>;
+  return <section className={cn('ui-card', className)} {...props}>{children}</section>;
 }
 
 export function Badge({ tone = 'neutral', children, className }) {
@@ -65,22 +65,26 @@ export function SearchField({ label = 'Search', onFilter, className, ...props })
 }
 
 export function Skeleton({ className }) {
-  return <span className={cn('block animate-pulse rounded-lg bg-slate-200', className)} aria-hidden="true" />;
+  return <span className={cn('block max-w-full animate-pulse rounded-lg bg-slate-200', className)} aria-hidden="true" />;
+}
+
+export function LoadingPanel({ label = 'Loading…' }) {
+  return <Card className="p-5 sm:p-6"><div role="status" className="space-y-3 text-sm text-slate-600"><Skeleton className="h-5 w-44" /><Skeleton className="h-20 w-full" /><p>{label}</p></div></Card>;
 }
 
 export function StatePanel({ icon: Icon, title, description, action, tone = 'neutral' }) {
-  return <div className="relative flex min-h-56 flex-col items-center justify-center overflow-hidden rounded-2xl border border-dashed border-slate-300 bg-gradient-to-b from-white to-slate-50/80 p-7 text-center"><span className="absolute -right-14 -top-14 size-40 rounded-full bg-brand-50/70" aria-hidden="true" /><span className={cn('relative mb-4 grid size-12 place-items-center rounded-2xl shadow-xs', tone === 'error' ? 'bg-danger-50 text-danger-700 ring-1 ring-danger-200' : 'bg-brand-50 text-brand-700 ring-1 ring-brand-100')}><Icon className="size-5" aria-hidden="true" /></span><h3 className="relative font-bold text-slate-900">{title}</h3><p className="relative mt-1.5 max-w-sm text-sm leading-6 text-slate-500">{description}</p>{action && <div className="relative mt-5">{action}</div>}</div>;
+  return <div className="ui-state-panel" role={tone === 'error' ? 'alert' : undefined}><span className={cn('mb-4 grid size-12 place-items-center rounded-xl', tone === 'error' ? 'bg-danger-50 text-danger-700 ring-1 ring-danger-200' : 'bg-brand-50 text-brand-700 ring-1 ring-brand-100')}><Icon className="size-5" aria-hidden="true" /></span><h3 className="font-bold text-slate-900">{title}</h3><p className="mt-1.5 max-w-sm text-sm leading-6 text-slate-600">{description}</p>{action && <div className="mt-5 flex max-w-full flex-wrap justify-center gap-2">{action}</div>}</div>;
 }
 
 export function Table({ caption, columns, rows }) {
-  return <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><caption className="sr-only">{caption}</caption><thead><tr className="border-b border-slate-200 bg-slate-50/80">{columns.map((column) => <th key={column.key} scope="col" className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{column.label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.map((row) => <tr key={row.id} className="transition-colors hover:bg-slate-50/80">{columns.map((column) => <td key={column.key} className="whitespace-nowrap px-5 py-4 text-slate-700">{column.render ? column.render(row) : row[column.key]}</td>)}</tr>)}</tbody></table></div>;
+  return <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><caption className="sr-only">{caption}</caption><thead><tr className="border-b border-slate-200 bg-slate-50/80">{columns.map((column) => <th key={column.key} scope="col" className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{column.label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.map((row) => <tr key={row.id} className="transition-colors hover:bg-slate-50/80">{columns.map((column) => <td key={column.key} className="max-w-72 break-words px-5 py-4 align-top text-slate-700">{column.render ? column.render(row) : row[column.key]}</td>)}</tr>)}</tbody></table></div>;
 }
 
 export function Pagination({ page = 1, pages = 1, onChange = () => {} }) {
-  return <nav aria-label="Pagination" className="flex items-center justify-between gap-3 border-t border-slate-200 px-5 py-4"><p className="text-sm text-slate-500">Page <strong className="text-slate-700">{page}</strong> of {pages}</p><div className="flex gap-2"><Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</Button><Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>Next</Button></div></nav>;
+  return <nav aria-label="Pagination" className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4"><p className="text-sm text-slate-500">Page <strong className="text-slate-700">{page}</strong> of {pages}</p><div className="flex gap-2"><Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</Button><Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>Next</Button></div></nav>;
 }
 
-export function Tabs({ tabs, active, onChange }) {
+export function Tabs({ tabs, active, onChange, label = 'Sections', panelId }) {
   const handleKeyDown = (event) => {
     if (!['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
     event.preventDefault();
@@ -90,7 +94,7 @@ export function Tabs({ tabs, active, onChange }) {
     onChange(tabs[nextIndex].id);
     event.currentTarget.querySelectorAll('[role="tab"]')[nextIndex]?.focus();
   };
-  return <div role="tablist" aria-label="Component sections" onKeyDown={handleKeyDown} className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xs">{tabs.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={active === tab.id} tabIndex={active === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} className={cn('min-h-9 whitespace-nowrap rounded-lg px-3.5 text-sm font-semibold transition-colors', active === tab.id ? 'bg-navy-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900')}>{tab.label}</button>)}</div>;
+  return <div role="tablist" aria-label={label} onKeyDown={handleKeyDown} className="inline-flex max-w-full gap-1 overflow-x-auto rounded-xl border border-slate-200 bg-white p-1 shadow-xs">{tabs.map((tab) => <button key={tab.id} id={panelId ? `${panelId}-${tab.id}` : undefined} type="button" role="tab" aria-controls={panelId} aria-selected={active === tab.id} tabIndex={active === tab.id ? 0 : -1} onClick={() => onChange(tab.id)} className={cn('min-h-9 whitespace-nowrap rounded-lg px-3.5 text-sm font-semibold transition-colors', active === tab.id ? 'bg-navy-900 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900')}>{tab.label}</button>)}</div>;
 }
 
 export function Tooltip({ label, children }) {

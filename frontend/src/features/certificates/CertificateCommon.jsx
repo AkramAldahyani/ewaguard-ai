@@ -1,13 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import { AlertCircle, Award, Download } from 'lucide-react';
-import { Badge, Button, Card, StatePanel } from '../../components/ui/index.jsx';
+import { Badge, Button, Card, LoadingPanel, StatePanel } from '../../components/ui/index.jsx';
 import { createCertificateApi } from './certificate-api.js';
 import { certificateDate, certificateError } from './certificate-model.js';
 
 export function CertificateStatus({ status }) { return <Badge tone={status === 'ISSUED' ? 'success' : 'warning'}>{status === 'ISSUED' ? 'Issued' : 'Revoked'}</Badge>; }
 export function CertificateFeedback({ loading, error, retry, empty, emptyTitle = 'No certificates found', emptyDescription }) {
-  if (loading) return <Card className="p-6"><p role="status" className="animate-pulse text-sm text-slate-600">Loading certificates…</p></Card>;
+  if (loading) return <LoadingPanel label="Loading certificates…" />;
   if (error) return <Card className="p-6"><StatePanel icon={AlertCircle} tone="error" title="Certificates unavailable" description={error} action={retry && <Button variant="secondary" onClick={retry}>Try again</Button>} /></Card>;
   if (empty) return <Card className="p-6"><StatePanel icon={Award} title={emptyTitle} description={emptyDescription} /></Card>;
   return null;

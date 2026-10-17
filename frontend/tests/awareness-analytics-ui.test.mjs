@@ -99,6 +99,11 @@ test('Phase 13C2 administrator awareness interface', async (t) => {
     fireEvent.change(screen.getByLabelText('Reporting period'), { target: { value: 'custom' } });
     fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
     assert.match(screen.getByRole('alert').textContent, /valid start and end/);
+    for (const label of ['Start date (UTC)', 'End date (UTC)']) {
+      const input = screen.getByLabelText(label);
+      assert.equal(input.getAttribute('aria-invalid'), 'true');
+      assert.equal(input.getAttribute('aria-describedby'), screen.getByRole('alert').id);
+    }
     assert.equal(calls.length, 1);
     fireEvent.change(screen.getByLabelText('Reporting period'), { target: { value: '30d' } });
     fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));

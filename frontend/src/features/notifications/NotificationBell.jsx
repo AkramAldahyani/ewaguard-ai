@@ -63,6 +63,6 @@ function ConnectedBell({ flow, role }) {
     <span className="sr-only" role="status" aria-live="polite">{state.unreadCount === null ? '' : `${state.unreadCount} unread notifications`}</span>
     <dialog id={id} ref={dialog} aria-labelledby={`${id}-title`} className="ui-dialog w-[calc(100%_-_2rem)] max-w-lg" onCancel={(event) => { event.preventDefault(); setOpen(false); }} onClose={() => setOpen(false)} onClick={(event) => { if (event.target === event.currentTarget) setOpen(false); }}>
       <div className="flex items-center justify-between gap-3 border-b border-slate-200 p-5"><h2 id={`${id}-title`} className="text-lg font-bold">Notifications</h2><div className="flex gap-1"><IconButton label="Refresh notifications" disabled={state.refreshing} onClick={() => flow.refresh()}><RefreshCw className="size-4" /></IconButton><IconButton label="Close notifications" onClick={() => setOpen(false)}><X className="size-5" /></IconButton></div></div>
-      <div className="max-h-[70dvh] overflow-y-auto overscroll-contain p-4 sm:p-5"><NotificationList state={state} flow={flow} role={role} onNavigate={() => setOpen(false)} /></div>
+      <div className="p-4 sm:p-5"><NotificationList state={state} flow={flow} role={role} onNavigate={() => setOpen(false)} /></div>
     </dialog></>;
 }

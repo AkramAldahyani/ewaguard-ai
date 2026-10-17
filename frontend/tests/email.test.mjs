@@ -5,6 +5,7 @@ import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { MemoryRouter } from 'react-router';
 import { createServer } from 'vite';
 import { createEmailFlow, validateEmailInput, emailErrorMessage, byteLength, EMAIL_INPUT_LIMITS } from '../src/features/email/email-state.js';
 import { analyzePastedEmail, analyzeEml } from '../src/features/email/email-api.js';
@@ -16,7 +17,7 @@ test('employee email UI, state transitions and API contract', async (t) => {
   t.after(() => server.close());
   const { EmailAnalyzerPage, EmailInputForm } = await server.ssrLoadModule('/src/features/email/EmailAnalyzerPage.jsx');
   const { EmailResults } = await server.ssrLoadModule('/src/features/email/EmailResults.jsx');
-  const render = (Component, props = {}) => renderToStaticMarkup(createElement(Component, props));
+  const render = (Component, props = {}) => renderToStaticMarkup(createElement(MemoryRouter, { initialEntries: ['/analyze/email'] }, createElement(Component, props)));
   const eml = 'From: Help Desk <support@example.invalid>\r\nReply-To: other@elsewhere.invalid\r\nSubject: Review request\r\nAuthentication-Results: inbound.invalid; spf=pass; dkim=fail; dmarc=fail\r\nContent-Type: multipart/mixed; boundary=fixture\r\n\r\n--fixture\r\nContent-Type: text/plain\r\n\r\nUrgent: provide your password. Visit http://example.invalid/account?secret=hidden\r\n--fixture\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename="report.exe"\r\n\r\nHarmless synthetic attachment\r\n--fixture--';
   const result = await analyzeEmail({ inputType: 'EML', eml: Buffer.from(eml) });
   const analysis = { analysisId: 'test-analysis', createdAt: '2026-10-06T12:00:00Z', result };

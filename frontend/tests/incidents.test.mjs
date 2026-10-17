@@ -155,7 +155,8 @@ test('incident interfaces render actual components with safe role-specific state
   });
   await t.test('admin queue includes urgency, assignment, table and mobile cards', () => {
     const html = render(ui.IncidentResults, { items: [{ ...incident, assignee: person }], admin: true });
-    assert.match(html, /Priority review/); assert.match(html, /Security Reviewer/); assert.match(html, /<table/); assert.match(html, /lg:hidden/);
+    assert.match(html, /Priority review/); assert.match(html, /Security Reviewer/); assert.match(html, /<table/);
+    assert.match(html, /hidden overflow-x-auto xl:block/); assert.match(html, /xl:hidden/);
     assert.match(html, /href="\/admin\/incidents\/synthetic-id"/);
   });
   await t.test('employee updates exclude private notes and escape hostile text', () => {

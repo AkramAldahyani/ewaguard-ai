@@ -43,7 +43,7 @@ export function LoginPage() {
     } finally { setSubmitting(false); }
   }
 
-  return <main className="grid min-h-screen bg-slate-50 lg:grid-cols-[60%_40%]">
+  return <main className="grid min-h-screen bg-slate-50 lg:grid-cols-2 xl:grid-cols-[60%_40%]">
     <section className="relative hidden min-h-screen overflow-hidden bg-navy-950 lg:block" aria-label="EWAGuard AI employee security workspace">
       <img src={building} alt="Electricity and Water Authority headquarters in Bahrain" className="absolute inset-0 h-full w-full object-cover" />
       <div className="absolute inset-0 bg-navy-950/10" aria-hidden="true" />
@@ -70,7 +70,7 @@ export function LoginPage() {
         </div>
       </div>
     </section>
-    <section className="flex min-h-screen items-center justify-center px-5 py-8 sm:px-10 lg:px-12" aria-label="Sign in">
+    <section className="flex min-w-0 min-h-screen items-center justify-center px-5 py-8 sm:px-10 lg:px-6 xl:px-10" aria-label="Sign in">
       <div className="w-full max-w-md">
         <img src={loginLogo} alt="EWAGuard AI" className="mx-auto mb-6 h-auto w-4/5 object-contain" />
         <div className="mb-6 text-center lg:hidden">

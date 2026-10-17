@@ -45,10 +45,28 @@ const navSections = [
   ] },
 ];
 
+const adminSections = [
+  { label: 'Security operations', items: [
+    { label: 'Administrator dashboard', to: '/admin', icon: Home },
+    { label: 'Incident Queue', to: '/admin/incidents', icon: ShieldAlert },
+    { label: 'Security analytics', to: '/admin/analytics/security', icon: Activity },
+  ] },
+  { label: 'Security awareness', items: [
+    { label: 'Training programs', to: '/admin/training', icon: GraduationCap },
+    { label: 'Monthly quizzes', to: '/admin/monthly-quizzes', icon: CalendarDays },
+    { label: 'Certificates', to: '/admin/certificates', icon: Award },
+    { label: 'Awareness analytics', to: '/admin/analytics/awareness', icon: BookOpenCheck },
+    { label: 'Incident awareness', to: '/admin/incident-awareness', icon: BookOpenCheck },
+  ] },
+  { label: 'Community', items: [
+    { label: 'Community moderation', to: '/admin/community', icon: FileSearch },
+  ] },
+];
+
 function SidebarContent({ onNavigate }) {
   const { user } = useAuth();
   const sections = user.role === 'IT_SECURITY_ADMIN'
-    ? [{ label: 'Administration', items: [{ label: 'Administrator dashboard', to: '/admin', icon: Home }, { label: 'Security analytics', to: '/admin/analytics/security', icon: Activity }, { label: 'Incident awareness', to: '/admin/incident-awareness', icon: BookOpenCheck }, { label: 'Awareness analytics', to: '/admin/analytics/awareness', icon: BookOpenCheck }, { label: 'Incident Queue', to: '/admin/incidents', icon: ShieldAlert }, { label: 'Training programs', to: '/admin/training', icon: GraduationCap }, { label: 'Monthly quizzes', to: '/admin/monthly-quizzes', icon: CalendarDays }, { label: 'Certificates', to: '/admin/certificates', icon: Award }, { label: 'Community moderation', to: '/admin/community', icon: FileSearch }] }]
+    ? adminSections
     : navSections;
   return (
     <>
@@ -85,7 +103,7 @@ function SidebarContent({ onNavigate }) {
                       <>
                         {isActive && <span className="absolute inset-y-2 left-0 w-0.5 rounded-full bg-brand-400" />}
                         <span className={cn('grid size-8 shrink-0 place-items-center rounded-lg transition-colors', isActive ? 'bg-brand-500/15 text-cyan-200' : 'text-slate-500 group-hover:text-slate-300')}><Icon className="size-[1.05rem]" aria-hidden="true" /></span>
-                        <span className="truncate">{label}</span>
+                        <span className="min-w-0 py-2 leading-5">{label}</span>
                       </>
                     )}
                   </NavLink>
@@ -158,7 +176,7 @@ function Shell() {
   }, []);
 
   useEffect(() => {
-    const page = navSections.flatMap((section) => section.items).find((item) => item.to === pathname)?.label;
+    const page = [...navSections, ...adminSections].flatMap((section) => section.items).find((item) => item.to === pathname)?.label;
     const incidentPage = pathname.startsWith('/admin/incident-awareness') ? 'Incident awareness' : pathname.startsWith('/admin/analytics/security') ? 'Security analytics' : pathname.startsWith('/admin/analytics/awareness') ? 'Awareness analytics' : pathname.startsWith('/admin/incidents') ? 'Incident Queue' : pathname.startsWith('/incidents/') ? 'Incident details' : pathname.startsWith('/admin/training') ? 'Training management' : pathname.startsWith('/admin/monthly-quizzes') ? 'Monthly quiz management' : pathname.startsWith('/admin/certificates') ? 'Certificate management' : pathname.startsWith('/admin/community') ? 'Community moderation' : pathname.startsWith('/certificates/') ? 'Certificate details' : pathname.startsWith('/monthly-quiz/') ? 'Monthly quiz' : pathname.startsWith('/training/') ? 'Training course' : null;
     document.title = `${page ?? incidentPage ?? (pathname === '/admin' ? 'Administrator dashboard' : 'Workspace')} | EWAGuard AI`;
     if (previousPath.current !== pathname) {
@@ -172,25 +190,25 @@ function Shell() {
   return (
     <div ref={shellRef} className={cn('app-surface text-slate-900', isAssistant ? 'assistant-shell' : 'min-h-screen')}>
       <a href="#main-content" className="skip-link">Skip to main content</a>
-      <aside className="fixed inset-y-0 left-0 z-40 hidden w-72 flex-col bg-navy-950 shadow-[8px_0_30px_rgb(7_23_41/0.08)] lg:flex">
+      <aside className="portal-sidebar fixed inset-y-0 left-0 z-40 hidden flex-col bg-navy-950 lg:flex">
         <SidebarContent />
       </aside>
 
       <dialog ref={mobileDialogRef} id="mobile-navigation" className="portal-navigation" aria-label="Mobile navigation" onCancel={() => setMobileOpen(false)} onClose={() => setMobileOpen(false)} onClick={(event) => { if (event.target === event.currentTarget) setMobileOpen(false); }}>
           <div className="relative flex h-full flex-col bg-navy-950 shadow-float">
-            <button type="button" onClick={() => setMobileOpen(false)} className="absolute right-2 top-2 z-10 rounded-lg p-2 text-slate-300 hover:bg-slate-100 hover:text-slate-900" aria-label="Close navigation"><X className="size-5" /></button>
+            <button type="button" onClick={() => setMobileOpen(false)} className="absolute right-2 top-2 z-10 grid size-11 place-items-center rounded-lg text-slate-300 hover:bg-slate-100 hover:text-slate-900" aria-label="Close navigation"><X className="size-5" /></button>
             <SidebarContent onNavigate={() => setMobileOpen(false)} />
           </div>
       </dialog>
 
-      <div className={cn('lg:pl-72', isAssistant && 'assistant-frame')}>
+      <div className={cn('portal-frame', isAssistant && 'assistant-frame')}>
         <header className="portal-header sticky top-0 z-30 flex h-[4.75rem] items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 shadow-[0_1px_0_rgb(15_23_42/0.02)] backdrop-blur-xl sm:px-6 lg:px-8">
           <IconButton label="Open navigation" aria-expanded={mobileOpen} aria-controls="mobile-navigation" onClick={() => setMobileOpen(true)} className="shrink-0 lg:hidden"><Menu className="size-5" /></IconButton>
           <div className="min-w-0">
             <p className="truncate text-sm font-bold text-slate-900">EWAGuard AI Security Portal</p>
             <p className="hidden text-xs text-slate-500 sm:block">Electricity &amp; Water Authority</p>
           </div>
-          <div className="ml-auto flex items-center gap-1.5 sm:gap-2.5">
+          <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2.5">
             <span className="hidden sm:inline-flex"><Tooltip label="Search will be available in a later phase"><IconButton label="Search unavailable" disabled><Search className="size-[1.1rem]" /></IconButton></Tooltip></span>
             <NotificationBell />
             <span className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
@@ -202,7 +220,7 @@ function Shell() {
           </div>
         </header>
         <main ref={mainRef} id="main-content" tabIndex={-1} className={cn(
-          isAssistant ? 'assistant-main' : 'mx-auto w-full min-w-0 max-w-[96rem] px-4 py-6 sm:px-6 lg:px-8 lg:py-8',
+          isAssistant ? 'assistant-main' : 'portal-main',
         )}><Outlet /></main>
       </div>
     </div>
