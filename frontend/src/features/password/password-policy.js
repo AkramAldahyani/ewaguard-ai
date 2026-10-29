@@ -1,8 +1,8 @@
 import zxcvbn from 'zxcvbn';
 
 export const PASSWORD_POLICY = Object.freeze({
-  minLength: 14,
-  maxLength: 128,
+  minLength: 8,
+  maxLength: 20,
   requireUppercase: true,
   requireLowercase: true,
   requireNumber: true,

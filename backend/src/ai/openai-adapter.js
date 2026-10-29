@@ -1,6 +1,8 @@
 import OpenAI from 'openai';
-import { CHAT_LIMITS, ChatError, SYSTEM_INSTRUCTIONS, modelPricing, containsSecret } from './chat-policy.js';
+import { CHAT_LIMITS, ChatError, SYSTEM_INSTRUCTIONS, modelPricing, containsResponseSecret } from './chat-policy.js';
 import { responseToolSchemas } from './tool-orchestration.js';
+import { PDPL_RESPONSE_FORMAT } from '../rag/pdpl-response-format.js';
+import { COMPANY_RESPONSE_FORMAT } from '../rag/company-answer.js';
 
 export function providerError(error) {
   if (error instanceof ChatError) return error;
@@ -32,13 +34,16 @@ export function createOpenAIAdapter({ apiKey, model = 'gpt-6-luna', client, time
       }
       return pricing;
     },
-    async respond(messages, { signal, maxOutputTokens = CHAT_LIMITS.outputTokens, enableTools = false } = {}) {
+    async respond(messages, { signal, maxOutputTokens = CHAT_LIMITS.outputTokens, enableTools = false, pdplResponse = false, companyResponse = false, answerFormat, routeTurn = false } = {}) {
       const pricing = configured();
       try {
         return await sdk.responses.create({ model, instructions: SYSTEM_INSTRUCTIONS,
           input: messages, reasoning: { effort: pricing.reasoning }, max_output_tokens: Math.min(maxOutputTokens, CHAT_LIMITS.outputTokens),
-          store: false, service_tier: 'default', tools: enableTools ? responseToolSchemas : [], tool_choice: enableTools ? 'auto' : 'none',
+          store: false, service_tier: 'default', tools: enableTools ? responseToolSchemas.filter(tool => routeTurn
+            ? !['search_pdpl', 'search_company_policy'].includes(tool.name) : tool.name !== 'route_question') : [],
+          tool_choice: enableTools ? (routeTurn ? 'required' : 'auto') : 'none',
           parallel_tool_calls: false, include: ['reasoning.encrypted_content'],
+          ...(answerFormat ? { text: { format: answerFormat } } : companyResponse ? { text: { format: COMPANY_RESPONSE_FORMAT } } : pdplResponse ? { text: { format: PDPL_RESPONSE_FORMAT } } : {}),
         }, { signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)]) : AbortSignal.timeout(timeoutMs), maxRetries: 0 });
       } catch (error) { throw providerError(error); }
     },
@@ -61,6 +66,6 @@ export function responseText(response) {
     }
   }
   const text = parts.join('\n').trim();
-  if (!text || text.length > 8000 || containsSecret(text) || text.includes(SYSTEM_INSTRUCTIONS)) throw new ChatError(502, 'AI_INVALID_RESPONSE', 'The AI response could not be displayed safely.');
+  if (!text || text.length > 8000 || containsResponseSecret(text) || text.includes(SYSTEM_INSTRUCTIONS)) throw new ChatError(502, 'AI_INVALID_RESPONSE', 'The AI response could not be displayed safely.');
   return text;
 }

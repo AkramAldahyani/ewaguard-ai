@@ -159,8 +159,8 @@ test('Phase 10A incident engine: PostgreSQL transactions, HTTP and approved anal
     servers.push(server); await once(server, 'listening'); return `http://127.0.0.1:${server.address().port}`;
   }
   let base = await start();
-  const post = async (path, body = {}, user = owner, origin = config.frontendUrl) => {
-    const response = await fetch(base + path, { method: 'POST', headers: { Origin: origin,
+  const post = async (path, body = {}, user = owner, origin = config.frontendUrl, key) => {
+    const response = await fetch(base + path, { method: 'POST', headers: { Origin: origin, ...(key ? { 'Idempotency-Key': key } : {}),
       ...(user ? { Cookie: `${authCookie(config).name}=${issueAccessToken(user.id, config, user.mfaEnabledAt)}` } : {}),
       ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }) }, body: body instanceof FormData ? body : JSON.stringify(body) });
     return { status: response.status, data: response.status === 204 ? null : await response.json() };
@@ -183,6 +183,25 @@ test('Phase 10A incident engine: PostgreSQL transactions, HTTP and approved anal
     assert.equal(file.status, 201, JSON.stringify(file.data)); assert.equal(file.data.incident.severity, 'CRITICAL'); assert.equal(file.data.incident.urgent, true);
     const persisted = await database.incidentEvidence.findMany({ where: { incident: { reporterId: owner.id } } });
     assert.doesNotMatch(JSON.stringify(persisted), /SECRET_QUERY|SECRET_FILENAME|Synthetic harmless text/);
+  });
+  await t.test('direct HTTP submissions replay across server instances with one saved record and incident', async () => {
+    for (const type of ['EMAIL', 'URL', 'FILE']) {
+      const actor = await employee();
+      const key = randomUUID();
+      const path = type === 'EMAIL' ? '/api/analysis/email/text' : `/api/analysis/${type.toLowerCase()}`;
+      const body = () => { if (type === 'EMAIL') return highInput; if (type === 'URL') return { url: 'https://example.com' };
+        const form = new FormData(); form.append('file', new Blob(['synthetic file']), 'fixture.txt'); return form; };
+      const first = await post(path, body(), actor, config.frontendUrl, key);
+      assert.equal(first.status, 201, JSON.stringify(first.data));
+      base = await start();
+      const repeated = await post(path, body(), actor, config.frontendUrl, key);
+      assert.equal(repeated.status, 201, JSON.stringify(repeated.data));
+      assert.equal(repeated.data.replayed, true); assert.equal(repeated.data.analysisId, first.data.analysisId);
+      assert.equal(repeated.data.incident.reference, first.data.incident.reference);
+      assert.equal(await database[`${type.toLowerCase()}Analysis`].count({ where: { userId: actor.id } }), 1);
+      assert.equal(await database.incident.count({ where: { reporterId: actor.id } }), 1);
+      assert.doesNotMatch(JSON.stringify(repeated.data), /submissionDigest|synthetic file|gift cards|https:\/\//);
+    }
   });
   await t.test('HTTP escalation failure is explicit and recoverable without scanning again', async () => {
     base = await start(failingStore());

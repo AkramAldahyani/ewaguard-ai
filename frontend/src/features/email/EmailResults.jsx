@@ -1,4 +1,5 @@
 import { IncidentAssistance } from '../../components/IncidentAssistance.jsx';
+import { AnalysisReplay } from '../../components/AnalysisReplay.jsx';
 import { IncidentReceipt } from '../../components/IncidentReceipt.jsx';
 import { RiskResult } from '../../components/RiskResult.jsx';
 import { Badge, Card } from '../../components/ui/index.jsx';
@@ -18,6 +19,7 @@ function Metadata({ values }) {
 }
 
 export function EmailResults({ analysis }) {
+  if (analysis.replayed) return <AnalysisReplay analysis={analysis} />;
   const result = analysis.result;
   const [label, tone, description] = classifications[result.provisionalClassification] ?? ['Finding unavailable', 'neutral', 'Review the available evidence and limitations.'];
   const mismatch = result.indicators.some(({ id }) => ['REPLY_DOMAIN_MISMATCH', 'REPLY_ADDRESS_MISMATCH'].includes(id));
@@ -29,6 +31,7 @@ export function EmailResults({ analysis }) {
     <div className="grid gap-5 md:grid-cols-2">
       <Section title="Sender Information"><Metadata values={[["Display name", result.sender.displayName], ['Sender address', result.sender.address], ['Sender domain', result.sender.domain]]} /></Section>
       <Section title="Reply-To Information"><Metadata values={[["Reply-To address", result.replyTo.address], ['Reply-To domain', result.replyTo.domain]]} />{mismatch && <p className="mt-4 rounded-lg bg-warning-50 p-3 font-semibold text-warning-900">Sender and Reply-To differ. Verify unexpected requests through a known channel.</p>}</Section>
+      {result.returnPath && <Section title="Return-Path Information"><Metadata values={[['Return-Path address', result.returnPath.address], ['Return-Path domain', result.returnPath.domain]]} /><p className="mt-3 text-slate-600">Reported bounce address; a different bounce domain alone does not establish impersonation.</p></Section>}
     </div>
     <Section title="Authentication Evidence"><p className="mb-4 text-slate-600">These are claims from supplied email headers, not independently verified by EWAGuard AI. A signature being present does not mean authentication succeeded.</p><div className="grid gap-3 sm:grid-cols-3">{['spf', 'dkim', 'dmarc'].map((method) => { const evidence = result.authentication[method]; return <div key={method} className="rounded-xl border border-slate-200 p-4"><h4 className="font-bold uppercase">{method}</h4><p className="mt-1 font-semibold">{readable(evidence.status)}</p><p>{evidence.claimedResults.length ? evidence.claimedResults.join(', ') : 'No usable result supplied'}</p><p className="mt-2 text-xs text-slate-500">Not independently verified</p></div>; })}</div></Section>
     <Section title="Detected Indicators">{result.indicators.length ? <ul className="grid gap-3 sm:grid-cols-2">{result.indicators.map((indicator) => <li key={indicator.id} className="rounded-xl border border-slate-200 p-4"><p className="text-xs font-semibold uppercase tracking-wide text-brand-700">{indicator.category}</p><h4 className="mt-1 font-bold text-slate-900">{indicator.title}</h4><p className="mt-2 text-slate-600">{indicator.evidence}</p></li>)}</ul> : <p>No indicators were returned by the available checks.</p>}</Section>

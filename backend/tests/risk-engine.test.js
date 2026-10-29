@@ -162,7 +162,7 @@ test('malformed consumed evidence rejected safely; extra client risk fields igno
 test('audit-compatible minimized persistence and fixed explanation privacy', () => {
   const result = risk('FILE', file({ clamav: { status: 'DETECTED', detections: ['SECRET_SIGNATURE'] }, yara: { status: 'MATCH', matches: [{ strength: 'WARNING', name: 'SECRET_RULE', description: 'SECRET_PAYLOAD' }] } }));
   assert.doesNotMatch(JSON.stringify(result), /SECRET/);
-  assert.deepEqual(riskColumns(result), { riskScore: result.score, severity: result.riskLevel, riskRuleVersion: '1.0' });
+  assert.deepEqual(riskColumns(result), { riskScore: result.score, severity: result.riskLevel, riskRuleVersion: RISK_ENGINE_VERSION });
   assert.deepEqual(riskSnapshot(result).reasonCodes, result.reasons.map((r) => r.code));
 });
 

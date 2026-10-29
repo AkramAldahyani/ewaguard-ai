@@ -9,10 +9,15 @@ import { createChatService, ownedSession, messageSelect, sessionSelect } from '.
 import { createHash } from 'node:crypto';
 import { ToolError } from '../ai/tools/tool-registry.js';
 import { createToolService } from '../ai/tools/tool-service.js';
+import { createPdplChat } from '../rag/pdpl-chat.js';
+import { createCompanyChat } from '../rag/company-chat.js';
+import { RetrievalError } from '../rag/retrieval-policy.js';
 
-export function createChatRouter({ database, config, approvals, provider = createOpenAIAdapter({ apiKey: config.openaiApiKey, model: config.openaiModel }) }) {
+export function createChatRouter({ database, config, approvals, embeddingProvider, provider = createOpenAIAdapter({ apiKey: config.openaiApiKey, model: config.openaiModel }) }) {
   const router = Router();
-  const service = createChatService({ database, provider, approvals });
+  const service = createChatService({ database, provider, approvals, config, embeddingProvider });
+  const pdpl = createPdplChat({ database, config, embeddingProvider });
+  const company = createCompanyChat({ database, config, embeddingProvider });
   const tools = createToolService({ database });
   router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
   router.use(createAuthenticate({ database, config }), requireRole('EMPLOYEE'), createTrustedOrigin(config.trustedOrigins));
@@ -57,7 +62,7 @@ export function createChatRouter({ database, config, approvals, provider = creat
     res.on('close', cancel);
     try {
       const result = await service.send({ userId: req.user.id, auth: req.auth, sessionId: req.params.id, content,
-        requestId: req.body.requestId, analysisInput: req.body.analysisInput, signal: controller.signal });
+        requestId: req.body.requestId, analysisInput: req.body.analysisInput, privacyNoticeVersion: req.body.privacyNoticeVersion, signal: controller.signal });
       res.status(result.replayed ? 200 : 201).json(result);
     } finally { res.off('close', cancel); delete req.body; }
   });
@@ -71,6 +76,14 @@ export function createChatRouter({ database, config, approvals, provider = creat
     if (!entry) throw new ChatError(404, 'CHAT_REQUEST_NOT_FOUND', 'Request not found.');
     const verifiedResults = [];
     for (const ref of entry.toolMetadata?.results ?? []) {
+      if (ref.name === 'search_company_policy') {
+        verifiedResults.push(await company.recover({ auth: req.auth, conversationId: req.params.id, receipt: ref }));
+        continue;
+      }
+      if (ref.name === 'search_pdpl') {
+        verifiedResults.push(await pdpl.recover({ auth: req.auth, conversationId: req.params.id, receipt: ref }));
+        continue;
+      }
       verifiedResults.push(await tools.execute({ auth: req.auth, conversationId: req.params.id, name: ref.name,
         argumentsJson: JSON.stringify(ref.name === 'get_file_analysis' ? { analysisId: ref.analysisId } : { analyzerType: ref.analyzerType, analysisId: ref.analysisId }) }));
     }
@@ -102,7 +115,7 @@ export function createChatRouter({ database, config, approvals, provider = creat
     } finally { delete req.body; }
   });
   router.use((error, _req, res, next) => {
-    if (!(error instanceof ChatError) && !(error instanceof ToolError)) return next(error);
+    if (!(error instanceof ChatError) && !(error instanceof ToolError) && !(error instanceof RetrievalError)) return next(error);
     res.status(error.status).json({ error: { code: error.code, message: error.message } });
   });
   return router;

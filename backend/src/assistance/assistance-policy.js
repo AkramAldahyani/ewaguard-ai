@@ -8,7 +8,7 @@ function freeze(value) {
 // Employee guidance only: no weights, detection rules, reporting destinations,
 // executable commands or automated responses belong in this policy.
 export const ASSISTANCE_POLICY = freeze({
-  supportedRiskVersions: ['1.0'],
+  supportedRiskVersions: ['1.0', '1.1'],
   maximumReasons: 128,
   levels: {
     LOW: { urgency: 'ROUTINE', escalation: 'NONE', headline: 'Continue with normal caution',

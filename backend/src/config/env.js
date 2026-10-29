@@ -2,6 +2,7 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { DEFAULT_YARA_RULES } from '../analyzers/file/file-policy.js';
 import { retentionPolicy } from '../privacy/retention-policy.js';
+import { mediaPolicy } from '../community/media-policy.js';
 
 // Resolve from this module so workspace and root commands load the same file.
 // Node preserves injected environment variables over values in this file.
@@ -10,6 +11,14 @@ if (existsSync(envPath)) process.loadEnvFile(envPath);
 
 export function parseConfig(env = process.env) {
   const nodeEnv = env.NODE_ENV ?? 'development';
+  const policyDemoSetting = env.RAG_DEMONSTRATION_ENABLED ?? 'false';
+  if (!['true', 'false'].includes(policyDemoSetting)) throw new Error('RAG_DEMONSTRATION_ENABLED must be true or false.');
+  if (nodeEnv === 'production' && policyDemoSetting === 'true') throw new Error('Demonstration policy retrieval is prohibited in production.');
+  const ragDemonstrationEnabled = policyDemoSetting === 'true' && nodeEnv !== 'production';
+  const demoSetting = env.DEMO_ACCOUNT_SETUP_ENABLED ?? 'false';
+  if (!['true', 'false'].includes(demoSetting)) throw new Error('DEMO_ACCOUNT_SETUP_ENABLED must be true or false.');
+  if (nodeEnv === 'production' && demoSetting === 'true') throw new Error('Manual account setup disclosure is prohibited in production.');
+  const demoAccountSetupEnabled = demoSetting === 'true' && nodeEnv !== 'production';
   if (!['development', 'test', 'production'].includes(nodeEnv)) {
     throw new Error('NODE_ENV must be development, test, or production.');
   }
@@ -39,7 +48,7 @@ export function parseConfig(env = process.env) {
   if (typeof jwtSecret !== 'string' || jwtSecret.length < 32 || jwtSecret === 'CHANGE_ME') {
     throw new Error('JWT_SECRET must contain at least 32 characters and must not use the placeholder.');
   }
-  const accessTokenTtlSeconds = positiveInteger(env.JWT_ACCESS_TTL_SECONDS ?? '900', 'JWT_ACCESS_TTL_SECONDS', 60, 3600);
+  const accessTokenTtlSeconds = positiveInteger(env.JWT_ACCESS_TTL_SECONDS ?? '1800', 'JWT_ACCESS_TTL_SECONDS', 60, 3600);
   const mfaEncryptionKey = env.MFA_ENCRYPTION_KEY || null;
   if (mfaEncryptionKey && !/^[a-f0-9]{64}$/i.test(mfaEncryptionKey)) {
     throw new Error('MFA_ENCRYPTION_KEY must be a dedicated 32-byte hexadecimal key.');
@@ -66,13 +75,15 @@ export function parseConfig(env = process.env) {
   }
   return Object.freeze({
     retention: retentionPolicy(env),
-    nodeEnv, port, host, frontendUrl: origin.origin, jwtSecret,
+    communityMedia: mediaPolicy(env),
+    nodeEnv, port, host, frontendUrl: origin.origin, jwtSecret, demoAccountSetupEnabled, ragDemonstrationEnabled,
     trustedOrigins: Object.freeze(trustedOrigins),
     accessTokenTtlSeconds, loginRateLimitWindowMinutes, loginRateLimitMax,
     mfaEncryptionKey, mfaIssuer, mfaChallengeTtlSeconds,
     toolApprovalEncryptionKey,
     openaiApiKey: env.OPENAI_API_KEY?.trim() || null,
     openaiModel: env.OPENAI_MODEL?.trim() || 'gpt-6-luna',
+    openaiEmbeddingModel: env.OPENAI_EMBEDDING_MODEL?.trim() || 'text-embedding-3-small',
     virusTotalApiKey: env.VIRUSTOTAL_API_KEY?.trim() || null,
     clamavPath: env.CLAMAV_PATH?.trim() || null,
     yaraPath: env.YARA_PATH?.trim() || null,

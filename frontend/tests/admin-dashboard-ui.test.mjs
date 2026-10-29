@@ -11,6 +11,9 @@ const notificationId = '123e4567-e89b-42d3-a456-426614174201';
 const postId = '123e4567-e89b-42d3-a456-426614174202';
 const time = '2026-10-11T10:00:00.000Z';
 const metrics = {
+  analyses: { total: 14, severity: [{ value: 'LOW', count: 5 }, { value: 'MEDIUM', count: 4 },
+    { value: 'HIGH', count: 3 }, { value: 'CRITICAL', count: 2 }],
+  period: { key: '30d', days: 30, start: '2026-09-12', end: '2026-10-11', timezone: 'UTC' } },
   employees: { active: 37 }, incidents: { total: 25, open: 8, highOpen: 3, criticalOpen: 2, awaitingAssignment: 4 },
   awareness: { publishedPrograms: 6, assignedEmployees: 21, activeAssignments: 40, completedAssignments: 15,
     inProgressAssignments: 11, publishedMonthlyQuizzes: 3, monthlyParticipations: 19, monthlySubmitted: 12, certificatesIssued: 9 },
@@ -45,22 +48,29 @@ test('Phase 13A2 administrator dashboard interface', async (t) => {
     mount();
     assert.ok(screen.getByRole('status', { name: 'Loading administrator dashboard' }));
     await screen.findByText('Spot impersonation attempts');
+    assert.ok(screen.getByText('Monitor security activity, incidents, and employee awareness across the organization.'));
     assert.equal(calls[0][0], '/api/admin/dashboard');
     assert.equal(calls[0][1].credentials, 'include');
     const kpis = screen.getByRole('region', { name: 'Security operations metrics' });
-    for (const [name, number] of [['Active employees', '37'], ['Total incidents', '25'], ['Open incidents', '8'],
-      ['High priority open', '3'], ['Critical priority open', '2'], ['Awaiting assignment', '4']]) {
+    for (const [name, number] of [['Total Security Analyses', '14'], ['Open Incidents', '8'],
+      ['High-Priority Open Incidents', '3'], ['Critical-Priority Open Incidents', '2'],
+      ['Awaiting Assignment', '4'], ['Active Employees', '37']]) {
       assert.match(within(within(kpis).getByText(name).closest('section')).getByText(number).textContent, new RegExp(number));
     }
     const incidentLink = screen.getAllByRole('link', { name: 'INC-2026-000025' })[0];
     assert.equal(incidentLink.getAttribute('href'), `/admin/incidents/${incidentId}`);
     assert.match(document.body.textContent, /Unassigned|Critical risk|New|Urgent incident update|2 unread/);
-    assert.ok(screen.getByRole('link', { name: 'Open incident queue' }).getAttribute('href') === '/admin/incidents');
+    assert.ok(screen.getAllByRole('link', { name: /View Incident Queue/ }).every((link) => link.getAttribute('href') === '/admin/incidents'));
     assert.ok(screen.getAllByRole('link', { name: 'INC-2026-000025' }).every((link) => link.getAttribute('href') === `/admin/incidents/${incidentId}`));
-    for (const [name, href] of [['Training programs', '/admin/training'], ['Monthly quizzes', '/admin/monthly-quizzes'],
-      ['Certificates', '/admin/certificates'], ['Open moderation', '/admin/community']])
+    for (const [name, href] of [['Training Programs', '/admin/training'], ['Monthly Quizzes', '/admin/monthly-quizzes'],
+      ['Certificates', '/admin/certificates'], ['Community Moderation', '/admin/community'],
+      ['View Security Analytics', '/admin/analytics/security'], ['Incident Statistics', '/admin/analytics/incidents'],
+      ['Awareness Analytics', '/admin/analytics/awareness']])
       assert.equal(screen.getByRole('link', { name }).getAttribute('href'), href);
-    assert.match(document.body.textContent, /Published programs|Completed assignments|Monthly submissions|Certificates issued|Phishing|Alex B\./);
+    assert.ok(screen.getByRole('img', { name: '14 completed analyses by risk level' }));
+    for (const text of ['Security Overview', 'Low', 'Medium', 'High', 'Critical', 'Published programs',
+      'Completed assignments', 'Training completion rate', 'Monthly quiz participation', 'Certificates issued'])
+      assert.match(document.body.textContent, new RegExp(text));
     assert.doesNotMatch(document.body.textContent, /Private details/);
     assert.ok(document.querySelector('.grid.gap-3.sm\\:grid-cols-2'));
   });
@@ -77,8 +87,10 @@ test('Phase 13A2 administrator dashboard interface', async (t) => {
   });
 
   await t.test('empty records show zero counts and clear list states', async () => {
-    const zero = Object.fromEntries(Object.entries(metrics).map(([group, values]) => [group,
+    const zero = Object.fromEntries(Object.entries(metrics).filter(([group]) => group !== 'analyses').map(([group, values]) => [group,
       Object.fromEntries(Object.keys(values).map((key) => [key, 0]))]));
+    zero.analyses = { ...metrics.analyses, total: 0,
+      severity: metrics.analyses.severity.map((row) => ({ ...row, count: 0 })) };
     globalThis.fetch = async () => reply({ ...overview, metrics: zero, recentIncidents: [], pendingPosts: [],
       notifications: { unreadCount: 0, items: [] } });
     mount(); await screen.findByText('No incidents recorded');

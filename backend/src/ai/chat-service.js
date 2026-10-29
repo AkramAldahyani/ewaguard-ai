@@ -2,8 +2,10 @@ import { CHAT_LIMITS, ChatError, INSTRUCTION_VERSION, PRIVACY_NOTICE, estimatedM
 import { createToolService } from './tools/tool-service.js';
 import { authorizeToolContext } from './tools/tool-access.js';
 import { privateAnalysisInput, runToolTurns } from './tool-orchestration.js';
-import { inputBound, paidRound } from './tool-round-budget.js';
+import { inputBound, paidRound, reconcileAmbiguousUsage } from './tool-round-budget.js';
 import { runRetentionBatch } from '../privacy/retention-service.js';
+import { createPdplChat } from '../rag/pdpl-chat.js';
+import { createCompanyChat } from '../rag/company-chat.js';
 
 // One cross-process lock protects every admission/reconciliation. Never hold it
 // across network I/O. Crashed/ambiguous requests retain their reservation.
@@ -28,10 +30,12 @@ async function replay(tx, entry, sessionId) {
   return { messages, replayed: true, toolMetadata: entry.toolMetadata ?? {} };
 }
 
-export function createChatService({ database, provider, approvals }) {
+export function createChatService({ database, provider, approvals, config, embeddingProvider }) {
   const tools = createToolService({ database });
+  const pdpl = createPdplChat({ database, config, embeddingProvider });
+  const company = createCompanyChat({ database, config, embeddingProvider });
   return {
-    async send({ userId, sessionId, content, requestId, signal, auth, analysisInput, initialResult, maxOutputTokens = CHAT_LIMITS.outputTokens }) {
+    async send({ userId, sessionId, content, requestId, signal, auth, analysisInput, initialResult, privacyNoticeVersion, maxOutputTokens = CHAT_LIMITS.outputTokens }) {
       if (!Number.isInteger(maxOutputTokens) || maxOutputTokens < 16 || maxOutputTokens > CHAT_LIMITS.outputTokens) throw new ChatError(400, 'CHAT_INVALID_LIMIT', 'Invalid output limit.');
       await ownedSession(database, userId, sessionId);
       if (auth) {
@@ -50,9 +54,7 @@ export function createChatService({ database, provider, approvals }) {
         if (duplicate) return { replay: await replay(tx, duplicate, sessionId) };
         const now = new Date();
         const day = new Date(now); day.setUTCHours(0, 0, 0, 0);
-        if (await tx.aiUsage.count({ where: { OR: [{ status: 'UNKNOWN' }, { status: 'RESERVED', createdAt: { lt: new Date(now.getTime() - 60_000) } }] } })) {
-          throw new ChatError(503, 'AI_USAGE_REVIEW_REQUIRED', 'AI usage requires administrator billing review.');
-        }
+        await reconcileAmbiguousUsage(tx, now);
         if (await tx.aiUsage.count({ where: { userId, createdAt: { gte: day } } }) >= CHAT_LIMITS.dailyRequests) throw new ChatError(429, 'CHAT_DAILY_LIMIT', 'Your daily AI request limit has been reached.');
         if (await tx.aiUsage.count({ where: { status: 'RESERVED', parentRequestId: null } }) >= CHAT_LIMITS.simultaneousRequests) throw new ChatError(503, 'AI_BUSY', 'AI chat is busy. Try again shortly.');
         if (await tx.aiUsage.count({ where: { sessionId, status: 'RESERVED' } })) throw new ChatError(409, 'CHAT_BUSY', 'A response is already pending in this conversation.');
@@ -78,10 +80,11 @@ export function createChatService({ database, provider, approvals }) {
       let outcome;
       try {
         outcome = await runToolTurns({ input: messages, tools, approvals, auth, sessionId, requestId, privateInput, initialResult,
+          pdpl, company, question: content, privacyNoticeVersion, signal,
           saveMetadata: (toolMetadata) => database.aiUsage.update({ where: { id: entry.id }, data: { toolMetadata } }),
-          callModel: async (input, enableTools, round) => {
+          callModel: async (input, enableTools, round, pdplResponse, companyResponse, references) => {
             if (auth) await authorizeToolContext(database, auth, sessionId);
-            return paidRound({ database, provider, root: entry, input, enableTools, round, signal, maxOutputTokens, pricing });
+            return paidRound({ database, provider, root: entry, input, enableTools, round, signal, maxOutputTokens, pricing, pdplResponse, companyResponse, references });
           },
         });
       }

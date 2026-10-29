@@ -25,8 +25,8 @@ const message = (text = 'Contact IT and review the verified findings.') => ({ ty
 const call = (name, args, call_id = `call_${randomUUID()}`) => ({ type: 'function_call', name, call_id, arguments: JSON.stringify(args) });
 const response = (...output) => ({ model, status: 'completed', service_tier: 'default', usage: { input_tokens: 100, output_tokens: 20 }, output });
 
-test('model-facing schemas contain exactly six strict tools and reference-only actions', () => {
-  assert.equal(responseToolSchemas.length, 6);
+test('model-facing schemas contain nine strict tools and reference-only actions', () => {
+  assert.equal(responseToolSchemas.length, 9);
   for (const tool of responseToolSchemas) {
     assert.equal(tool.strict, true); assert.equal(tool.parameters.additionalProperties, false);
     assert.deepEqual(tool.parameters.required, Object.keys(tool.parameters.properties));
@@ -253,8 +253,8 @@ test('8B2B Responses orchestration, HTTP handoff and real PostgreSQL ledger; syn
     await assert.rejects(send({ requestId }), { code: 'CHAT_REQUEST_ALREADY_USED' }); assert.equal(requests.length, 2);
     const recovery = await http(`${chatPath}/requests/${requestId}`); assert.equal(recovery.status, 200); assert.equal(recovery.data.verifiedResults[0].data.analysisId, ref.analysisId);
     const ledger = await database.aiUsage.findMany({ where: { userId: owner.user.id } });
-    const uncertain = ledger.find((r) => r.status === 'UNKNOWN'); assert.equal(uncertain.chargedMicros, uncertain.reservedMicros);
-    await assert.rejects(send(), { code: 'AI_USAGE_REVIEW_REQUIRED' }); assert.equal(scans, 1);
+    const failed = ledger.find((r) => r.parentRequestId && r.status === 'FAILED'); assert.equal(failed.chargedMicros, failed.reservedMicros);
+    queue = [response(message())]; await send(); assert.equal(scans, 1);
   });
   const blocker = async (data = {}) => database.aiUsage.create({ data: { userId: other.user.id, requestId: randomUUID(), model,
     pricingVersion: 'synthetic', instructionVersion: 'synthetic', privacyNoticeVersion: PRIVACY_NOTICE.version,
@@ -263,13 +263,16 @@ test('8B2B Responses orchestration, HTTP handoff and real PostgreSQL ledger; syn
     queue = [async () => { await blocker({ chargedMicros: CHAT_LIMITS.budgetMicros - 100 }); return response(call('explain_risk', ref)); }];
     await assert.rejects(send(), { code: 'AI_BUDGET_EXHAUSTED' }); assert.equal(requests.length, 1);
   });
-  await run('provider rate limits and unknown follow-up usage retain reservations', async () => {
+  await run('provider failures and unverifiable follow-up usage retain reservations without a global pause', async () => {
     queue = [response(call('explain_risk', ref)), Object.assign(new Error('Synthetic private provider response'), { status: 429 })];
     await assert.rejects(send(), { code: 'AI_RATE_LIMITED' }); assert.equal(requests.length, 2);
     await database.aiUsage.deleteMany({ where: { userId: owner.user.id } }); requests.length = 0;
     queue = [response(call('explain_risk', ref)), { ...response(message()), usage: { input_tokens: 100, output_tokens: 501 } }];
     await assert.rejects(send(), { code: 'AI_USAGE_REVIEW_REQUIRED' });
-    assert.equal(await database.aiUsage.count({ where: { userId: owner.user.id, status: 'UNKNOWN' } }), 1);
+    assert.equal(await database.aiUsage.count({ where: { userId: owner.user.id, status: 'UNKNOWN' } }), 0);
+    const failed = await database.aiUsage.findFirst({ where: { userId: owner.user.id, parentRequestId: { not: null }, status: 'FAILED' } });
+    assert.equal(failed.chargedMicros, failed.reservedMicros);
+    queue = [response(message())]; await send();
   });
   await run('completed approval returns deterministic findings when explanation budget exhausted', async () => {
     const completed = await database.toolApproval.findFirst({ where: { userId: owner.user.id, status: 'COMPLETED' } });

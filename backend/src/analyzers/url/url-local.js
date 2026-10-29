@@ -1,4 +1,4 @@
-const shorteners = new Set(['bit.ly', 't.co', 'tinyurl.com', 'goo.gl', 'ow.ly', 'is.gd', 'buff.ly', 'rebrand.ly']);
+import { isShortener } from '../domain-indicators.js';
 
 export function localUrlIndicators({ url, raw, normalized: n }) {
   let decodedPath = url.pathname;
@@ -19,7 +19,7 @@ export function localUrlIndicators({ url, raw, normalized: n }) {
   add(/(?:login|signin|account|update|verify|reset|password|credential)/i.test(decodedPath), 'ACCOUNT_PATH', 'The path contains login, account, or credential-related terms.');
   add(n.sensitiveQueryNamesPresent, 'SENSITIVE_QUERY', 'The URL has parameter names commonly used for secrets. Values are omitted.');
   add(n.queryCount > 12, 'MANY_PARAMETERS', 'The URL has an unusually large number of query parameters.');
-  add(shorteners.has(n.hostname), 'SHORTENER', 'A URL shortener hides the eventual destination.', 2);
+  add(isShortener(n.hostname), 'SHORTENER', 'A URL shortener hides the eventual destination.', 2);
   add(/(?:paypal|microsoft|google|apple|amazon)[.-]/i.test(n.hostname) && !['paypal.com', 'microsoft.com', 'google.com', 'apple.com', 'amazon.com'].includes(n.domainApproximation), 'BRAND_PATTERN', 'A familiar brand appears outside its common domain; ownership is not verified.', 2);
   add(!['80', '443'].includes(n.port), 'UNUSUAL_PORT', 'An unusual network port is specified.');
   add(n.protocol === 'http', 'HTTP', 'HTTP does not provide transport encryption.');

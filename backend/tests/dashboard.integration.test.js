@@ -12,11 +12,17 @@ test('Phase 13A1 empty dashboard uses zero counts and bounded previews', async (
   const model = { count: async () => 0, findMany: async () => [] };
   const db = Object.fromEntries(['user', 'incident', 'trainingProgram', 'trainingAssignment', 'trainingProgress',
     'monthlyQuiz', 'monthlyQuizAssignment', 'certificate', 'communityPost', 'notification'].map((key) => [key, model]));
+  db.$queryRaw = async () => [];
+  db.$transaction = async (operation) => operation(db);
   const result = await createDashboardService(db).overview({ id: randomUUID(), role: 'IT_SECURITY_ADMIN' });
-  assert.deepEqual(result.metrics, { employees: { active: 0 }, incidents: { total: 0, open: 0, highOpen: 0,
+  const { analyses, ...metrics } = result.metrics;
+  assert.deepEqual(metrics, { employees: { active: 0 }, incidents: { total: 0, open: 0, highOpen: 0,
     criticalOpen: 0, awaitingAssignment: 0 }, awareness: { publishedPrograms: 0, assignedEmployees: 0,
     activeAssignments: 0, completedAssignments: 0, inProgressAssignments: 0, publishedMonthlyQuizzes: 0,
     monthlyParticipations: 0, monthlySubmitted: 0, certificatesIssued: 0 }, community: { pendingPosts: 0 } });
+  assert.equal(analyses.total, 0);
+  assert.deepEqual(analyses.severity, ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'].map((value) => ({ value, count: 0 })));
+  assert.equal(analyses.period.days, 30); assert.equal(analyses.period.timezone, 'UTC');
   assert.deepEqual(result.recentIncidents, []); assert.deepEqual(result.pendingPosts, []);
   assert.deepEqual(result.notifications, { unreadCount: 0, items: [] });
   assert.ok(Number.isFinite(Date.parse(result.generatedAt)));
@@ -153,6 +159,9 @@ test('Phase 13A1 administrator dashboard uses real scoped PostgreSQL data', asyn
     assert.match(response.cache, /no-store/);
     const before = baseline.metrics, after = response.data.metrics;
     assert.equal(after.employees.active - before.employees.active, 2);
+    assert.equal(after.analyses.total, before.analyses.total);
+    assert.deepEqual(after.analyses.severity, before.analyses.severity);
+    assert.equal(after.analyses.period.days, 30);
     assert.equal(after.incidents.total - before.incidents.total, 4);
     assert.equal(after.incidents.open - before.incidents.open, 2);
     assert.equal(after.incidents.highOpen - before.incidents.highOpen, 1);

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import {
-  Activity, Award, BookOpenCheck, Bot, CalendarDays, ChevronRight, FileSearch, GraduationCap, Home, KeyRound,
+  Activity, Award, BarChart3, BookOpenCheck, Bot, CalendarDays, FileSearch, GraduationCap, Home, KeyRound,
   Link2, LogOut, Menu, MessageSquareText, Search, ShieldAlert, Upload, UserRound, X,
 } from 'lucide-react';
 import { BrandLogo } from '../components/BrandLogo.jsx';
@@ -50,16 +50,21 @@ const adminSections = [
     { label: 'Administrator dashboard', to: '/admin', icon: Home },
     { label: 'Incident Queue', to: '/admin/incidents', icon: ShieldAlert },
     { label: 'Security analytics', to: '/admin/analytics/security', icon: Activity },
+    { label: 'Incident Statistics', to: '/admin/analytics/incidents', icon: BarChart3 },
+    { label: 'Audit Logs', to: '/admin/audit', icon: FileSearch },
   ] },
   { label: 'Security awareness', items: [
     { label: 'Training programs', to: '/admin/training', icon: GraduationCap },
     { label: 'Monthly quizzes', to: '/admin/monthly-quizzes', icon: CalendarDays },
     { label: 'Certificates', to: '/admin/certificates', icon: Award },
     { label: 'Awareness analytics', to: '/admin/analytics/awareness', icon: BookOpenCheck },
-    { label: 'Incident awareness', to: '/admin/incident-awareness', icon: BookOpenCheck },
   ] },
   { label: 'Community', items: [
     { label: 'Community moderation', to: '/admin/community', icon: FileSearch },
+  ] },
+  { label: 'Account', items: [
+    { label: 'Users', to: '/admin/users', icon: UserRound },
+    { label: 'Profile', to: '/profile', icon: UserRound },
   ] },
 ];
 
@@ -114,11 +119,6 @@ function SidebarContent({ onNavigate }) {
         ))}
       </nav>
 
-      <div className="shrink-0 border-t border-white/10 p-3">
-        <NavLink to="/design-system" onClick={onNavigate} className={({ isActive }) => cn('flex items-center justify-between rounded-xl px-3.5 py-3 text-xs font-semibold transition-colors', isActive ? 'bg-white/10 text-white' : 'text-slate-500 hover:bg-white/5 hover:text-slate-300')}>
-          <span>Interface system</span><ChevronRight className="size-3.5" />
-        </NavLink>
-      </div>
     </>
   );
 }
@@ -177,7 +177,7 @@ function Shell() {
 
   useEffect(() => {
     const page = [...navSections, ...adminSections].flatMap((section) => section.items).find((item) => item.to === pathname)?.label;
-    const incidentPage = pathname.startsWith('/admin/incident-awareness') ? 'Incident awareness' : pathname.startsWith('/admin/analytics/security') ? 'Security analytics' : pathname.startsWith('/admin/analytics/awareness') ? 'Awareness analytics' : pathname.startsWith('/admin/incidents') ? 'Incident Queue' : pathname.startsWith('/incidents/') ? 'Incident details' : pathname.startsWith('/admin/training') ? 'Training management' : pathname.startsWith('/admin/monthly-quizzes') ? 'Monthly quiz management' : pathname.startsWith('/admin/certificates') ? 'Certificate management' : pathname.startsWith('/admin/community') ? 'Community moderation' : pathname.startsWith('/certificates/') ? 'Certificate details' : pathname.startsWith('/monthly-quiz/') ? 'Monthly quiz' : pathname.startsWith('/training/') ? 'Training course' : null;
+    const incidentPage = pathname.startsWith('/admin/analytics/incidents') ? 'Incident Statistics' : pathname.startsWith('/admin/analytics/security') ? 'Security analytics' : pathname.startsWith('/admin/analytics/awareness') ? 'Awareness analytics' : pathname.startsWith('/admin/incidents') ? 'Incident Queue' : pathname.startsWith('/incidents/') ? 'Incident details' : pathname.startsWith('/admin/training') ? 'Training management' : pathname.startsWith('/admin/monthly-quizzes') ? 'Monthly quiz management' : pathname.startsWith('/admin/certificates') ? 'Certificate management' : pathname.startsWith('/admin/community') ? 'Community moderation' : pathname.startsWith('/certificates/') ? 'Certificate details' : pathname.startsWith('/monthly-quiz/') ? 'Monthly quiz' : pathname.startsWith('/training/') ? 'Training course' : null;
     document.title = `${page ?? incidentPage ?? (pathname === '/admin' ? 'Administrator dashboard' : 'Workspace')} | EWAGuard AI`;
     if (previousPath.current !== pathname) {
       if (mobileDialogRef.current.open) mobileDialogRef.current.close();
@@ -212,7 +212,7 @@ function Shell() {
             <span className="hidden sm:inline-flex"><Tooltip label="Search will be available in a later phase"><IconButton label="Search unavailable" disabled><Search className="size-[1.1rem]" /></IconButton></Tooltip></span>
             <NotificationBell />
             <span className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
-            <NavLink aria-label={user.role === 'IT_SECURITY_ADMIN' ? 'Administrator dashboard' : 'Your profile'} to={user.role === 'IT_SECURITY_ADMIN' ? '/admin' : '/profile'} className="flex items-center gap-3 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-100">
+            <NavLink aria-label="Your profile" to="/profile" className="flex items-center gap-3 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-100">
               <img src={avatar} alt="" className="size-9 rounded-full border border-slate-200 bg-white object-cover shadow-sm" />
               <span className="hidden text-left xl:block"><span className="block text-sm font-bold text-slate-800">{user.firstName} {user.lastName}</span><span className="block text-[0.7rem] text-slate-500">{roleLabel}</span></span>
             </NavLink>

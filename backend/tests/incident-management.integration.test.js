@@ -83,6 +83,10 @@ test('Phase 10B1 incident management: PostgreSQL and HTTP authorization', async 
     }
     const listed = await request(`${root}?reporterId=${owner.id}&severity=HIGH&status=NEW&pageSize=1`);
     assert.equal(listed.data.items.length, 1);
+    assert.equal(listed.data.items[0].reporterId, owner.id);
+    assert.equal(listed.data.items[0].reporter.id, owner.id);
+    assert.equal(listed.data.items[0].reporter.role.name, 'EMPLOYEE');
+    assert.doesNotMatch(JSON.stringify(listed.data), /passwordHash|mfaSecret|email/);
     assert.equal((await request(`${root}?reference=${detail.data.incident.reference}`)).data.items[0].id, row.id);
     assert.equal((await request(`${root}?reporterId=${owner.id}&status=CLOSED`)).data.items.length, 0);
     const extra = await incident();
@@ -104,6 +108,15 @@ test('Phase 10B1 incident management: PostgreSQL and HTTP authorization', async 
     assert.equal((await database.incidentEvent.count({ where: { incidentId: row.id, type: 'ASSIGNED' } })), 2);
     const history = await request(`${root}/${row.id}/history`);
     assert.ok(history.data.items.some((item) => item.assignment?.assigneeId === admin.id));
+    for (const event of history.data.items.filter((item) => item.type === 'ASSIGNED')) {
+      assert.equal(event.actorId, admin.id);
+      assert.equal(event.actor.id, admin.id);
+      assert.equal(event.actor.role.name, 'IT_SECURITY_ADMIN');
+      assert.equal(event.actorKind, 'USER');
+    }
+    const identified = (await request(`${root}/${row.id}`)).data.incident;
+    assert.equal(identified.reporterId, owner.id);
+    assert.equal(identified.reporter.id, owner.id);
   });
   await t.test('strict mutations reject mass assignment, invalid bodies and oversized notes', async () => {
     assert.equal((await write('status', { status: 'UNDER_INVESTIGATION', severity: 'CRITICAL' })).status, 400);

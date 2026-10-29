@@ -1,11 +1,23 @@
-// Render Markdown structure as React text nodes, never HTML. URLs remain inert
-// because cybersecurity replies can contain hostile example destinations.
+// Render Markdown structure as React text nodes, never HTML. Only explicitly
+// trusted reference sites become links; analysis/example destinations stay inert.
+function trustedReference(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password && !url.search &&
+      ['www.pdp.gov.bh', 'pdp.gov.bh', 'www.legalaffairs.gov.bh', 'www.cisa.gov', 'cisa.gov'].includes(url.hostname);
+  } catch { return false; }
+}
 function inline(text) {
-  return text.split(/(`[^`\n]+`|\*\*[^*\n]+\*\*|\[[^\]\n]+\]\([^\s)]+\))/g).map((part, index) => {
+  return text.split(/(\\[\\`*_{}[\]<>!#|]|`[^`\n]+`|\*\*[^*\n]+\*\*|__[^_\n]+__|\*[^*\n]+\*|\[[^\]\n]+\]\([^\s)]+\)|\[(?:PDPL[1-5]|POLICY[1-3])\])/g).map((part, index) => {
+    if (/^\\./.test(part)) return part.slice(1);
     if (part.startsWith('`') && part.endsWith('`')) return <code key={index}>{part.slice(1, -1)}</code>;
-    if (part.startsWith('**') && part.endsWith('**')) return <strong key={index}>{part.slice(2, -2)}</strong>;
+    if ((part.startsWith('**') && part.endsWith('**')) || (part.startsWith('__') && part.endsWith('__'))) return <strong key={index}>{inline(part.slice(2, -2))}</strong>;
+    if (part.startsWith('*') && part.endsWith('*')) return <em key={index}>{part.slice(1, -1)}</em>;
+    if (/^\[(?:PDPL[1-5]|POLICY[1-3])\]$/.test(part)) return <span className="chat-citation" key={index}>{part}</span>;
     const link = /^\[([^\]]+)\]\(([^)]+)\)$/.exec(part);
-    if (link) return <span key={index} className="chat-reference">{link[1]} <span className="chat-reference-url">({link[2]})</span></span>;
+    if (link) return trustedReference(link[2])
+      ? <a key={index} href={link[2]} target="_blank" rel="noopener noreferrer" className="chat-reference">{link[1]}</a>
+      : <span key={index} className="chat-reference">{link[1]} <span className="chat-reference-url">({link[2]})</span></span>;
     return part;
   });
 }
@@ -13,8 +25,7 @@ const cells = (line) => line.trim().replace(/^\||\|$/g, '').split('|').map((cell
 const tableDivider = (line) => line.includes('|') && cells(line).every((cell) => /^:?-{3,}:?$/.test(cell));
 const startsBlock = (line) => /^(?:```|#{1,6}\s|\s*[-*+]\s|\s*\d+[.)]\s|>\s)/.test(line);
 
-export function MessageContent({ content }) {
-  const lines = content.replace(/\r\n/g, '\n').split('\n');
+function blocksFrom(lines) {
   const blocks = []; let i = 0;
   while (i < lines.length) {
     const key = i; const line = lines[i];
@@ -38,17 +49,32 @@ export function MessageContent({ content }) {
       while (i < lines.length) {
         const item = /^\s*(?:([-*+])|(\d+)[.)])\s+(.+)$/.exec(lines[i]);
         if (!item || Boolean(item[2]) !== ordered) break;
-        items.push(<li key={i++}>{inline(item[3])}</li>);
+        const itemKey = i; const body = [item[3]]; const indent = lines[i].search(/\S/); i++;
+        while (i < lines.length) {
+          if (!lines[i].trim()) {
+            let next = i + 1; while (next < lines.length && !lines[next].trim()) next++;
+            if (next < lines.length && lines[next].search(/\S/) > indent) { body.push(''); i = next; continue; }
+            if (next < lines.length && /^\s*(?:[-*+]|\d+[.)])\s/.test(lines[next]) && lines[next].search(/\S/) === indent) { i = next; }
+            break;
+          }
+          if (lines[i].search(/\S/) <= indent) break;
+          body.push(lines[i++].slice(indent + (item[2] ? item[2].length + 2 : 2)));
+        }
+        items.push(<li key={itemKey}>{body.length === 1 ? inline(body[0]) : blocksFrom(body)}</li>);
       }
       blocks.push(ordered ? <ol key={key} start={Number(list[2])}>{items}</ol> : <ul key={key}>{items}</ul>); continue;
     }
     if (/^>\s?/.test(line)) {
       const quote = []; while (i < lines.length && /^>\s?/.test(lines[i])) quote.push(lines[i++].replace(/^>\s?/, ''));
-      blocks.push(<blockquote key={key}>{inline(quote.join('\n'))}</blockquote>); continue;
+      blocks.push(<blockquote key={key}>{inline(quote.join(' '))}</blockquote>); continue;
     }
     const paragraph = [lines[i++]];
     while (i < lines.length && lines[i].trim() && !startsBlock(lines[i]) && !(i + 1 < lines.length && tableDivider(lines[i + 1]))) paragraph.push(lines[i++]);
-    blocks.push(<p key={key}>{inline(paragraph.join('\n'))}</p>);
+    blocks.push(<p key={key}>{inline(paragraph.join(' '))}</p>);
   }
-  return <div className="chat-prose">{blocks}</div>;
+  return blocks;
+}
+
+export function MessageContent({ content }) {
+  return <div className="chat-prose">{blocksFrom(content.replace(/\r\n?/g, '\n').split('\n'))}</div>;
 }

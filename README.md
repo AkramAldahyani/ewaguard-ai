@@ -136,7 +136,7 @@ not verify database connectivity. No database is contacted by the Phase 0 API.
 | `DEV_API_TARGET` | Vite development proxy target; default `http://127.0.0.1:5000` |
 | `DATABASE_URL` | PostgreSQL URL for Prisma CLI configuration |
 | `JWT_SECRET` | Server-only JWT signing secret; minimum 32 characters |
-| `JWT_ACCESS_TTL_SECONDS` | Access-cookie lifetime, 60–3600 seconds; default 900 |
+| `JWT_ACCESS_TTL_SECONDS` | Employee and administrator access-cookie lifetime, 60–3600 seconds; default 1800 (30 minutes) |
 | `LOGIN_RATE_LIMIT_WINDOW_MINUTES` | Failed-login rate-limit window; default 15 |
 | `LOGIN_RATE_LIMIT_MAX` | Failed login limit per client/window; default 10 |
 | `VIRUSTOTAL_API_KEY` | Optional backend-only key for URL/domain and file-hash reputation reports |

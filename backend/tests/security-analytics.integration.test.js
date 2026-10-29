@@ -28,7 +28,8 @@ test('Phase 13B1 empty analytics zero-fill all chart series and bound preview', 
   const incident = { groupBy: async () => [], count: async () => 0,
     findMany: async (args) => { take = args.take; return []; } };
   let rawCall = 0;
-  const db = { incident, $queryRaw: async () => ++rawCall === 1 ? [] : [{ count: 0, averageSeconds: null }] };
+  const db = { incident, $queryRaw: async () => ++rawCall === 2 ? [{ count: 0, averageSeconds: null }] : [] };
+  db.$transaction = (operation) => operation(db);
   const result = await createSecurityAnalytics(db).overview({ period: '7d' }, new Date('2026-10-11T13:00:00Z'));
   assert.equal(result.metrics.created, 0); assert.equal(result.metrics.openCurrent, 0);
   assert.equal(result.metrics.resolution.averageSeconds, null);

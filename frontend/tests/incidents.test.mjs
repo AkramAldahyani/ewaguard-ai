@@ -59,6 +59,16 @@ test('source and full-result sorting are sent to the server on every page', asyn
   assert.equal(calls[1][1].source, 'FILE_ANALYSIS'); assert.equal(calls[1][1].sort, 'severity_desc'); assert.equal(calls[1][1].page, 2);
   assert.deepEqual(flow.getSnapshot().list.items, [incident]);
 });
+test('employee status filter resets to page one and stays applied during pagination', async () => {
+  const { flow, calls } = setup();
+  await flow.load({}, 2);
+  await flow.load({ status: 'UNDER_INVESTIGATION' }, 1);
+  await flow.load(flow.getSnapshot().filters, 2);
+  assert.deepEqual(calls.filter(([name]) => name === 'list').map(([, query]) => [query.status, query.page]),
+    [[undefined, 2], ['UNDER_INVESTIGATION', 1], ['UNDER_INVESTIGATION', 2]]);
+  await flow.load({}, 1);
+  assert.equal(calls.at(-1)[1].status, undefined);
+});
 test('failed list request has actionable safe error and supports retry', async () => {
   let fail = true; const { flow } = setup({}, { list: async () => { if (fail) throw new Error('SECRET_SERVER_PAYLOAD'); return page(); } });
   await flow.load(); assert.match(flow.getSnapshot().error, /try again/); assert.doesNotMatch(flow.getSnapshot().error, /SECRET/);
@@ -154,10 +164,23 @@ test('incident interfaces render actual components with safe role-specific state
     assert.doesNotMatch(html, /PRIVATE_SENTINEL|Security Reviewer/); assert.match(html, /href="\/incidents\/synthetic-id"/);
   });
   await t.test('admin queue includes urgency, assignment, table and mobile cards', () => {
-    const html = render(ui.IncidentResults, { items: [{ ...incident, assignee: person }], admin: true });
+    const reporter = { id: 'employee-user-id', firstName: 'Originating', lastName: 'Employee', employeeIdentifier: 'EMP-024', department: { name: 'Finance' } };
+    const row = { ...incident, assignee: person, reporter };
+    const html = render(ui.IncidentResults, { items: [row], admin: true });
     assert.match(html, /Priority review/); assert.match(html, /Security Reviewer/); assert.match(html, /<table/);
     assert.match(html, /hidden overflow-x-auto xl:block/); assert.match(html, /xl:hidden/);
     assert.match(html, /href="\/admin\/incidents\/synthetic-id"/);
+    for (const text of ['Originating Employee', 'employee-user-id', 'EMP-024', 'Finance', 'Assigned administrator']) assert.ok(html.includes(text));
+    const details = render(ui.IncidentOverview, { incident: row, admin: true });
+    assert.match(details, /Reported By \/ Associated Employee/);
+    assert.match(details, /employee-user-id/);
+  });
+  await t.test('system and unavailable history actors remain distinct', () => {
+    const html = render(ui.IncidentHistory, { admin: true, items: [
+      { id: 'system', type: 'CREATED', actorKind: 'SYSTEM', actor: null },
+      { id: 'unknown', type: 'CREATED', actorKind: 'UNKNOWN', actor: null },
+    ] });
+    assert.match(html, /System/); assert.match(html, /Unknown User/);
   });
   await t.test('employee updates exclude private notes and escape hostile text', () => {
     const html = render(ui.IncidentNotes, { admin: false, items: [{ id: 'private', visibility: 'SECURITY_TEAM', body: 'PRIVATE_SENTINEL' }, { id: 'public', body: '<script>bad()</script>', createdAt: incident.createdAt, author: person }] });
@@ -183,7 +206,11 @@ test('incident interfaces render actual components with safe role-specific state
   });
   await t.test('real routes expose role-specific pages and reject foreign roles', () => {
     const route = (path, role) => renderToStaticMarkup(createElement(AuthContext.Provider, { value: { user: { id: 'fixture', role, firstName: 'Test', lastName: 'User' }, loading: false } }, createElement(MemoryRouter, { initialEntries: [path] }, createElement(AppRoutes))));
-    assert.match(route('/incidents', 'EMPLOYEE'), /<h1[^>]*>My Incidents/);
+    const employeeList = route('/incidents', 'EMPLOYEE');
+    assert.match(employeeList, /<h1[^>]*>My Incidents/);
+    assert.match(employeeList, /id="filter-status"/);
+    assert.match(employeeList, /All incidents/);
+    assert.doesNotMatch(employeeList, /incident-reference|filter-severity|filter-source|incident-sort|Apply filters|Clear filters/);
     assert.match(route('/incidents/synthetic-id', 'EMPLOYEE'), /Loading incident details/);
     assert.match(route('/admin/incidents', 'IT_SECURITY_ADMIN'), /<h1[^>]*>Incident Queue/);
     assert.match(route('/admin/incidents', 'IT_SECURITY_ADMIN'), /Sort all matching incidents/);

@@ -2,6 +2,7 @@ import { parseEmailInput } from './email-parser.js';
 import { senderEvidence, authenticationEvidence, bodyEvidence, attachmentEvidence } from './email-evidence.js';
 import { redactEmailMetadata } from './email-privacy.js';
 import { EMAIL_LIMITATIONS } from './email-policy.js';
+import { brandDomainEvidence } from '../domain-indicators.js';
 
 // Weights are analyzer-local evidence strength, never final risk scores.
 const RULES = {
@@ -14,6 +15,8 @@ const RULES = {
   SENDER_SUBDOMAINS: ['sender', 1, 'Many sender-domain labels'],
   DISPLAY_NAME_CLAIM: ['sender', 1, 'Display name claims a familiar brand or authority; identity is unverified'],
   DISPLAY_ADDRESS_MISMATCH: ['sender', 2, 'Display-name address differs from actual sender'],
+  BRAND_IMPERSONATION: ['sender', 1, 'A familiar brand is claimed outside its common sender domains; identity is unverified'],
+  SENDER_LOOKALIKE: ['sender', 3, 'Sender domain resembles the claimed brand outside its common domains'],
   AUTHENTICATION_CONCERN: ['authentication', 2, 'Supplied authentication headers claim failure or an error'],
   AUTHENTICATION_CONFLICT: ['authentication', 1, 'Supplied authentication claims conflict'],
   URL_LIMIT: ['coverage', 0, 'URL extraction was limited; some destinations were not assessed'],
@@ -24,6 +27,7 @@ const RULES = {
   URL_INTERNATIONAL: ['url', 1, 'A link uses an internationalized domain'],
   URL_SUBDOMAINS: ['url', 1, 'A link has many hostname labels'],
   URL_HTTP: ['url', 1, 'A link uses unencrypted HTTP'],
+  URL_SHORTENER: ['url', 1, 'A shortened URL hides its eventual destination'],
   URL_LABEL_MISMATCH: ['url', 3, 'Displayed URL hostname differs from the link destination'],
   ATTACHMENT_EXECUTABLE: ['attachment', 3, 'Attachment metadata suggests executable or script content'],
   ATTACHMENT_MACRO: ['attachment', 2, 'Attachment extension supports macros'],
@@ -42,11 +46,12 @@ const RULES = {
 };
 
 const PATTERNS = [
-  ['URGENCY', /\b(?:urgent|immediately|act now|within \d+ hours?|account (?:will be |is )?(?:suspended|closed|locked))\b/i],
+  ['URGENCY', /\b(?:urgent|immediately|act now|as soon as possible|within \d+ hours?|account (?:will be |is )?(?:suspended|closed|locked))\b/i],
   ['PASSWORD_RESET', /\b(?:reset (?:your |the )?password|password reset|password expir(?:es|ed|ing))\b/i],
   ['CREDENTIAL_REQUEST', /\b(?:send|share|enter|provide|confirm|verify)\b[^.!?\n]{0,65}\b(?:password|credentials)\b/i],
   ['LOGIN_REQUEST', /\b(?:log ?in|sign ?in)\b/i],
   ['PAYMENT_REQUEST', /\b(?:wire transfer|transfer (?:the )?(?:funds|money)|pay (?:this |the |your )?invoice|payment (?:due|overdue|required)|send (?:payment|money))\b/i],
+  ['PAYMENT_REQUEST', /\b(?:dispute|cancel|reverse|refund)\b[^.!?\n]{0,80}\b(?:payment|transaction|charge|purchase)\b|\b(?:payment|transaction|charge|purchase)\b[^.!?\n]{0,80}\b(?:dispute|cancel|reverse|refund)\b/i],
   ['GIFT_CARD', /\b(?:buy|purchase|send)\b[^.!?\n]{0,60}\bgift[ -]?cards?\b/i],
   ['MFA_REQUEST', /\b(?:send|share|provide|enter)\b[^.!?\n]{0,65}\b(?:MFA|OTP|verification code|authentication code|one.time (?:code|password))\b/i],
   ['BYPASS_PROCESS', /\b(?:bypass|skip|ignore)\b[^.!?\n]{0,60}\b(?:approval|verification|procedure|security|process)\b/i],
@@ -74,10 +79,13 @@ export async function analyzeEmail(input) {
   const body = bodyEvidence(text, html, add);
   const attachments = attachmentEvidence(mail.attachments, add);
   const content = `${mail.subject ?? ''}\n${body.text}`;
+  const brand = brandDomainEvidence(sender.sender.domain, `${mail.from?.value?.[0]?.name ?? ''}\n${content}`);
+  if (brand.brandClaim) add('BRAND_IMPERSONATION');
+  if (brand.lookalike) add('SENDER_LOOKALIKE');
   for (const [id, pattern] of PATTERNS) if (pattern.test(content)) add(id);
   const indicators = [...found.values()].sort((a, b) => a.id.localeCompare(b.id));
   return {
-    analyzer: 'EMAIL', analyzerVersion: '6A1.1', inputType,
+    analyzer: 'EMAIL', analyzerVersion: '6A1.2', inputType,
     ...sender, subject: redactEmailMetadata(mail.subject),
     // Recipient addresses and Message-ID are unnecessary for threat evidence.
     recipientCounts: { to: mail.to?.value?.length ?? 0, cc: mail.cc?.value?.length ?? 0 },

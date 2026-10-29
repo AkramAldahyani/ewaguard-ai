@@ -36,7 +36,7 @@ export function createAuthRouter({ database, config }) {
         await authAudit(database, 'LOGIN_FAILED');
         return invalidCredentials(res);
       }
-      const { user, credentialHash } = credentials;
+      const { user, credentialHash, sessionVersion } = credentials;
       if (user.role === 'IT_SECURITY_ADMIN') {
         const access = authCookie(config);
         res.clearCookie(access.name, { ...access.options, maxAge: undefined });
@@ -47,7 +47,10 @@ export function createAuthRouter({ database, config }) {
         return res.status(202).json({ mfaRequired: true, enrollment: challenge.enrollment,
           ...(challenge.provisioningUri ? { provisioningUri: challenge.provisioningUri } : {}) });
       }
-      const token = issueAccessToken(user.id, config);
+      const changed = await database.user.updateMany({ where: { id: user.id, status: 'ACTIVE', deactivatedAt: null, deletedAt: null,
+        sessionVersion, passwordHash: credentialHash, role: { name: 'EMPLOYEE' } }, data: { lastLoginAt: new Date() } });
+      if (!changed.count) return invalidCredentials(res);
+      const token = issueAccessToken(user.id, config, null, sessionVersion);
       const cookie = authCookie(config);
       res.cookie(cookie.name, token, cookie.options);
       res.set('Cache-Control', 'no-store');
@@ -62,10 +65,10 @@ export function createAuthRouter({ database, config }) {
       const code = req.body && Object.keys(req.body).length === 1 ? req.body.code : undefined;
       const result = await completeMfa(database, req.cookies?.[pending.name], code, config);
       if (!result) return res.status(401).json({ error: { code: 'MFA_VERIFICATION_FAILED', message: 'Verification failed. Check your code or return to sign in.' } });
-      const user = await findActiveUser(database, result.userId, result.enabledAt.toISOString());
+      const user = await findActiveUser(database, result.userId, result.enabledAt.toISOString(), result.sessionVersion);
       if (!user) return invalidCredentials(res);
       const access = authCookie(config);
-      const token = issueAccessToken(user.id, config, result.enabledAt);
+      const token = issueAccessToken(user.id, config, result.enabledAt, result.sessionVersion);
       res.cookie(access.name, token, access.options);
       res.clearCookie(pending.name, { ...pending.options, maxAge: undefined });
       await authAudit(database, 'ADMIN_AUTHENTICATION_SUCCEEDED', user.id);

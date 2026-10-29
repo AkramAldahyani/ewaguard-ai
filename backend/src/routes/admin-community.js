@@ -6,9 +6,12 @@ import { createTrustedOrigin } from '../middleware/trusted-origin.js';
 import { createModerationService } from '../community/moderation-service.js';
 import { CommunityError } from '../community/community-service.js';
 import { TrainingError, fields } from '../training/training-policy.js';
+import { mountCommunityMediaReads } from './community-media.js';
+import { createCommentService } from '../community/comment-service.js';
+import { createReportService } from '../community/report-service.js';
 
-export function createAdminCommunityRouter({ database, config }) {
-  const router = Router(), service = createModerationService(database);
+export function createAdminCommunityRouter({ database, config, media }) {
+  const router = Router(), service = createModerationService(database, media);
   router.use((_req, res, next) => { res.set('Cache-Control', 'private, no-store, max-age=0'); next(); });
   router.use(createAuthenticate({ database, config }), requireRole('IT_SECURITY_ADMIN'),
     createTrustedOrigin(config.trustedOrigins));
@@ -23,6 +26,21 @@ export function createAdminCommunityRouter({ database, config }) {
       next(error);
     }
   };
+  mountCommunityMediaReads(router, media);
+  const reports = createReportService(database, media);
+  router.get('/reports', handle((req) => reports.list(req.query)));
+  router.post('/reports/:id/resolve', decisionLimit, json({ limit: '8kb', inflate: false }), handle((req) => {
+    fields(req.query, []);
+    if (!req.is('application/json')) throw new CommunityError(415, 'COMMUNITY_CONTENT_TYPE', 'Use application/json.');
+    return reports.resolve(req.user, req.params.id, req.body);
+  }));
+  const comments = createCommentService(database);
+  router.get('/comments', handle((req) => comments.queue(req.user, req.query)));
+  router.post('/comments/:id/:action', decisionLimit, json({ limit: '8kb', inflate: false }), handle((req) => {
+    fields(req.query, []);
+    if (!req.is('application/json')) throw new CommunityError(415, 'COMMUNITY_CONTENT_TYPE', 'Use application/json.');
+    return comments.decide(req.user, req.params.id, req.params.action, req.body);
+  }));
   router.get('/', handle((req) => service.list(req.query)));
   router.get('/:id', handle((req) => { fields(req.query, []); return service.detail(req.params.id); }));
   router.post('/:id/:action', decisionLimit, json({ limit: '8kb', inflate: false }), handle((req) => {

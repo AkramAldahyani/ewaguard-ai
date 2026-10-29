@@ -2,10 +2,11 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { FileSearch, Upload } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader.jsx';
 import { Button, Card } from '../../components/ui/index.jsx';
-import { SensitiveInformationNotice } from '../disclaimer/SensitiveInformationNotice.jsx';
-import { FILE_ACCEPT, FILE_EXTENSIONS, FILE_PRIVACY_NOTICE } from '../../../../shared/file-policy.js';
+import { FILE_ACCEPT, FILE_EXTENSIONS } from '../../../../shared/file-policy.js';
 import { createFileFlow } from './file-state.js';
 import { FileResults } from './FileResults.jsx';
+import { HashLookup } from './HashLookup.jsx';
+import { AnalysisPageTheme } from '../../components/analysis-risk-theme.jsx';
 
 export function FileInputForm({ state, flow }) {
   const picker = useRef(null); const busy = state.status === 'submitting';
@@ -24,17 +25,21 @@ export function FileInputForm({ state, flow }) {
 }
 export function FileAnalyzerPage() {
   const [flow] = useState(createFileFlow);
+  const [hashRisk, setHashRisk] = useState(null);
   const state = useSyncExternalStore(flow.subscribe, flow.getSnapshot, flow.getSnapshot);
   const feedback = useRef(null);
   useEffect(() => () => flow.dispose(), [flow]);
   useEffect(() => { if (state.error || state.result) feedback.current?.focus(); }, [state.error, state.result]);
-  return <div className="mx-auto w-full max-w-6xl min-w-0">
+  const fileRisk = state.status === 'success'
+    ? state.result?.result?.risk ?? (state.result?.replayed ? { riskLevel: state.result.severity } : null)
+    : null;
+  const activeRisk = fileRisk || (state.status === 'submitting' ? null : hashRisk);
+  return <AnalysisPageTheme risk={activeRisk} className="mx-auto w-full min-w-0"><div className="mx-auto w-full max-w-6xl min-w-0">
     <PageHeader eyebrow="Security analysis" title="Analyze File" description="Review file structure, local antivirus and YARA findings, and existing SHA-256 reputation without opening the file." />
-    <Card className="mb-5 p-5 text-sm leading-6 text-slate-600"><h2 className="font-bold text-slate-950">Private content, minimized evidence</h2><p className="mt-2">{FILE_PRIVACY_NOTICE}</p><p className="mt-2">Only submit material permitted by company policy. Temporary copies are deleted after local scanning; hashes and minimized evidence are stored. Hash queries disclose a file fingerprint to the provider.</p></Card>
+    <HashLookup onRiskChange={setHashRisk} />
     <p role="status" aria-live="polite" className="mb-3 text-sm font-semibold text-brand-700">{state.status === 'submitting' ? 'Scanning file… The server validates and hashes the file, runs available ClamAV and YARA checks, and looks up hash reputation. This can take a few minutes.' : state.result ? 'File analysis complete. Review coverage and scanner statuses.' : ''}</p>
     {state.error && <div ref={feedback} tabIndex={-1} role="alert" className="mb-5 rounded-xl border border-warning-300 bg-warning-50 p-4">{state.error}</div>}
-    {!state.acknowledged && <SensitiveInformationNotice key={state.noticeKey} context="FILE_ANALYSIS" continuation="file analysis" onAcknowledged={flow.acknowledge} />}
-    {state.acknowledged && !state.result && <Card className="p-5 sm:p-7"><FileInputForm state={state} flow={flow} /></Card>}
-    {state.result && <section><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><h2 ref={feedback} tabIndex={-1} className="text-xl font-bold">File analysis result</h2><Button onClick={flow.reset}>Analyze Another File / Clear</Button></div><FileResults analysis={state.result} /></section>}
-  </div>;
+    {!state.result && <Card className="p-5 sm:p-7"><FileInputForm state={state} flow={flow} /></Card>}
+    {state.result && <section><div className="analysis-result-heading mb-5 flex flex-wrap items-center justify-between gap-3"><h2 ref={feedback} tabIndex={-1} className="text-xl font-bold">File analysis result</h2><div className="analysis-result-actions"><Button onClick={flow.reset}>Analyze Another File / Clear</Button></div></div><FileResults analysis={state.result} /></section>}
+  </div></AnalysisPageTheme>;
 }

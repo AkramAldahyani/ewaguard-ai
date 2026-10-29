@@ -3,6 +3,7 @@ import { AlertCircle, BookOpen, Check, Copy, Info, ShieldAlert } from 'lucide-re
 import { Badge, Button, RiskBadge } from '../../components/ui/index.jsx';
 import { MessageContent } from './MessageContent.jsx';
 import logo from '../../assets/branding/ewa-ai-logo.png';
+import { AnalysisRiskPanel } from '../../components/analysis-risk-theme.jsx';
 
 export function AssistantAvatar({ className = '' }) {
   return <span className={`assistant-avatar ${className}`} aria-hidden="true"><img src={logo} alt="" /></span>;
@@ -44,7 +45,8 @@ function EvidenceList({ title, items = [] }) {
 
 export function AnalysisResultBlock({ analysisType, riskScore, severity, indicators, evidence, recommendedActions, evidenceNote, source, preview = true }) {
   const validScore = Number.isFinite(riskScore) && riskScore >= 0 && riskScore <= 100;
-  return <section className="rounded-xl border border-slate-200 bg-white p-5" aria-label="Structured security result"><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-bold text-slate-900">{analysisType ?? 'Analysis result'}</h3>{preview && <Badge>Sample layout · Not a finding</Badge>}</div><div className="mt-4">{severities.includes(severity) ? <RiskBadge level={severity} score={validScore ? riskScore : undefined} /> : <Badge>Risk not assessed</Badge>}</div><div className="mt-5 space-y-5"><EvidenceList title="Indicators" items={indicators} /><EvidenceList title="Technical evidence" items={evidence} /><EvidenceList title="Recommended actions" items={recommendedActions} /></div><p className="mt-4 border-t border-slate-100 pt-4 text-xs leading-5 text-slate-600">{evidenceNote ?? 'Evidence completeness and confidence have not been provided.'}</p>{source && <p className="mt-2 break-words text-xs text-slate-500">Reference: {source}</p>}</section>;
+  const hasSeverity = severities.includes(severity);
+  return <AnalysisRiskPanel as="section" risk={{ riskLevel: severity }} neutral={preview || !hasSeverity} className="rounded-xl border border-[var(--analysis-line)] bg-[var(--analysis-card)] p-5" aria-label="Structured security result"><div className="flex flex-wrap items-center justify-between gap-3"><h3 className="font-bold text-[var(--analysis-ink)]">{analysisType ?? 'Analysis result'}</h3>{preview && <Badge>Sample layout · Not a finding</Badge>}</div><div className="mt-4">{hasSeverity ? <RiskBadge level={severity} score={validScore ? riskScore : undefined} neutral={preview} /> : <Badge>Risk not assessed</Badge>}</div><div className="mt-5 space-y-5"><EvidenceList title="Indicators" items={indicators} /><EvidenceList title="Technical evidence" items={evidence} /><EvidenceList title="Recommended actions" items={recommendedActions} /></div><p className="mt-4 border-t border-[var(--analysis-line)] pt-4 text-xs leading-5 text-slate-600">{evidenceNote ?? 'Evidence completeness and confidence have not been provided.'}</p>{source && <p className="mt-2 break-words text-xs text-slate-500">Reference: {source}</p>}</AnalysisRiskPanel>;
 }
 
 export function CitationCard({ title, reference, excerpt, sourceType, preview = true }) {

@@ -1,4 +1,5 @@
 import { buildIncidentAssistance } from '../../backend/src/assistance/incident-assistance.js';
+import { waitForSubmission } from './analysis-wait.mjs';
 import { evaluateRisk } from '../../backend/src/risk/risk-engine.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -16,6 +17,13 @@ test('employee file analyzer UI, safe presentation and interaction lifecycle', a
   t.after(() => server.close());
   const { FileAnalyzerPage, FileInputForm } = await server.ssrLoadModule('/src/features/file/FileAnalyzerPage.jsx');
   const { FileResults } = await server.ssrLoadModule('/src/features/file/FileResults.jsx');
+  await t.test('retry receipt renders without requiring original submission details', () => {
+    const html = renderToStaticMarkup(createElement(FileResults, { analysis: { replayed: true,
+      analysisId: 'saved-id', analyzerType: 'FILE', severity: 'LOW', riskScore: 0,
+      createdAt: '2026-10-19T12:00:00Z', incident: { state: 'NOT_REQUIRED' } } }));
+    assert.match(html, /Previously completed analysis/);
+    assert.match(html, /This retry did not create another scan/);
+  });
   const render = (Component, props) => renderToStaticMarkup(createElement(MemoryRouter, { initialEntries: ['/analyze/file'] }, createElement(Component, props)));
   const analyzer = createFileAnalyzer({
     tempStore: { withFile: async (_, operation) => operation({ filename: 'synthetic', directory: 'synthetic' }) },
@@ -25,12 +33,11 @@ test('employee file analyzer UI, safe presentation and interaction lifecycle', a
   analysis.result.risk = evaluateRisk({ analyzerType: 'FILE', evidence: analysis.result, evaluatedAt: analysis.createdAt });
   analysis.result.assistance = buildIncidentAssistance({ analyzerType: 'FILE', riskResult: analysis.result.risk });
   const file = new File(['harmless text'], 'fixture.txt', { type: 'text/plain' });
-  const ready = (submit = async () => analysis) => { const flow = createFileFlow(submit); flow.acknowledge(); flow.selectFiles([file]); return flow; };
+  const ready = (submit = async () => analysis) => { const flow = createFileFlow(submit); flow.selectFiles([file]); return flow; };
 
-  await t.test('active acknowledgement precedes file selection', async () => {
-    const html = render(FileAnalyzerPage); assert.match(html, /Sensitive Information Notice/); assert.doesNotMatch(html, /type="file"|checked=""|Preview only/);
-    assert.match(html, /SHA-256 reputation lookup only/);
-    const flow = createFileFlow(() => assert.fail()); flow.selectFiles([file]); await flow.submit();
+  await t.test('file selection is available without a disclaimer', () => {
+    const html = render(FileAnalyzerPage); assert.match(html, /type="file"/); assert.doesNotMatch(html, /Sensitive Information Notice|Before You Continue|type="checkbox"/);
+    assert.doesNotMatch(html, /Private content, minimized evidence|SHA-256 reputation lookup only/);
   });
   await t.test('upload form has keyboard picker, selected metadata, guidance, remove and Analyze controls', () => {
     const flow = ready(); const html = render(FileInputForm, { flow, state: flow.getSnapshot() });
@@ -81,18 +88,16 @@ test('employee file analyzer UI, safe presentation and interaction lifecycle', a
   await t.test('honest scanning state, duplicate protection, success/reset clear file and result', async () => {
     let finish; let calls = 0;
     const flow = ready(() => { calls++; return new Promise((resolve) => { finish = resolve; }); });
-    const pending = flow.submit(); await flow.submit(); assert.equal(calls, 1);
+    const pending = flow.submit(); await flow.submit(); await waitForSubmission(() => calls === 1); assert.equal(calls, 1);
     assert.match(render(FileInputForm, { flow, state: flow.getSnapshot() }), /aria-busy="true"/);
     assert.match(render(FileInputForm, { flow, state: flow.getSnapshot() }), /Scanning file/);
     finish(analysis); await pending; assert.equal(flow.getSnapshot().file, null); assert.ok(flow.getSnapshot().result);
     flow.reset(); assert.equal(flow.getSnapshot().result, null);
   });
-  await t.test('abort prevents stale result; acknowledgement/session/failure messages are safe', async () => {
+  await t.test('abort prevents stale result and failure messages are safe', async () => {
     let finish; let signal;
     const flow = ready((_, s) => { signal = s; return new Promise((resolve) => { finish = resolve; }); });
-    const pending = flow.submit(); flow.reset(); assert.ok(signal.aborted); finish(analysis); await pending; assert.equal(flow.getSnapshot().result, null);
-    const expired = ready(async () => { throw { code: 'FILE_ACKNOWLEDGEMENT_REQUIRED' }; }); await expired.submit();
-    assert.equal(expired.getSnapshot().acknowledged, false); assert.equal(expired.getSnapshot().file, null);
+    const pending = flow.submit(); await waitForSubmission(() => signal); flow.reset(); assert.ok(signal.aborted); finish(analysis); await pending; assert.equal(flow.getSnapshot().result, null);
     for (const status of [401, 429, 413, 500]) assert.doesNotMatch(fileErrorMessage({ status, message: 'RAW_SECRET' }), /RAW_SECRET/);
   });
 });

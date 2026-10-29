@@ -1,12 +1,12 @@
 import { apiRequest } from '../../services/api.js';
+import { createSubmissionKey } from '../analysis-submission.js';
 
-export const analyzeUrl = (url, signal) => apiRequest('/api/analysis/url', { method: 'POST', body: JSON.stringify({ url }), signal });
+export const analyzeUrl = (url, signal, key) => apiRequest('/api/analysis/url', { method: 'POST', body: JSON.stringify({ url }), signal, headers: key ? { 'Idempotency-Key': key } : {} });
 export function urlErrorMessage(error) {
   if (error.status === 401) return 'Your session has expired. Sign in again to continue.';
   if (error.status === 429) return 'Too many submissions. Wait a minute and try again.';
   if (error.status === 413) return 'Enter a URL of at most 4096 characters.';
   return ({
-    URL_ACKNOWLEDGEMENT_REQUIRED: 'Please renew your acknowledgement before submitting a URL.',
     URL_TARGET_BLOCKED: 'Private, internal, local, and reserved targets cannot be analyzed.',
     INVALID_URL: 'Enter one valid HTTP or HTTPS URL without embedded credentials.',
     URL_BUSY: 'URL analysis is busy. Please try again shortly.',
@@ -19,7 +19,8 @@ export function validateUrlInput(value) {
 }
 const empty = { url: '', result: null, error: '', status: 'idle' };
 export function createUrlFlow(submit = analyzeUrl) {
-  let state = { ...empty, acknowledged: false, noticeKey: 0 };
+  const submission = createSubmissionKey();
+  let state = { ...empty };
   let controller;
   let generation = 0;
   const listeners = new Set();
@@ -27,24 +28,25 @@ export function createUrlFlow(submit = analyzeUrl) {
   return {
     getSnapshot: () => state,
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
-    acknowledge: () => set({ acknowledged: true, error: '' }),
     edit: (url) => { if (state.status !== 'submitting') set({ url, error: '' }); },
-    reset: () => { generation += 1; controller?.abort(); set(empty); },
-    dispose: () => { generation += 1; controller?.abort(); state = { ...state, ...empty }; },
+    reset: () => { submission.clear(); generation += 1; controller?.abort(); set(empty); },
+    dispose: () => { submission.clear(); generation += 1; controller?.abort(); state = { ...state, ...empty }; },
     submit: async () => {
-      if (state.status === 'submitting' || !state.acknowledged) return;
+      if (state.status === 'submitting') return;
       const error = validateUrlInput(state.url);
       if (error) { set({ error, status: 'error' }); return; }
       const current = ++generation;
       controller = new AbortController();
       set({ error: '', result: null, status: 'submitting' });
       try {
-        const result = await submit(state.url, controller.signal);
-        if (generation === current) set({ ...empty, result, status: 'success' });
+        const input = state.url;
+        const key = await submission.forInput(input);
+        if (generation !== current) return;
+        const result = await submit(input, controller.signal, key);
+        if (generation === current) { submission.clear(); set({ ...empty, result, status: 'success' }); }
       } catch (failure) {
         if (generation !== current) return;
-        const expired = failure.code === 'URL_ACKNOWLEDGEMENT_REQUIRED';
-        set({ url: '', status: 'error', error: urlErrorMessage(failure), ...(expired ? { acknowledged: false, noticeKey: state.noticeKey + 1 } : {}) });
+        set({ url: '', status: 'error', error: urlErrorMessage(failure) });
       }
     },
   };

@@ -4,6 +4,8 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { test } from 'node:test';
+import { readFile } from 'node:fs/promises';
+import { projectIncidentDetail } from '../src/incidents/incident-detail.js';
 import { createApp } from '../src/app.js';
 import { createDatabaseClient } from '../src/config/database.js';
 import { parseConfig, databaseUrl } from '../src/config/env.js';
@@ -139,6 +141,25 @@ test('Phase 6A2 HTTP and real PostgreSQL privacy boundaries', async (t) => {
     assert.equal(await database.emailAnalysis.count({ where: { userId: employee.id } }), 0);
   });
   base = await start();
+  await t.test('HTML-only phishing upload persists HIGH and automatically creates its incident', async () => {
+    const content = await readFile(new URL('./fixtures/reported-paypal-phishing.eml', import.meta.url), 'utf8');
+    const response = await upload(form(content));
+    assert.equal(response.status, 201);
+    const payload = await response.json();
+    assert.equal(payload.result.risk.riskLevel, 'HIGH');
+    assert.equal(payload.result.risk.score, 67);
+    assert.equal(payload.incident.state, 'RECORDED');
+    assert.equal(payload.incident.severity, 'HIGH');
+    const stored = await database.emailAnalysis.findUnique({ where: { id: payload.analysisId } });
+    assert.equal(stored.severity, 'HIGH');
+    assert.equal(stored.riskScore, 67);
+    const incident = await database.incident.findUnique({ where: { sourceKey: `EMAIL:${payload.analysisId}` }, include: { evidence: true } });
+    assert.equal(incident.severity, 'HIGH');
+    assert.equal(incident.reporterId, employee.id);
+    assert.equal(incident.status, 'NEW');
+    assert.equal(projectIncidentDetail(incident, true).risk.status, 'AVAILABLE');
+    assert.equal(projectIncidentDetail(incident, true).guidance.status, 'AVAILABLE');
+  });
   await t.test('assistance and exposure fields cannot be supplied by clients', async () => {
     for (const key of ['assistance', 'evidenceContext', 'credentialsExposed', 'suspectedExecution']) {
       const data = { body: 'Hello', [key]: true };

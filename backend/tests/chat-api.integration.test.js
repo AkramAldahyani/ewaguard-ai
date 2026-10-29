@@ -6,7 +6,8 @@ import { createApp } from '../src/app.js';
 import { createDatabaseClient } from '../src/config/database.js';
 import { databaseUrl, parseConfig } from '../src/config/env.js';
 import { authCookie, issueAccessToken } from '../src/auth/auth-token.js';
-import { CHAT_LIMITS, PRIVACY_NOTICE, modelPricing, ChatError } from '../src/ai/chat-policy.js';
+import { CHAT_LIMITS, PRIVACY_NOTICE, modelPricing, estimatedMicros, ChatError } from '../src/ai/chat-policy.js';
+import { inputBound } from '../src/ai/tool-round-budget.js';
 import { createChatService, purgeExpiredChats } from '../src/ai/chat-service.js';
 import { retentionPolicy } from '../src/privacy/retention-policy.js';
 
@@ -131,7 +132,8 @@ test('Phase 8A HTTP and PostgreSQL chat boundaries (mock provider, $0)', async (
     // Preserve the real ledger. Reserve relative to existing usage, not an
     // assumption that this shared development database has never been used.
     const existing = await database.aiUsage.aggregate({ _sum: { chargedMicros: true } });
-    const blocker = await entry({ chargedMicros: CHAT_LIMITS.budgetMicros - (existing._sum.chargedMicros ?? 0) - 1500 });
+    const reservation = estimatedMicros(inputBound([{ role: 'user', content: 'What is phishing?' }], false), CHAT_LIMITS.outputTokens, modelPricing(provider.model));
+    const blocker = await entry({ chargedMicros: CHAT_LIMITS.budgetMicros - (existing._sum.chargedMicros ?? 0) - reservation });
     let release; const gate = new Promise((resolve) => { release = resolve; });
     let entered; const started = new Promise((resolve) => { entered = resolve; });
     respond = async () => { entered(); await gate; return result(); };
@@ -150,20 +152,25 @@ test('Phase 8A HTTP and PostgreSQL chat boundaries (mock provider, $0)', async (
     r = await request(`/conversations/${session.id}/messages`, payload()); assert.equal((await r.json()).error.code, 'AI_BUSY');
     await database.aiUsage.deleteMany({ where: { id: { in: [a.id, b.id] } } });
   });
-  await t.test('ambiguous usage, provider failures and stale reservations fail closed', async () => {
+  await t.test('ambiguous usage and stale reservations retain their charge without pausing later requests', async () => {
     for (const error of [new ChatError(504, 'AI_TIMEOUT', 'Timeout.'), new ChatError(429, 'AI_RATE_LIMITED', 'Rate limited.'), new ChatError(503, 'AI_CREDITS_UNAVAILABLE', 'Credits unavailable.')]) {
       respond = async () => { throw error; };
       const r = await request(`/conversations/${session.id}/messages`, payload()); assert.equal(r.status, error.status);
       assert.equal((await r.json()).error.code, error.code);
-      const blocked = await request(`/conversations/${session.id}/messages`, payload()); assert.equal((await blocked.json()).error.code, 'AI_USAGE_REVIEW_REQUIRED');
-      await database.aiUsage.deleteMany({ where: { userId: employee.id, status: 'UNKNOWN' } });
+      assert.equal(await database.aiUsage.count({ where: { userId: employee.id, status: 'UNKNOWN' } }), 0);
+      const failed = await database.aiUsage.findFirst({ where: { userId: employee.id, status: 'FAILED' }, orderBy: { createdAt: 'desc' } });
+      assert.equal(failed.chargedMicros, failed.reservedMicros);
+      respond = async () => result();
+      assert.equal((await request(`/conversations/${session.id}/messages`, payload())).status, 201);
     }
     respond = async () => ({ ...result(), usage: null });
     assert.equal((await request(`/conversations/${session.id}/messages`, payload())).status, 503);
-    await database.aiUsage.deleteMany({ where: { userId: employee.id, status: 'UNKNOWN' } });
-    const stale = await entry({ status: 'RESERVED', createdAt: new Date(Date.now() - 120000) });
-    const r = await request(`/conversations/${session.id}/messages`, payload()); assert.equal((await r.json()).error.code, 'AI_USAGE_REVIEW_REQUIRED');
-    await database.aiUsage.delete({ where: { id: stale.id } }); respond = async () => result();
+    assert.equal(await database.aiUsage.count({ where: { userId: employee.id, status: 'UNKNOWN' } }), 0);
+    const stale = await entry({ status: 'RESERVED', createdAt: new Date(Date.now() - 120000), updatedAt: new Date(Date.now() - 120000) });
+    respond = async () => result();
+    assert.equal((await request(`/conversations/${session.id}/messages`, payload())).status, 201);
+    assert.equal((await database.aiUsage.findUnique({ where: { id: stale.id } })).status, 'FAILED');
+    await database.aiUsage.delete({ where: { id: stale.id } });
   });
   base = await start();
   await t.test('malformed response charges known usage but stores no message or tools', async () => {

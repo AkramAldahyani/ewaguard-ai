@@ -8,6 +8,7 @@ import { verifyAcknowledgement } from '../disclaimers/disclaimer-service.js';
 import { DISCLAIMER_DEFINITION } from '../../../shared/disclaimer.js';
 import { EMAIL_LIMITS, EmailAnalysisError } from '../analyzers/email/email-policy.js';
 import { submitEmailAnalysis } from '../analyzers/email/email-submission.js';
+import { submitOnce } from '../analyzers/submission-idempotency.js';
 
 export const EMAIL_ACKNOWLEDGEMENT_MAX_AGE_MS = 15 * 60_000;
 export const EMAIL_SUBMISSION_LIMIT = ANALYSIS_REQUEST_LIMITS.EMAIL;
@@ -49,9 +50,10 @@ export function createEmailAnalysisRouter({ database, config, analyzer, gate = c
 
   const complete = (inputFor) => async (req, res, next) => {
     try {
-      const response = await submitEmailAnalysis(database, {
-        userId: req.user.id, acknowledgementId: req.emailAcknowledgementId, input: inputFor(req),
-      }, analyzer);
+      const input = inputFor(req);
+      const response = await submitOnce(database, { key: req.get('Idempotency-Key'), userId: req.user.id,
+        type: 'EMAIL', payload: input.eml ?? JSON.stringify([input.inputType, input.body, input.headers ?? '']), secret: config.jwtSecret },
+      (db) => submitEmailAnalysis(db, { userId: req.user.id, acknowledgementId: req.emailAcknowledgementId, input }, analyzer));
       return res.status(response.incident.state === 'PENDING' ? 202 : 201).json(response);
     } catch (error) {
       if (error instanceof EmailAnalysisError) {

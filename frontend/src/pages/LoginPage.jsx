@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { ArrowRight, Eye, EyeOff, FileSearch, Link2, LockKeyhole, MailCheck, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import building from '../assets/branding/ewa_building.png';
 import loginLogo from '../assets/branding/ewa_logo_wide.png';
 import { Button, Field, Input } from '../components/ui/index.jsx';
 import { useAuth } from '../context/auth-context.js';
 import { MfaForm } from '../components/auth/MfaForm.jsx';
+import { SecurityTips } from '../components/employee/SecurityTips.jsx';
 
 export function LoginPage() {
   const { login, sessionExpired } = useAuth();
@@ -57,12 +58,7 @@ export function LoginPage() {
             </div>
           </div>
           <h1 className="mt-5 max-w-xl text-balance text-3xl font-bold leading-tight tracking-[-0.035em] text-white xl:text-4xl">Stay secure, stay informed, and <span className="text-cyan-200">respond with confidence.</span></h1>
-          <p className="mt-4 max-w-2xl text-sm leading-6 text-slate-200">Access EWAGuard AI to analyze suspicious emails, links, and files, get trusted cybersecurity guidance, complete awareness training, and report security concerns, all from one secure workspace.</p>
-          <div className="mt-5 flex flex-wrap gap-2.5" aria-label="Available security analysis tools">
-            <span className="login-capability inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-3 py-2 text-xs font-semibold text-slate-100"><MailCheck className="size-3.5 text-cyan-200" />Email analysis</span>
-            <span className="login-capability inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-3 py-2 text-xs font-semibold text-slate-100"><Link2 className="size-3.5 text-cyan-200" />Link checks</span>
-            <span className="login-capability inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.07] px-3 py-2 text-xs font-semibold text-slate-100"><FileSearch className="size-3.5 text-cyan-200" />File review</span>
-          </div>
+          <SecurityTips />
           <div className="mt-5 flex items-center gap-3 border-t border-white/10 pt-4 text-sm font-semibold leading-6 text-white">
             <ArrowRight className="size-4 shrink-0 text-cyan-200" aria-hidden="true" />
             <p>Sign in with your organization-provided account to continue.</p>

@@ -1,7 +1,9 @@
 import { buildIncidentAssistance } from '../../backend/src/assistance/incident-assistance.js';
+import { waitForSubmission } from './analysis-wait.mjs';
 import { evaluateRisk } from '../../backend/src/risk/risk-engine.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
+import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
@@ -17,6 +19,13 @@ test('employee email UI, state transitions and API contract', async (t) => {
   t.after(() => server.close());
   const { EmailAnalyzerPage, EmailInputForm } = await server.ssrLoadModule('/src/features/email/EmailAnalyzerPage.jsx');
   const { EmailResults } = await server.ssrLoadModule('/src/features/email/EmailResults.jsx');
+  await t.test('retry receipt renders without requiring original submission details', () => {
+    const html = renderToStaticMarkup(createElement(EmailResults, { analysis: { replayed: true,
+      analysisId: 'saved-id', analyzerType: 'EMAIL', severity: 'LOW', riskScore: 0,
+      createdAt: '2026-10-19T12:00:00Z', incident: { state: 'NOT_REQUIRED' } } }));
+    assert.match(html, /Previously completed analysis/);
+    assert.match(html, /This retry did not create another scan/);
+  });
   const render = (Component, props = {}) => renderToStaticMarkup(createElement(MemoryRouter, { initialEntries: ['/analyze/email'] }, createElement(Component, props)));
   const eml = 'From: Help Desk <support@example.invalid>\r\nReply-To: other@elsewhere.invalid\r\nSubject: Review request\r\nAuthentication-Results: inbound.invalid; spf=pass; dkim=fail; dmarc=fail\r\nContent-Type: multipart/mixed; boundary=fixture\r\n\r\n--fixture\r\nContent-Type: text/plain\r\n\r\nUrgent: provide your password. Visit http://example.invalid/account?secret=hidden\r\n--fixture\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename="report.exe"\r\n\r\nHarmless synthetic attachment\r\n--fixture--';
   const result = await analyzeEmail({ inputType: 'EML', eml: Buffer.from(eml) });
@@ -27,11 +36,26 @@ test('employee email UI, state transitions and API contract', async (t) => {
   const api = { analyzePastedEmail: async () => analysis, analyzeEml: async () => analysis };
   const ready = (client = api) => { const flow = createEmailFlow(client); flow.acknowledge(); flow.edit('body', valid.body); return flow; };
 
+  await t.test('HTML-only phishing regression displays authoritative HIGH and accurate evidence', async () => {
+    const output = await analyzeEmail({ inputType: 'EML', eml: await readFile(new URL('../../backend/tests/fixtures/reported-paypal-phishing.eml', import.meta.url)) });
+    output.risk = evaluateRisk({ analyzerType: 'EMAIL', evidence: output });
+    output.assistance = buildIncidentAssistance({ analyzerType: 'EMAIL', riskResult: output.risk });
+    const html = render(EmailResults, { analysis: { ...analysis, result: output } });
+    assert.equal(output.risk.score, 67);
+    assert.match(html, /High risk/);
+    assert.match(html, /Sender domain resembles/);
+    assert.match(html, /shortened URL/);
+    assert.match(html, /Return-Path Information/);
+    assert.match(html, /No attachments were identified/);
+    assert.match(html, /Not independently verified/);
+    assert.doesNotMatch(html, /Sender and Reply-To differ|Request to provide credentials|<a\b|<iframe\b/);
+  });
+
   await t.test('disclaimer is mandatory before any form or submission', async () => {
     const html = render(EmailAnalyzerPage);
-    assert.match(html, /Sensitive Information Notice/);
+    assert.match(html, /Before You Continue/);
     assert.doesNotMatch(html, /type="file"|<textarea|checked=""|Preview only/);
-    assert.match(html, /disabled=""[^>]*>Acknowledge and continue/);
+    assert.match(html, /disabled=""[^>]*>Continue to Email Analysis/);
     let calls = 0;
     const flow = createEmailFlow({ analyzePastedEmail: () => { calls += 1; } });
     flow.edit('body', 'Hello');
@@ -108,6 +132,7 @@ test('employee email UI, state transitions and API contract', async (t) => {
     let finish; let calls = 0;
     const flow = ready({ analyzePastedEmail: () => { calls += 1; return new Promise((resolve) => { finish = resolve; }); } });
     const pending = flow.submit(); await flow.submit();
+    await waitForSubmission(() => calls === 1);
     assert.equal(calls, 1);
     assert.equal(flow.getSnapshot().status, 'submitting');
     const html = render(EmailInputForm, { flow, state: flow.getSnapshot() });
@@ -196,7 +221,7 @@ test('employee email UI, state transitions and API contract', async (t) => {
   await t.test('reset aborts pending request and ignores late result; mode change clears drafts', async () => {
     let finish; let signal;
     const flow = ready({ analyzePastedEmail: (_, requestSignal) => { signal = requestSignal; return new Promise((resolve) => { finish = resolve; }); } });
-    const pending = flow.submit(); flow.reset(); assert.equal(signal.aborted, true);
+    const pending = flow.submit(); await waitForSubmission(() => signal); flow.reset(); assert.equal(signal.aborted, true);
     finish(analysis); await pending; assert.equal(flow.getSnapshot().result, null);
     flow.edit('body', 'sensitive draft'); flow.changeMode('eml'); assert.equal(flow.getSnapshot().body, '');
     flow.dispose(); assert.equal(flow.getSnapshot().file, null);

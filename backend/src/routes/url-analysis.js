@@ -3,10 +3,10 @@ import { createAnalysisGate, ANALYSIS_REQUEST_LIMITS } from '../analyzers/analys
 import { createAuthenticate } from '../middleware/authenticate.js';
 import { requireRole } from '../middleware/authorize.js';
 import { createTrustedOrigin } from '../middleware/trusted-origin.js';
-import { DISCLAIMER_DEFINITION } from '../../../shared/disclaimer.js';
 import { createThreatIntelligence } from '../services/threat-intelligence.js';
 import { createUrlAnalyzer, submitUrlAnalysis } from '../analyzers/url/url-analyzer.js';
 import { UrlAnalysisError } from '../analyzers/url/url-normalization.js';
+import { submitOnce } from '../analyzers/submission-idempotency.js';
 
 export const URL_SUBMISSION_LIMIT = ANALYSIS_REQUEST_LIMITS.URL;
 const fail = (res, status, code, message) => res.status(status).json({ error: { code, message } });
@@ -23,13 +23,9 @@ export function createUrlAnalysisRouter({ database, config, threatIntelligence =
     try {
       if (!req.body || Array.isArray(req.body) || Object.keys(req.body).length !== 1 || !Object.hasOwn(req.body, 'url')) throw new UrlAnalysisError();
       release = gate.acquire();
-      const now = new Date();
-      const ack = await database.disclaimerAcknowledgement.findFirst({ where: {
-        userId: req.user.id, context: 'URL_ANALYSIS', version: DISCLAIMER_DEFINITION.version,
-        createdAt: { gte: new Date(now.getTime() - 15 * 60_000), lte: now },
-      }, orderBy: { createdAt: 'desc' }, select: { id: true } });
-      if (!ack) return fail(res, 403, 'URL_ACKNOWLEDGEMENT_REQUIRED', 'A current URL analysis acknowledgement is required.');
-      const response = await submitUrlAnalysis(database, { userId: req.user.id, acknowledgementId: ack.id, input: req.body.url }, analyzer);
+      const response = await submitOnce(database, { key: req.get('Idempotency-Key'), userId: req.user.id,
+        type: 'URL', payload: JSON.stringify(req.body.url), secret: config.jwtSecret },
+      (db) => submitUrlAnalysis(db, { userId: req.user.id, input: req.body.url }, analyzer));
       return res.status(response.incident.state === 'PENDING' ? 202 : 201).json(response);
     } catch (error) {
       if (error instanceof UrlAnalysisError) return fail(res, 400, error.code, error.message);

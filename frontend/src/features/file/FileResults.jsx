@@ -1,4 +1,5 @@
 import { IncidentAssistance } from '../../components/IncidentAssistance.jsx';
+import { AnalysisReplay } from '../../components/AnalysisReplay.jsx';
 import { IncidentReceipt } from '../../components/IncidentReceipt.jsx';
 import { RiskResult } from '../../components/RiskResult.jsx';
 import { Badge, Card } from '../../components/ui/index.jsx';
@@ -12,6 +13,7 @@ function Metadata({ values }) {
   return <dl className="grid gap-3 sm:grid-cols-2">{values.map(([label, value]) => <div key={label}><dt className="text-slate-500">{label}</dt><dd className="mt-1 break-words font-medium [overflow-wrap:anywhere]">{typeof value === 'boolean' ? (value ? 'Yes' : 'No') : value ?? 'Unavailable'}</dd></div>)}</dl>;
 }
 export function FileResults({ analysis }) {
+  if (analysis.replayed) return <AnalysisReplay analysis={analysis} />;
   const r = analysis.result; const [label, tone] = labels[r.provisionalClassification] ?? ['Unavailable', 'neutral'];
   const p = r.threatIntelligence;
   return <div className="space-y-5 text-sm leading-6">

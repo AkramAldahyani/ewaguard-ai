@@ -92,3 +92,30 @@ test('AI presentation formats readable structure while keeping hostile markup an
   for (const pattern of [/<h3>Next steps<\/h3>/, /<strong>Verify first<\/strong>/, /<code>trusted tools<\/code>/, /<ul><li>/, /<ol start="1">/, /<pre><code>/, /<table>/, /<th scope="col">Check/, /Not scanned/, /&lt;script&gt;/, /&lt;img/]) assert.match(html, pattern);
   assert.doesNotMatch(html, /<(?:script|img|iframe|a)\b|<[^>]+\s(?:href|onerror)=/);
 });
+
+test('Markdown preserves paragraph flow, nested actions, escaped evidence, citations and trusted links', async t => {
+  const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+  t.after(() => server.close());
+  const { MessageContent } = await server.ssrLoadModule('/src/features/chat/MessageContent.jsx');
+  const content = 'A short answer\ncontinues naturally.\n\n1. Report it\n   Include the sender.\n   - Keep the original\n\n2. Contact IT\n\n### Sources\n\n**[POLICY1] Sample policy**\n\n> Literal \\*asterisks\\* and \\[source\\].\n\n[CISA](https://www.cisa.gov/secure-our-world)\n[Unsafe](https://www.cisa.gov.evil.invalid/)\n[Tracked](https://www.cisa.gov/?secret=value)';
+  const html = renderToStaticMarkup(createElement(MessageContent, { content }));
+  assert.match(html, /<p>A short answer continues naturally\.<\/p>/);
+  assert.match(html, /<ol start="1"><li><p>Report it Include the sender\.<\/p><ul><li>Keep the original<\/li><\/ul><\/li><li>Contact IT<\/li><\/ol>/);
+  assert.match(html, /<strong><span class="chat-citation">\[POLICY1\]<\/span> Sample policy<\/strong>/);
+  assert.match(html, /Literal \*asterisks\* and \[source\]\./);
+  assert.equal((html.match(/<a /g) ?? []).length, 1);
+  assert.match(html, /href="https:\/\/www.cisa.gov\/secure-our-world" target="_blank" rel="noopener noreferrer"/);
+});
+
+test('successful source details collapse while withdrawn evidence remains visible', async t => {
+  const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+  t.after(() => server.close());
+  const { ChatReceipt } = await server.ssrLoadModule('/src/features/chat/ChatEvidence.jsx');
+  const render = status => renderToStaticMarkup(createElement(ChatReceipt, { request: { status: 'COMPLETED', verifiedResults: [
+    { key: 'pdpl', data: { kind: 'PDPL', status, matches: [] } },
+  ] } }));
+  assert.match(render('MATCHES'), /^<details /);
+  assert.match(render('MATCHES'), /View full source passages/);
+  assert.match(render('SOURCES_UNAVAILABLE'), /^<section /);
+  assert.match(render('SOURCES_UNAVAILABLE'), /withdrawn or are unavailable/);
+});

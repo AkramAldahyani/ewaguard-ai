@@ -25,6 +25,8 @@ export function createToolService({ database }) {
         const user = await authorizeToolContext(tx, auth, conversationId);
         const tool = toolDefinition(name);
         const parameters = await validateToolArguments(tool, argumentsJson);
+        if (tool.name === 'search_pdpl') throw new ToolError(400, 'PDPL_CONTEXT_REQUIRED', 'PDPL search requires the current authenticated chat turn.');
+        if (tool.name === 'search_company_policy') throw new ToolError(400, 'POLICY_CONTEXT_REQUIRED', 'Policy search requires the current authenticated chat turn.');
         if (tool.kind === 'ACTION') {
           const now = new Date();
           const ack = await requireToolAcknowledgement(tx, user.id, tool);

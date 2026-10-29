@@ -1,4 +1,5 @@
 import { STATUSES } from '../incidents/management-policy.js';
+import { analysisOverview } from './analysis-analytics.js';
 
 const severities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const types = ['PHISHING', 'MALWARE', 'CREDENTIAL_COMPROMISE', 'DATA_EXPOSURE', 'SUSPICIOUS_ACTIVITY', 'OTHER'];
@@ -78,6 +79,7 @@ export function createSecurityAnalytics(database) {
       });
       const validResolutionCount = resolutionRows[0]?.count ?? 0;
       return {
+        analyses: await analysisOverview(database, range),
         generatedAt: now.toISOString(),
         range: { period: range.period, start: range.start.toISOString().slice(0, 10),
           end: new Date(range.endExclusive.getTime() - dayMs).toISOString().slice(0, 10),

@@ -52,32 +52,74 @@ test('Phase 6C authenticated multipart API and minimized PostgreSQL persistence'
     const server = createApp(config, { database, fileAnalysis: { analyzer }, ...dependencies }).listen(0, '127.0.0.1');
     servers.push(server); await once(server, 'listening'); base = `http://127.0.0.1:${server.address().port}`;
   };
-  const post = (route, body, auth = cookie, origin = config.frontendUrl) => fetch(`${base}${route}`, { method: 'POST', headers: {
-    Origin: origin, ...(auth ? { Cookie: auth } : {}), ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
+  const post = (route, body, auth = cookie, origin = config.frontendUrl, extraHeaders = {}) => fetch(`${base}${route}`, { method: 'POST', headers: {
+    Origin: origin, ...(auth ? { Cookie: auth } : {}), ...(body instanceof FormData ? {} : { 'Content-Type': 'application/json' }), ...extraHeaders,
   }, body: body instanceof FormData ? body : JSON.stringify(body) });
   const content = 'FILE_CONTENT_SENTINEL harmless test text';
   const form = (bytes = content, name = 'SECRET_FILENAME.txt', mime = 'text/plain') => { const data = new FormData(); data.append('file', new Blob([bytes], { type: mime }), name); return data; };
   const submit = (body = form(), auth = cookie, origin) => post('/api/analysis/file', body, auth, origin);
   await start();
-  await t.test('anonymous, admin, wrong origin, missing acknowledgement rejected before scanning', async () => {
+  await t.test('anonymous, admin, and wrong origin requests are rejected before scanning', async () => {
     assert.equal((await submit(undefined, null)).status, 401); assert.equal((await submit(undefined, token(admin))).status, 403);
-    assert.equal((await submit(undefined, cookie, 'https://untrusted.example')).status, 403); assert.equal((await submit()).status, 403); assert.equal(scanCalls, 0);
+    assert.equal((await submit(undefined, cookie, 'https://untrusted.example')).status, 403); assert.equal(scanCalls, 0);
   });
-  await t.test('employee login and FILE_ANALYSIS acknowledgement use existing APIs', async () => {
+  await t.test('employee login', async () => {
     const login = await post('/api/auth/login', { email: employee.email, password }, null); assert.equal(login.status, 200);
     cookie = login.headers.getSetCookie().find((v) => v.startsWith(authCookie(config).name + '=')).split(';')[0];
-    assert.equal((await post('/api/disclaimers/acknowledge', { context: 'FILE_ANALYSIS' })).status, 201);
   });
-  await start();
-  await t.test('expired, future, wrong-context, obsolete, and foreign acknowledgements denied', async () => {
-    const ack = await database.disclaimerAcknowledgement.findFirstOrThrow({ where: { userId: employee.id } });
-    await database.disclaimerAcknowledgement.delete({ where: { id: ack.id } });
-    for (const changes of [{ createdAt: new Date(Date.now() - 16 * 60_000) }, { createdAt: new Date(Date.now() + 60_000) }, { context: 'EMAIL_ANALYSIS' }, { version: 'obsolete' }, { userId: other.id }]) {
-      const invalid = await database.disclaimerAcknowledgement.create({ data: { userId: employee.id, context: 'FILE_ANALYSIS', version: ack.version, createdAt: new Date(), ...changes } });
-      try { assert.equal((await submit()).status, 403); }
-      finally { await database.disclaimerAcknowledgement.delete({ where: { id: invalid.id } }); }
+  await start({ fileAnalysis: { analyzer, threatIntelligence } });
+  await t.test('hash endpoint requires employee authentication and trusted origin', async () => {
+    const body = { sha256: 'a'.repeat(64) };
+    assert.equal((await post('/api/analysis/file/hash', body, null)).status, 401);
+    assert.equal((await post('/api/analysis/file/hash', body, token(admin))).status, 403);
+    assert.equal((await post('/api/analysis/file/hash', body, cookie, 'https://untrusted.example')).status, 403);
+  });
+  await start({ fileAnalysis: { analyzer, threatIntelligence } });
+  await t.test('hash endpoint rejects malformed hashes, extra fields and oversized JSON', async () => {
+    for (const body of [{ sha256: 'invalid' }, { sha256: 'a'.repeat(63) }, { sha256: 'a'.repeat(64), score: 0 }, { sha256: 42 }]) {
+      assert.equal((await post('/api/analysis/file/hash', body)).status, 400);
     }
-    await database.disclaimerAcknowledgement.create({ data: { userId: employee.id, context: 'FILE_ANALYSIS', version: ack.version } });
+    assert.equal((await post('/api/analysis/file/hash', { sha256: 'a'.repeat(2000) })).status, 413);
+  });
+  await start({ fileAnalysis: { analyzer, threatIntelligence } });
+  await t.test('hash lookup records one owned hash-only analysis across retries without scanning', async () => {
+    const before = await database.fileAnalysis.count({ where: { userId: employee.id } });
+    const scansBefore = scanCalls;
+    const key = randomUUID();
+    const response = await post('/api/analysis/file/hash', { sha256: ` ${'A'.repeat(64)} ` }, cookie, config.frontendUrl, { 'Idempotency-Key': key });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    const value = await response.json();
+    assert.equal(value.sha256, 'a'.repeat(64));
+    assert.equal(value.finding, 'NO_KNOWN_DETECTION');
+    assert.equal(value.localScans, 'NOT_SCANNED');
+    assert.equal(value.risk.riskLevel, 'LOW');
+    assert.equal(scanCalls, scansBefore);
+    assert.equal(await database.fileAnalysis.count({ where: { userId: employee.id } }), before + 1);
+    const row = await database.fileAnalysis.findUniqueOrThrow({ where: { id: value.analysisId } });
+    assert.equal(row.kind, 'HASH_LOOKUP');
+    assert.equal(row.userId, employee.id);
+    assert.equal(row.sizeBytes, null);
+    assert.equal(row.detectedMime, null);
+    assert.equal(row.extension, null);
+    assert.equal(row.clamavStatus, 'NOT_SCANNED');
+    assert.equal(row.yaraStatus, 'NOT_SCANNED');
+    const retry = await post('/api/analysis/file/hash', { sha256: 'a'.repeat(64) }, cookie, config.frontendUrl, { 'Idempotency-Key': key });
+    assert.deepEqual(await retry.json(), value);
+    assert.equal(await database.fileAnalysis.count({ where: { userId: employee.id } }), before + 1);
+    assert.equal((await post('/api/analysis/file/hash', { sha256: 'b'.repeat(64) }, cookie, config.frontendUrl, { 'Idempotency-Key': key })).status, 409);
+    assert.deepEqual(await fs.readdir(root), []);
+  });
+  await start({ fileAnalysis: { analyzer, threatIntelligence: { lookupFileHash: async () => ({ provider: 'VIRUSTOTAL', scope: 'FILE_HASH', status: 'NO_REPORT' }) } } });
+  await t.test('unknown hash is explicit and hash requests share the file rate limit', async () => {
+    const response = await post('/api/analysis/file/hash', { sha256: 'b'.repeat(64) });
+    const value = await response.json();
+    assert.equal(value.finding, 'UNKNOWN');
+    const row = await database.fileAnalysis.findUniqueOrThrow({ where: { id: value.analysisId } });
+    assert.equal(row.kind, 'HASH_LOOKUP');
+    assert.equal(row.evidence.finding, 'UNKNOWN');
+    for (let index = 1; index < FILE_LIMITS.submissionsPerMinute; index++) await post('/api/analysis/file/hash', { sha256: 'bad' });
+    assert.equal((await submit()).status, 429);
   });
   await start();
   await t.test('one file only: missing file, multiple files, unexpected text and wrong file field rejected', async () => {
@@ -103,11 +145,12 @@ test('Phase 6C authenticated multipart API and minimized PostgreSQL persistence'
   });
   await start();
   await t.test('empty, oversized, unsupported file and wrong content type rejected', async () => {
+    const before = await database.fileAnalysis.count({ where: { userId: employee.id } });
     assert.equal((await submit(form(''))).status, 400);
     assert.equal((await submit(form(Buffer.alloc(FILE_MAX_BYTES + 1)))).status, 413);
     assert.equal((await submit(form('text', 'image.iso'))).status, 400);
     assert.equal((await submit({ file: 'wrong' })).status, 415);
-    assert.equal(scanCalls, 0); assert.equal(await database.fileAnalysis.count({ where: { userId: employee.id } }), 0);
+    assert.equal(scanCalls, 0); assert.equal(await database.fileAnalysis.count({ where: { userId: employee.id } }), before);
   });
   await start();
   await t.test('successful analysis persists authenticated owner, safe evidence and no raw bytes/payload', async () => {
@@ -115,6 +158,7 @@ test('Phase 6C authenticated multipart API and minimized PostgreSQL persistence'
     const data = await response.json(); assert.equal(data.result.analyzer, 'FILE');
     const row = await database.fileAnalysis.findUniqueOrThrow({ where: { id: data.analysisId } });
     assert.equal(row.userId, employee.id); assert.equal(row.sha256, createHash('sha256').update(content).digest('hex')); assert.equal(row.sizeBytes, BigInt(Buffer.byteLength(content)));
+    assert.equal(row.acknowledgementId, null);
     assert.equal(row.clamavStatus, 'NO_KNOWN_DETECTION'); assert.equal(row.yaraStatus, 'NO_KNOWN_DETECTION'); assert.equal(row.storageKey, null);
     assert.equal(row.riskScore, data.result.risk.score); assert.equal(row.riskRuleVersion, data.result.risk.version); assert.equal(row.severity, data.result.risk.riskLevel); assert.ok(row.deletedAt); assert.equal(row.expiresAt - row.analyzedAt, 30 * 86400_000);
     const { assistance, ...analyzerResult } = data.result;
@@ -163,7 +207,7 @@ test('Phase 6C authenticated multipart API and minimized PostgreSQL persistence'
     for (const response of await Promise.all(pending)) assert.equal(response.status, 201);
     await start();
     for (let i = 0; i < FILE_LIMITS.submissionsPerMinute; i++) assert.equal((await submit(new FormData())).status, 400);
-    assert.equal((await submit()).status, 429); assert.equal((await submit(undefined, token(other))).status, 403);
+    assert.equal((await submit()).status, 429); assert.equal((await submit(undefined, token(other))).status, 201);
   });
   await t.test('logout and no download/history route', async () => {
     await start(); assert.equal((await fetch(`${base}/api/analysis/file/${randomUUID()}`, { headers: { Cookie: cookie } })).status, 404);

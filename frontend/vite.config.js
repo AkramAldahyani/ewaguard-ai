@@ -17,8 +17,10 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react(), tailwindcss()],
     server: {
+      headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
       host: '127.0.0.1', port: 5173, strictPort: true,
       proxy: { '/api/realtime': { target: url.origin, ws: true }, '/api': { target: url.origin } },
     },
+    preview: { headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } },
   };
 });

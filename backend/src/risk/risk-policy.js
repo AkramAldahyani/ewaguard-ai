@@ -1,5 +1,5 @@
 // Version every scoring/coverage change. Weights express policy, not probabilities.
-export const RISK_ENGINE_VERSION = '1.0';
+export const RISK_ENGINE_VERSION = '1.1';
 
 function freeze(value) {
   for (const child of Object.values(value)) if (child && typeof child === 'object') freeze(child);
@@ -23,11 +23,14 @@ export const RISK_POLICY = freeze({
     REPLY_DOMAIN_MISMATCH: ['EMAIL_REPLY_TO_MISMATCH', 'identity', 18], REPLY_ADDRESS_MISMATCH: ['EMAIL_REPLY_TO_MISMATCH', 'identity', 10],
     INTERNATIONAL_DOMAIN: ['EMAIL_INTERNATIONAL_DOMAIN', 'identity', 4], SENDER_SUBDOMAINS: ['EMAIL_SENDER_STRUCTURE', 'identity', 4],
     DISPLAY_NAME_CLAIM: ['EMAIL_DISPLAY_NAME_CLAIM', 'identity', 4], DISPLAY_ADDRESS_MISMATCH: ['EMAIL_DISPLAY_ADDRESS_MISMATCH', 'identity', 18],
+    BRAND_IMPERSONATION: ['EMAIL_DISPLAY_NAME_CLAIM', 'identity', 4],
+    SENDER_LOOKALIKE: ['EMAIL_SENDER_LOOKALIKE', 'identity', 25],
     AUTHENTICATION_CONCERN: ['EMAIL_AUTH_FAILURE', 'authentication', 15],
     URL_SCHEME: ['EMAIL_SUSPICIOUS_LINK', 'emailUrl', 12], URL_CREDENTIALS: ['EMAIL_LINK_CREDENTIALS', 'emailUrl', 12],
     URL_IP: ['EMAIL_LINK_STRUCTURE', 'emailUrl', 5], URL_INTERNATIONAL: ['EMAIL_LINK_STRUCTURE', 'emailUrl', 5],
     URL_SUBDOMAINS: ['EMAIL_LINK_STRUCTURE', 'emailUrl', 5], URL_HTTP: ['EMAIL_HTTP_LINK', 'emailUrl', 3],
     URL_LABEL_MISMATCH: ['EMAIL_LINK_DESTINATION_MISMATCH', 'emailUrl', 20],
+    URL_SHORTENER: ['EMAIL_URL_SHORTENER', 'emailUrl', 8],
     ATTACHMENT_EXECUTABLE: ['EMAIL_SUSPICIOUS_ATTACHMENT', 'attachment', 25], ATTACHMENT_MACRO: ['EMAIL_SUSPICIOUS_ATTACHMENT', 'attachment', 18],
     ATTACHMENT_ARCHIVE: ['EMAIL_ARCHIVE_ATTACHMENT', 'attachment', 5], ATTACHMENT_DOUBLE_EXTENSION: ['EMAIL_ATTACHMENT_DISGUISE', 'attachment', 15],
     ATTACHMENT_NAME_DIRECTION: ['EMAIL_ATTACHMENT_DISGUISE', 'attachment', 15],

@@ -32,7 +32,8 @@ trusted account source. This is authentication, not Phase 3B authorization.
 
 The access token is stored in `ewaguard_access` during development and the
 `__Host-ewaguard_access` cookie in production. It is HTTP-only, `SameSite=Lax`,
-`Path=/`, has a 15-minute default maximum age, and is `Secure` in production.
+`Path=/`, has a 30-minute default maximum age for employees and administrators,
+and is `Secure` in production.
 JavaScript cannot read it and no token is returned in an API body or localStorage.
 Production configuration requires an HTTPS frontend origin.
 

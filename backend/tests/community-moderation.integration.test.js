@@ -66,15 +66,15 @@ test('Phase 12B1 administrator community moderation', async (t) => {
     assert.equal((await request('/api/admin/community', { actor: other })).status, 403);
   });
   await t.test('review queue supports search, filters, dates, sort and pagination', async () => {
-    const list = await request('/api/admin/community?status=PENDING_REVIEW&pageSize=1&sort=submitted_asc');
+    const list = await request(`/api/admin/community?authorId=${employee.id}&status=PENDING_REVIEW&pageSize=1&sort=submitted_asc`);
     assert.equal(list.status, 200); assert.equal(list.data.items.length, 1); assert.equal(list.data.hasMore, true);
     assert.equal(list.data.items[0].id, first.id);
     assert.match(list.cache, /no-store/);
-    assert.equal((await request('/api/admin/community?category=SECURITY_TIP&search=trusted')).data.items[0].id, second.id);
+    assert.equal((await request(`/api/admin/community?authorId=${employee.id}&category=SECURITY_TIP&search=trusted`)).data.items[0].id, second.id);
     assert.equal((await request(`/api/admin/community?authorId=${employee.id}`)).data.items.length, 2);
     assert.equal((await request(`/api/admin/community?authorId=${other.id}`)).data.items.length, 0);
     const day = new Date(first.submittedAt).toISOString().slice(0, 10);
-    assert.equal((await request(`/api/admin/community?submittedFrom=${day}&submittedTo=${day}`)).data.items.length, 2);
+    assert.equal((await request(`/api/admin/community?authorId=${employee.id}&submittedFrom=${day}&submittedTo=${day}`)).data.items.length, 2);
     for (const query of ['status=DRAFT', 'category=BAD', 'sort=bad', 'submittedFrom=2026-02-31',
       'submittedFrom=2026-12-31&submittedTo=2026-01-01', 'page=0', 'authorId=bad'])
       assert.equal((await request(`/api/admin/community?${query}`)).status, 400);
@@ -86,7 +86,7 @@ test('Phase 12B1 administrator community moderation', async (t) => {
       { reason: 'x', expectedUpdatedAt: 'invalid' }])
       assert.equal((await request(`/api/admin/community/${first.id}/approve`, { body })).status, 400);
     assert.equal((await decision(first, 'remove')).status, 409);
-    assert.equal((await request('/api/community', { actor: other })).data.items.length, 0);
+    assert.equal((await request('/api/community', { actor: other })).data.items.some((item) => item.id === first.id || item.id === second.id), false);
   });
   let approved;
   await t.test('concurrent decisions produce one approval and immutable history', async () => {
@@ -115,7 +115,7 @@ test('Phase 12B1 administrator community moderation', async (t) => {
     assert.equal(removed.data.post.history.length, 2);
     assert.equal(removed.data.post.history[1].previousStatus, 'APPROVED');
     assert.equal((await request(`/api/community/${first.id}`, { actor: other })).status, 404);
-    assert.equal((await request('/api/community', { actor: other })).data.items.length, 0);
+    assert.equal((await request('/api/community', { actor: other })).data.items.some((item) => item.id === first.id || item.id === second.id), false);
     assert.equal((await request('/api/community/mine?status=REMOVED', { actor: employee })).data.items[0].id, first.id);
     assert.equal((await decision(removed.data.post, 'remove')).status, 409);
     const own = await request(`/api/community/mine/${second.id}`, { actor: employee });

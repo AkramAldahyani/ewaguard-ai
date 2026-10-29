@@ -111,8 +111,6 @@
   .app-surface { background: var(--color-canvas); }
   .brand-grid { background-image: linear-gradient(rgb(255 255 255 / 0.035) 1px, transparent 1px), linear-gradient(90deg, rgb(255 255 255 / 0.035) 1px, transparent 1px); background-size: 28px 28px; }
   .login-hero-card { animation: login-hero-enter 650ms cubic-bezier(0.22, 1, 0.36, 1) both; }
-  .login-capability { transition: border-color 180ms ease, background-color 180ms ease, transform 180ms ease; }
-  .login-capability:hover { transform: translateY(-2px); border-color: rgb(165 243 252 / 0.28); background: rgb(255 255 255 / 0.11); }
   .portal-link:focus-visible { outline: 3px solid #087fba; outline-offset: 4px; }
   .portal-navigation { position: fixed; inset: 0 auto 0 0; margin: 0; padding: 0; border: 0; width: min(19rem, 88vw); height: 100dvh; max-height: 100dvh; max-width: none; background: #061526; color: white; }
   .portal-navigation::backdrop { background: rgb(6 21 38 / 0.65); backdrop-filter: blur(3px); }
@@ -144,6 +142,13 @@
   from { opacity: 0; transform: translateY(18px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+.security-tip-text {
+  opacity: 1;
+  transform: translateY(0);
+  transition: opacity 400ms ease, transform 400ms ease;
+}
+.security-tip-text-exit { opacity: 0; transform: translateY(-4px); }
 
 /* Assistant motion is brief and interaction-led, not continuous decoration. */
 .chat-welcome {
@@ -230,7 +235,7 @@
 .chat-message-assistant > .assistant-avatar { margin-top: 1.6rem; }
 .chat-ai-content { flex: 1; max-width: calc(100% - 3rem); min-width: 0; }
 .chat-ai-bubble { padding: 1.1rem 1.4rem; border-radius: 0.375rem 1.25rem 1.25rem 1.25rem; background: #edf1f5; color: #25384b; }
-.chat-prose { font-size: 0.9375rem; line-height: 1.85; overflow-wrap: anywhere; }
+.chat-prose { font-size: 0.9375rem; line-height: 1.7; overflow-wrap: anywhere; }
 .chat-prose > * + * { margin-top: 0.9rem; }
 .chat-prose p, .chat-prose blockquote { white-space: pre-wrap; }
 .chat-prose h3, .chat-prose h4, .chat-prose h5, .chat-prose h6 { font-weight: 700; line-height: 1.5; color: #0a2138; margin-top: 1.4rem; }
@@ -241,6 +246,10 @@
 .chat-prose ul { list-style: disc; }
 .chat-prose ol { list-style: decimal; }
 .chat-prose li + li { margin-top: 0.35rem; }
+.chat-prose li > * + * { margin-top: 0.4rem; }
+.chat-prose .chat-citation { color: #245b78; font-size: 0.85em; font-weight: 600; white-space: nowrap; }
+.chat-prose a.chat-reference { color: #245b78; text-decoration: underline; text-underline-offset: 0.2em; }
+.chat-prose a.chat-reference:focus-visible { outline: 2px solid #245b78; outline-offset: 3px; }
 .chat-prose blockquote { border-left: 3px solid #9cc5da; padding-left: 1rem; color: #475569; }
 .chat-prose code { font-family: Consolas, monospace; font-size: 0.85em; padding: 0.15em 0.35em; border-radius: 0.3rem; background: #dfe6ed; }
 .chat-code-block { overflow: hidden; border: 1px solid #d7e0e8; border-radius: 0.75rem; background: #f8fafc; }
@@ -346,6 +355,127 @@
   .assistant-scroll-welcome .assistant-suggestions { gap: 0.4rem; margin-top: 0.75rem; }
   .assistant-scroll-welcome .assistant-suggestion { min-height: 2.75rem; justify-content: center; }
   .assistant-scroll-welcome .assistant-welcome h2 { font-size: 1.25rem; }
+}
+
+/* Analysis severity is sourced only from the validated backend risk level.
+   The variables keep full-page and chat-local treatments visually consistent. */
+.analysis-theme,
+.analysis-risk-panel {
+  --analysis-page: transparent;
+  --analysis-soft: #f8fafc;
+  --analysis-card: rgb(255 255 255 / 0.96);
+  --analysis-line: #dbe4ec;
+  --analysis-accent: #64748b;
+  --analysis-strong: #334155;
+  --analysis-ink: #0f172a;
+  --analysis-banner: #f8fafc;
+  --analysis-glow: rgb(100 116 139 / 0.07);
+}
+.analysis-theme[data-risk-theme="LOW"], .analysis-risk-panel[data-risk-theme="LOW"] {
+  --analysis-page: #effaf4; --analysis-soft: #f3fbf6; --analysis-card: rgb(255 255 255 / 0.94);
+  --analysis-line: #a9ddbe; --analysis-accent: #16834c; --analysis-strong: #11683d;
+  --analysis-ink: #123a29; --analysis-banner: #e4f7eb; --analysis-glow: rgb(22 131 76 / 0.11);
+}
+.analysis-theme[data-risk-theme="MEDIUM"], .analysis-risk-panel[data-risk-theme="MEDIUM"] {
+  --analysis-page: #fff9e9; --analysis-soft: #fffbef; --analysis-card: rgb(255 255 255 / 0.95);
+  --analysis-line: #e8c970; --analysis-accent: #a86408; --analysis-strong: #854d0e;
+  --analysis-ink: #4b330e; --analysis-banner: #fff2c9; --analysis-glow: rgb(168 100 8 / 0.11);
+}
+.analysis-theme[data-risk-theme="HIGH"], .analysis-risk-panel[data-risk-theme="HIGH"] {
+  --analysis-page: #fff1f2; --analysis-soft: #fff7f7; --analysis-card: rgb(255 255 255 / 0.95);
+  --analysis-line: #efb0b5; --analysis-accent: #c72d3e; --analysis-strong: #a51d2d;
+  --analysis-ink: #4b1720; --analysis-banner: #ffe0e3; --analysis-glow: rgb(199 45 62 / 0.12);
+}
+.analysis-theme[data-risk-theme="CRITICAL"], .analysis-risk-panel[data-risk-theme="CRITICAL"] {
+  --analysis-page: #fbeff2; --analysis-soft: #fff5f6; --analysis-card: rgb(255 255 255 / 0.95);
+  --analysis-line: #d993a0; --analysis-accent: #8f1830; --analysis-strong: #6f1127;
+  --analysis-ink: #3f0e1a; --analysis-banner: #f5d7dd; --analysis-glow: rgb(111 17 39 / 0.15);
+}
+.analysis-theme {
+  min-height: calc(100dvh - 5rem);
+  margin: -1.5rem calc(-1 * var(--portal-gutter)) -2rem;
+  padding: 1.5rem var(--portal-gutter) 2rem;
+  background-color: var(--analysis-page);
+  background-image: radial-gradient(circle at 92% 2%, var(--analysis-glow), transparent 34rem);
+  transition: background-color 320ms ease, border-color 320ms ease;
+}
+.analysis-theme .ui-page-header,
+.analysis-theme .analysis-result-heading {
+  transition: background-color 320ms ease, border-color 320ms ease, color 320ms ease;
+}
+.analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .ui-page-header {
+  border-left: 4px solid var(--analysis-accent);
+  border-radius: 0 1rem 1rem 0;
+  padding: 1rem 1.15rem;
+  background: rgb(255 255 255 / 0.58);
+}
+.analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .ui-page-title,
+.analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .analysis-result-heading h2,
+.analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .ui-card h2,
+.analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .ui-card h3,
+.analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .ui-card h4 {
+  color: var(--analysis-ink);
+}
+.analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .ui-card {
+  border-color: var(--analysis-line);
+  background-color: var(--analysis-card);
+  box-shadow: 0 12px 30px var(--analysis-glow);
+  transition: background-color 320ms ease, border-color 320ms ease, box-shadow 320ms ease;
+}
+.analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .ui-card svg.text-brand-700,
+.analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .analysis-section-title {
+  color: var(--analysis-accent);
+}
+.analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .analysis-result-heading {
+  border-bottom: 1px solid var(--analysis-line);
+  padding-bottom: 1rem;
+}
+.analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .analysis-result-actions .ui-button:first-child {
+  border-color: var(--analysis-strong);
+  background: var(--analysis-strong);
+  color: white;
+}
+.analysis-risk-panel .risk-summary {
+  border-color: var(--analysis-line);
+  background: var(--analysis-card);
+  box-shadow: 0 18px 42px var(--analysis-glow);
+}
+.analysis-risk-panel .risk-summary-header {
+  border-bottom: 1px solid var(--analysis-line);
+  background: var(--analysis-banner);
+  color: var(--analysis-ink);
+}
+.analysis-risk-panel .risk-summary-icon {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  place-items: center;
+  border: 1px solid var(--analysis-line);
+  border-radius: 0.9rem;
+  background: rgb(255 255 255 / 0.72);
+  color: var(--analysis-accent);
+  box-shadow: 0 8px 20px var(--analysis-glow);
+}
+.analysis-risk-panel .analysis-section-title { color: var(--analysis-strong); }
+.analysis-risk-panel .analysis-evidence-item {
+  border-color: var(--analysis-line);
+  background: var(--analysis-soft);
+  color: #334155;
+}
+.analysis-risk-panel .risk-next-action {
+  border-color: var(--analysis-line);
+  background: var(--analysis-soft);
+  color: var(--analysis-ink);
+}
+.analysis-risk-panel .risk-next-action ul { border-color: var(--analysis-line); }
+.analysis-risk-panel[data-risk-theme="CRITICAL"] .risk-next-action {
+  background: var(--analysis-strong);
+  color: white;
+}
+
+@media (max-width: 40rem) {
+  .analysis-theme[data-risk-theme]:not([data-risk-theme="NEUTRAL"]) .ui-page-header { padding: 0.85rem; }
+  .analysis-risk-panel .risk-summary-icon { width: 2.6rem; height: 2.6rem; }
 }
 
 @media (prefers-reduced-motion: reduce) {

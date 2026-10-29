@@ -17,7 +17,7 @@ test('shared employee risk presentation: labels, confidence, reasons, actions an
     const html = render({ ...base, riskLevel, score, recommendedActions: RISK_POLICY.recommendations[riskLevel] });
     assert.match(html, /EWAGuard Risk Level/); assert.ok(html.includes(label)); assert.ok(html.includes(`${score}/100`));
     assert.match(html, /Confidence:.*LIMITED CONFIDENCE/); assert.match(html, /low risk does not guarantee safety/);
-    assert.match(html, /Evidence coverage is incomplete/); assert.match(html, /Risk model 1.0/);
+    assert.match(html, /Evidence coverage is incomplete/); assert.ok(html.includes(`Risk model ${base.version}`));
     for (const action of RISK_POLICY.recommendations[riskLevel]) assert.ok(html.includes(action));
     assert.doesNotMatch(html, /contribution|uncappedScore|criticalEligible|INSUFFICIENT_EVIDENCE/);
   }

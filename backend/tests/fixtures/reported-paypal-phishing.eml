@@ -1,0 +1,11 @@
+From: "PayPal Billing Department" <accounting@paypaI-resolution.com>
+Reply-To: accounting@paypaI-resolution.com
+Return-Path: <accounting@paypaI-resolution.com>
+Subject: Invoice #PP-2026-8834291 - Payment of $849.99 Processed
+Authentication-Results: mx.example.invalid; spf=fail; dkim=fail; dmarc=fail
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+
+<html><body><h1>PayPal</h1><p>A payment of $849.99 has been processed.</p>
+<p>If you did not authorize this payment, dispute the transaction immediately.</p>
+<a href="https://tinyurl.com/y6b3kw8e">Dispute this transaction</a></body></html>

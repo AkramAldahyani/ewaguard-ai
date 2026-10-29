@@ -1,5 +1,5 @@
 import { REASON_CODES } from '../risk/reason-codes.js';
-import { RISK_POLICY, RISK_ENGINE_VERSION } from '../risk/risk-policy.js';
+import { RISK_POLICY } from '../risk/risk-policy.js';
 import { ASSISTANCE_POLICY as P, INCIDENT_ASSISTANCE_VERSION } from '../assistance/assistance-policy.js';
 
 const sources = ['EMAIL', 'URL', 'FILE'];
@@ -95,7 +95,7 @@ export function projectIncidentDetail(row, admin) {
   output.source = { status: 'AVAILABLE', analyzerType: type, analysisId: snapshot.analysisId, analyzedAt: date(snapshot.analyzedAt),
     provenance: 'INCIDENT_CREATION_SNAPSHOT' };
   const risk = snapshot.risk;
-  if (risk?.version !== RISK_ENGINE_VERSION || risk.version !== row.riskRuleVersion || risk.analyzerType !== type ||
+  if (!P.supportedRiskVersions.includes(risk?.version) || risk.version !== row.riskRuleVersion || risk.analyzerType !== type ||
       risk.score !== row.riskScore || risk.riskLevel !== row.severity || !Number.isInteger(risk.score) || risk.score < 0 || risk.score > 100) {
     output.risk = unavailable('RISK_VERSION_UNSUPPORTED_OR_INCONSISTENT');
     output.evidence = unavailable('RISK_VERSION_UNSUPPORTED_OR_INCONSISTENT');

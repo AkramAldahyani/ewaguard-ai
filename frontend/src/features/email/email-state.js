@@ -1,4 +1,5 @@
 import { analyzePastedEmail, analyzeEml } from './email-api.js';
+import { createSubmissionKey } from '../analysis-submission.js';
 
 // UX mirrors the API byte limits; the server remains authoritative.
 export const EMAIL_INPUT_LIMITS = { body: 24 * 1024, headers: 8 * 1024, file: 1024 * 1024 };
@@ -40,6 +41,7 @@ const emptyContent = { body: '', headers: '', file: null, result: null, error: '
 // One ephemeral store per mounted page. A synchronous status guard prevents double
 // submits; generation checks prevent late responses restoring cleared content.
 export function createEmailFlow(api = { analyzePastedEmail, analyzeEml }) {
+  const submission = createSubmissionKey();
   let state = { ...emptyContent, mode: 'paste', status: 'idle', acknowledged: false, noticeKey: 0 };
   let generation = 0;
   let controller;
@@ -58,8 +60,8 @@ export function createEmailFlow(api = { analyzePastedEmail, analyzeEml }) {
       const error = files.length > 1 ? 'Choose exactly one .eml file.' : file ? validateEmailInput({ mode: 'eml', file }) : '';
       set({ file: error ? null : file, error, status: error ? 'error' : 'idle' });
     },
-    reset: () => { generation += 1; controller?.abort(); set({ ...emptyContent, status: 'idle' }); },
-    dispose: () => { generation += 1; controller?.abort(); state = { ...state, ...emptyContent }; },
+    reset: () => { submission.clear(); generation += 1; controller?.abort(); set({ ...emptyContent, status: 'idle' }); },
+    dispose: () => { submission.clear(); generation += 1; controller?.abort(); state = { ...state, ...emptyContent }; },
     submit: async () => {
       if (busy() || !state.acknowledged) return;
       set({ status: 'validating', error: '', result: null });
@@ -69,8 +71,12 @@ export function createEmailFlow(api = { analyzePastedEmail, analyzeEml }) {
       controller = new AbortController();
       set({ status: 'submitting' });
       try {
-        const result = await (state.mode === 'paste' ? api.analyzePastedEmail({ body: state.body, headers: state.headers }, controller.signal) : api.analyzeEml(state.file, controller.signal));
-        if (current === generation) set({ ...emptyContent, result, status: 'success' });
+        const mode = state.mode;
+        const input = mode === 'paste' ? { body: state.body, headers: state.headers } : state.file;
+        const key = await submission.forInput(mode === 'paste' ? JSON.stringify(input) : input);
+        if (current !== generation) return;
+        const result = await (mode === 'paste' ? api.analyzePastedEmail(input, controller.signal, key) : api.analyzeEml(input, controller.signal, key));
+        if (current === generation) { submission.clear(); set({ ...emptyContent, result, status: 'success' }); }
       } catch (requestError) {
         if (current !== generation) return;
         const expired = requestError.code === 'EMAIL_ACKNOWLEDGEMENT_REQUIRED';

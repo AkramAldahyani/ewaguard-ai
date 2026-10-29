@@ -7,6 +7,9 @@ export function chatError(error) {
   if (error.status === 401) return 'Your session has expired. Sign in again to continue.';
   if (error.status === 410) return 'This approval has expired. Retrieve its saved status; no new analysis can start.';
   const messages = {
+    PDPL_CONSENT_REQUIRED: 'Reload chat and acknowledge the current privacy notice before asking a PDPL question.',
+    RETRIEVAL_QUESTION_TOO_LONG: 'Please shorten your PDPL question to 1,000 characters.',
+    RETRIEVAL_SENSITIVE_INPUT: 'Remove confidential information, credentials and raw analysis content from your PDPL question.',
     UNTRUSTED_ORIGIN: 'The request was blocked by the site’s origin check. Open EWAGuard AI from its configured address and reload chat.',
     AI_BUDGET_EXHAUSTED: 'AI assistance has reached its application spending limit. Saved analysis results remain available.',
     CHAT_DAILY_LIMIT: 'You have reached your daily AI request limit. Return tomorrow; saved results remain available.',
@@ -17,7 +20,7 @@ export function chatError(error) {
     AI_NOT_CONFIGURED: 'AI assistance is not configured. Contact IT; existing security analyzers remain available.',
     AI_PRICING_UNAVAILABLE: 'AI assistance is temporarily paused pending an administrator review.',
     AI_CREDITS_UNAVAILABLE: 'AI assistance is temporarily unavailable. Saved analysis results remain available.',
-    AI_USAGE_REVIEW_REQUIRED: 'AI assistance is paused for a usage review. Retrieve any completed analysis below.',
+    AI_USAGE_REVIEW_REQUIRED: 'This response could not be verified and was not saved. You can send a new message; any completed analysis remains available.',
     AI_TIMEOUT: 'The response timed out. Check request status; sending it again could use additional credit.',
     AI_TOOL_ROUND_LIMIT: 'The assistant reached its tool-round limit. Retrieve available findings below.',
     AI_TOOL_INVOCATION_LIMIT: 'The assistant requested too many tools. Retrieve any available findings below.',
@@ -68,7 +71,7 @@ export function createChatFlow(api = chatApi, uuid = () => crypto.randomUUID()) 
     const approval = payload.approval ?? payload.pendingConfirmation ?? old.approval;
     const resultsById = new Map((old.verifiedResults ?? []).map((result) => [result.key, result]));
     for (const result of [...(payload.verifiedResults ?? []), ...(payload.result ? [payload.result] : [])]) {
-      const key = `${result.data.analyzerType}:${result.data.analysisId}`;
+      const key = result.data.kind === 'PDPL' ? 'pdpl' : `${result.data.analyzerType}:${result.data.analysisId}`;
       // A risk-only projection must not erase coverage/guidance already retrieved.
       resultsById.set(key, { ...result, key, data: { ...resultsById.get(key)?.data, ...result.data } });
     }

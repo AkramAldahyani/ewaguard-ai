@@ -54,16 +54,15 @@ test('Phase 6B authenticated HTTP and PostgreSQL integration', async (t) => {
   }, body: JSON.stringify(data) });
   const submit = (data = { url: 'https://example.com/' }, auth = cookie, origin) => post('/api/analysis/url', data, auth, origin);
   await start();
-  await t.test('anonymous, admin, wrong origin, and missing acknowledgement rejected', async () => {
+  await t.test('anonymous, admin, and wrong origin requests are rejected', async () => {
     assert.equal((await submit(undefined, null)).status, 401);
     assert.equal((await submit(undefined, token(admin))).status, 403);
     assert.equal((await submit(undefined, cookie, 'https://elsewhere.com')).status, 403);
-    assert.equal((await submit()).status, 403); assert.equal(networkCalls, 0);
+    assert.equal(networkCalls, 0);
   });
-  await t.test('employee login and active acknowledgement', async () => {
+  await t.test('employee login', async () => {
     const response = await post('/api/auth/login', { email: employee.email, password }, null);
     assert.equal(response.status, 200); cookie = response.headers.getSetCookie().find((c) => c.startsWith(authCookie(config).name + '=')).split(';')[0];
-    assert.equal((await post('/api/disclaimers/acknowledge', { context: 'URL_ANALYSIS' })).status, 201);
   });
   await start();
   await t.test('reject unknown fields, wrong types, malformed/internal URLs before network', async () => {
@@ -94,6 +93,7 @@ test('Phase 6B authenticated HTTP and PostgreSQL integration', async (t) => {
     assert.equal(data.result.threatIntelligence[0].status, 'AVAILABLE');
     const row = await database.urlAnalysis.findUniqueOrThrow({ where: { id: data.analysisId } });
     assert.equal(row.userId, employee.id); assert.equal(row.status, 'COMPLETED'); assert.equal(row.severity, data.result.risk.riskLevel); assert.equal(row.riskScore, data.result.risk.score); assert.equal(row.riskRuleVersion, data.result.risk.version);
+    assert.equal(row.acknowledgementId, null);
     const { assistance, ...analyzerResult } = data.result;
     assert.deepEqual(row.evidence, analyzerResult);
     assert.equal(row.evidence.assistance, undefined);
@@ -138,14 +138,6 @@ test('Phase 6B authenticated HTTP and PostgreSQL integration', async (t) => {
     finally { release(); }
     for (const response of await Promise.all(pending)) assert.equal(response.status, 201);
     assert.equal((await submit()).status, 201);
-  });
-  await t.test('expired and future URL acknowledgements cannot authorize submission', async () => {
-    await start();
-    for (const createdAt of [new Date(Date.now() - 16 * 60_000), new Date(Date.now() + 60_000)]) {
-      await database.disclaimerAcknowledgement.updateMany({ where: { userId: employee.id, context: 'URL_ANALYSIS' }, data: { createdAt } });
-      assert.equal((await submit()).status, 403);
-    }
-    await database.disclaimerAcknowledgement.updateMany({ where: { userId: employee.id }, data: { createdAt: new Date() } });
   });
   await t.test('logout and no analysis history route', async () => {
     await start(); assert.equal((await fetch(`${base}/api/analysis/url/${randomUUID()}`, { headers: { Cookie: cookie } })).status, 404);

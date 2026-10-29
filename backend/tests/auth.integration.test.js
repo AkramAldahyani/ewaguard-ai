@@ -70,7 +70,7 @@ test('authentication lifecycle and security boundaries', async (t) => {
     assert.match(setCookie, /HttpOnly/i);
     assert.match(setCookie, /SameSite=Lax/i);
     assert.match(setCookie, /Path=\//i);
-    assert.match(setCookie, /Max-Age=900/i);
+    assert.match(setCookie, /Max-Age=1800/i);
     assert.doesNotMatch(setCookie, /Secure/i);
     cookie = setCookie.split(';', 1)[0];
   });

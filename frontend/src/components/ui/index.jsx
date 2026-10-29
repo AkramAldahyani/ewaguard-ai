@@ -32,14 +32,18 @@ export function Badge({ tone = 'neutral', children, className }) {
   return <span className={cn('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-semibold ring-1 ring-inset', tones[tone], className)}>{children}</span>;
 }
 
-export function RiskBadge({ level = 'LOW', score }) {
+export function RiskBadge({ level, score, neutral = false }) {
   const styles = {
     LOW: 'bg-success-50 text-success-800 ring-success-200', MEDIUM: 'bg-warning-50 text-warning-900 ring-warning-300',
     HIGH: 'bg-danger-50 text-danger-800 ring-danger-200', CRITICAL: 'bg-danger-700 text-white ring-danger-700',
   };
   const labels = { LOW: 'Low risk', MEDIUM: 'Medium risk', HIGH: 'High risk', CRITICAL: 'Critical risk' };
-  const safeLevel = labels[level] ? level : 'LOW';
-  return <span className={cn('inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset', styles[safeLevel])}><span className="size-1.5 rounded-full bg-current" aria-hidden="true" />{labels[safeLevel]}{score !== undefined && <span className="font-medium opacity-80">{score}/100</span>}</span>;
+  const normalizedLevel = typeof level === 'string' ? level.trim().toUpperCase() : '';
+  if (!labels[normalizedLevel]) {
+    return <span className="inline-flex items-center gap-2 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-slate-700 ring-1 ring-inset ring-slate-300"><span className="size-1.5 rounded-full bg-current" aria-hidden="true" />Risk unavailable</span>;
+  }
+  const badgeStyle = neutral ? 'bg-slate-100 text-slate-700 ring-slate-300' : styles[normalizedLevel];
+  return <span className={cn('inline-flex items-center gap-2 rounded-full px-2.5 py-1 text-xs font-bold ring-1 ring-inset', badgeStyle)}><span className="size-1.5 rounded-full bg-current" aria-hidden="true" />{labels[normalizedLevel]}{Number.isFinite(score) && <span className="font-medium opacity-80">{score}/100</span>}</span>;
 }
 
 export function Field({ label, hint, error, id, children, required = false }) {

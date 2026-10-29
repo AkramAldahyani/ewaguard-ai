@@ -3,8 +3,14 @@ import { REASON_CODES } from './reason-codes.js';
 import { normalizeRiskEvidence } from './evidence-adapters.js';
 
 // Pure: callers supply a timestamp for report freshness. No clock, IO or secrets.
-export function evaluateRisk({ analyzerType, evidence, evaluatedAt } = {}) {
+export function evaluateRisk({ analyzerType, evidence, evaluatedAt, confirmedContext = {} } = {}) {
   if (evaluatedAt !== undefined && (typeof evaluatedAt !== 'string' || !Number.isFinite(Date.parse(evaluatedAt)))) throw new TypeError('Invalid risk evaluation timestamp.');
+  // Only a trusted application caller may supply separately confirmed events.
+  // Never derive this context from email text, analyzer fields or LLM arguments.
+  if (!confirmedContext || typeof confirmedContext !== 'object' || Array.isArray(confirmedContext) ||
+      Object.entries(confirmedContext).some(([key, value]) => key !== 'corporateCredentialsSubmittedToPhishingSite' || typeof value !== 'boolean')) {
+    throw new TypeError('Invalid confirmed risk context.');
+  }
   const n = normalizeRiskEvidence(analyzerType, evidence, evaluatedAt);
   const unique = new Map();
   for (const s of n.signals) if (!unique.has(s.code) || unique.get(s.code).weight < s.weight) unique.set(s.code, s);
@@ -20,9 +26,14 @@ export function evaluateRisk({ analyzerType, evidence, evaluatedAt } = {}) {
   }
   const strong = new Set(signals.filter((s) => s.strong).map((s) => s.source));
   const structural = signals.filter((s) => s.category === 'structure' && s.contribution > 0);
-  const criticalEligible = strong.size >= P.critical.strongSources || (strong.size > 0 && structural.length >= P.critical.structuralGroups &&
+  const criticalEligible = confirmedContext.corporateCredentialsSubmittedToPhishingSite === true || strong.size >= P.critical.strongSources || (strong.size > 0 && structural.length >= P.critical.structuralGroups &&
     (groups.get('structure') ?? 0) >= P.critical.structuralContribution);
-  const rawScore = signals.reduce((sum, s) => sum + s.contribution, 0);
+  let rawScore = signals.reduce((sum, s) => sum + s.contribution, 0);
+  if (confirmedContext.corporateCredentialsSubmittedToPhishingSite) {
+    const contribution = Math.max(0, P.thresholds.CRITICAL - rawScore);
+    signals.push({ code: 'CONFIRMED_CREDENTIAL_SUBMISSION', category: 'interaction', contribution });
+    rawScore += contribution;
+  }
   const score = Math.min(rawScore, criticalEligible ? P.maximum : P.thresholds.CRITICAL - 1);
   if (n.unavailable.size) n.notes.add('INSUFFICIENT_EVIDENCE');
   if (n.conflicting) n.notes.add('CONFLICTING_SECURITY_EVIDENCE');

@@ -73,7 +73,7 @@ test('Phase 12A1 community posts: protected feed and pending submissions', async
     assert.equal(submitted.status, 'PENDING_REVIEW'); assert.equal(submitted.approvedAt, null);
     assert.equal(await db.communityPost.count({ where: { authorId: employee.id } }), 1);
     assert.equal(await db.auditLog.count({ where: { action: 'COMMUNITY_POST_SUBMITTED', resourceId: submitted.id } }), 1);
-    assert.equal((await request('/api/community')).data.items.length, 0);
+    assert.equal((await request('/api/community')).data.items.some((item) => item.id === submitted.id), false);
     assert.match((await request('/api/community')).cache, /no-store/);
   });
   await t.test('private status and detail are owner-only; shared detail is approved-only', async () => {
@@ -100,9 +100,25 @@ test('Phase 12A1 community posts: protected feed and pending submissions', async
     assert.equal((await request('/api/community?page=0')).status, 400);
     await db.communityPost.update({ where: { id: second.data.post.id }, data: { status: 'REJECTED' } });
     assert.equal((await request('/api/community/mine?status=REJECTED')).data.items[0].id, second.data.post.id);
-    assert.equal((await request('/api/community')).data.items.length, 1);
+    assert.equal((await request('/api/community')).data.items.some((item) => item.id === submitted.id), true);
     await db.communityPost.update({ where: { id: submitted.id }, data: { status: 'REMOVED', removedAt: new Date() } });
-    assert.equal((await request('/api/community')).data.items.length, 0);
+    assert.equal((await request('/api/community')).data.items.some((item) => item.id === submitted.id), false);
     assert.equal((await request('/api/community/mine?status=REMOVED')).data.items[0].id, submitted.id);
+  });
+  await t.test('optional titles and complete feed text preserve approval boundaries', async () => {
+    const content = 'Practical cybersecurity guidance. '.repeat(30).trim();
+    const result = await request('/api/community', { body: post(ack, { title: '', body: content }) });
+    assert.equal(result.status, 200);
+    assert.equal(result.data.post.title, '');
+    assert.equal(result.data.post.status, 'PENDING_REVIEW');
+    assert.equal((await request(`/api/community/${result.data.post.id}`, { actor: other })).status, 404);
+    assert.equal((await request('/api/community/mine')).data.items.find((item) => item.id === result.data.post.id).body, content);
+    await db.communityPost.update({ where: { id: result.data.post.id }, data: { status: 'APPROVED', approvedAt: new Date() } });
+    const feed = await request('/api/community', { actor: other });
+    assert.equal(feed.data.items.find((item) => item.id === result.data.post.id).body, content);
+    assert.doesNotMatch(JSON.stringify(feed.data), /moderationActions|acknowledgementId|authorId/);
+    const noTitle = post(ack, { body: 'Report concerns through the approved channel.' });
+    delete noTitle.title;
+    assert.equal((await request('/api/community', { body: noTitle })).status, 200);
   });
 });

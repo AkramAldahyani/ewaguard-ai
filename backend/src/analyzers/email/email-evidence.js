@@ -3,6 +3,7 @@ import { domainToASCII } from 'node:url';
 import { isIP } from 'node:net';
 import { EMAIL_LIMITS as LIMITS } from './email-policy.js';
 import { displayAddress, redactEmailMetadata as redact } from './email-privacy.js';
+import { normalizeDomain, isShortener } from '../domain-indicators.js';
 
 export function senderEvidence(mail, add) {
   const from = mail.from?.value ?? [];
@@ -11,8 +12,13 @@ export function senderEvidence(mail, add) {
   const replyTo = reply[0] ?? {};
   const address = String(sender.address ?? '');
   const replyAddress = String(replyTo.address ?? '');
-  const domain = address.split('@')[1]?.toLowerCase() ?? '';
-  const replyDomain = replyAddress.split('@')[1]?.toLowerCase() ?? '';
+  const domain = normalizeDomain(address.split('@')[1]);
+  const replyDomain = normalizeDomain(replyAddress.split('@')[1]);
+  const returnValue = mail.headers.get('return-path');
+  const returnEntries = Array.isArray(returnValue) ? returnValue : [returnValue];
+  const returnAddresses = returnEntries.flatMap((entry) => entry?.value ?? []);
+  const returnAddress = String(returnAddresses[0]?.address ?? '');
+  const returnDomain = normalizeDomain(returnAddress.split('@')[1]);
   if (!domain) add('SENDER_MISSING');
   if (from.length > 1 || (mail.headerLines ?? []).filter(({ key }) => key === 'from').length > 1 ||
       ((mail.headers.has('from') || address) && (!domainToASCII(domain) || !/^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(address)))) add('SENDER_FORMAT');
@@ -28,6 +34,8 @@ export function senderEvidence(mail, add) {
   return {
     sender: { address: displayAddress(address), domain: domain ? redact(domain, 253) : null, displayName: redact(name), count: from.length },
     replyTo: { address: replyAddress ? displayAddress(replyAddress) : null, domain: replyDomain ? redact(replyDomain, 253) : null, count: reply.length },
+    // Bounce domains often differ legitimately; a mismatch alone is not scored.
+    returnPath: { address: returnAddress ? displayAddress(returnAddress) : null, domain: returnDomain ? redact(returnDomain, 253) : null, count: returnAddresses.length },
   };
 }
 
@@ -120,6 +128,7 @@ export function bodyEvidence(text, html, add) {
     if (/xn--/.test(url.hostname)) add('URL_INTERNATIONAL');
     if (url.hostname.split('.').length > 5) add('URL_SUBDOMAINS');
     if (url.protocol === 'http:') add('URL_HTTP');
+    if (isShortener(url.hostname)) add('URL_SHORTENER');
     try {
       const displayed = new URL(/^www\./i.test(label.trim()) ? `https://${label.trim()}` : label.trim());
       if (['https:', 'http:'].includes(displayed.protocol) && displayed.hostname !== url.hostname) add('URL_LABEL_MISMATCH');

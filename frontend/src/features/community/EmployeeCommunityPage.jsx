@@ -1,92 +1,98 @@
-import { useEffect, useRef, useState } from 'react';
-import { AlertCircle, BookOpenText, MessageSquareText, Send, ShieldCheck } from 'lucide-react';
-import { DISCLAIMER_DEFINITION } from '../../../../shared/disclaimer.js';
+import { useEffect, useState } from 'react';
+import { Link } from 'react-router';
+import { AlertCircle, ArrowRight, CheckCircle2, MessageSquareText, PenLine, RefreshCw, Search, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader.jsx';
-import { Badge, Button, Card, Input, Select, StatePanel, Tabs, Textarea } from '../../components/ui/index.jsx';
-import { Modal } from '../../components/ui/Dialog.jsx';
+import { Button, IconButton, Input, Select, Skeleton, Tabs } from '../../components/ui/index.jsx';
+import { useAuth } from '../../context/auth-context.js';
 import { createEmployeeCommunityApi } from './employee-community-api.js';
-import { categories, communityError, dateTime, label, statuses, validateCommunityPost } from './community-model.js';
+import { categories, communityError, label, statuses } from './community-model.js';
+import { CommunityPostCard } from './CommunityPostCard.jsx';
+import { CommunityComposer } from './CommunityComposer.jsx';
+import './community.css';
 
 const api = createEmployeeCommunityApi();
-const initialPost = { title: '', category: '', body: '' };
-const statusTone = { PENDING_REVIEW: 'warning', APPROVED: 'success', REJECTED: 'danger', REMOVED: 'neutral' };
-const tabs = [{ id: 'feed', label: 'Community feed' }, { id: 'mine', label: 'My submissions' }, { id: 'create', label: 'Create post' }];
-function Status({ value }) { return <Badge tone={statusTone[value] ?? 'neutral'}>{label(value)}</Badge>; }
-function Pager({ result, page, onChange }) { return <nav aria-label="Community pages" className="mt-5 flex items-center justify-between gap-3 border-t border-slate-100 pt-4"><span className="text-sm text-slate-600">Page {result.page}</span><div className="flex gap-2"><Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</Button><Button variant="secondary" size="sm" disabled={!result.hasMore} onClick={() => onChange(page + 1)}>Next</Button></div></nav>; }
+const tabs = [{ id: 'feed', label: 'Latest' }, { id: 'mine', label: 'My Posts' }, { id: 'saved', label: 'Saved' }];
+const emptyFilters = { search: '', category: '', status: '' };
+const emptyListing = { loading: true, error: '', items: [], hasMore: false };
 
 export function EmployeeCommunityPage() {
-  const [tab, setTab] = useState('feed'), [draftFilters, setDraftFilters] = useState({ search: '', category: '', status: '' });
-  const [filters, setFilters] = useState({ search: '', category: '', status: '' });
+  const { user } = useAuth();
+  const name = [user.firstName, user.lastName].filter(Boolean).join(' ');
+  const [tab, setTab] = useState('feed');
+  const [draftSearch, setDraftSearch] = useState('');
+  const [filters, setFilters] = useState(emptyFilters);
   const [page, setPage] = useState(1), [revision, setRevision] = useState(0);
-  const [listing, setListing] = useState({ loading: true, error: '', result: null });
-  const [selected, setSelected] = useState(null), [detail, setDetail] = useState({ loading: false, error: '', post: null });
-  const [post, setPost] = useState(initialPost), [acknowledged, setAcknowledged] = useState(false);
-  const [formError, setFormError] = useState(''), [submitting, setSubmitting] = useState(false);
-  const [reviewOpen, setReviewOpen] = useState(false), [notice, setNotice] = useState('');
-  const detailRequest = useRef(0), submittingRef = useRef(false);
+  const [listing, setListing] = useState(emptyListing);
+  const [composing, setComposing] = useState(false), [notice, setNotice] = useState('');
+
   useEffect(() => {
-    if (tab === 'create') return undefined;
     const controller = new AbortController();
-    queueMicrotask(() => { if (!controller.signal.aborted) setListing({ loading: true, error: '', result: null }); });
     const query = { page, pageSize: 20, ...(filters.search ? { search: filters.search } : {}),
       ...(filters.category ? { category: filters.category } : {}), ...(tab === 'mine' && filters.status ? { status: filters.status } : {}) };
-    (tab === 'mine' ? api.mine(query, controller.signal) : api.feed(query, controller.signal))
-      .then((result) => { if (!controller.signal.aborted) setListing({ loading: false, error: '', result }); })
-      .catch((error) => { if (controller.signal.aborted) return; setListing({ loading: false, error: communityError(error), result: null });
-        if ([401, 403].includes(error.status)) { ++detailRequest.current; setSelected(null); setDetail({ loading: false, error: '', post: null }); } });
+    (tab === 'mine' ? api.mine(query, controller.signal) : tab === 'saved' ? api.saved(query, controller.signal) : api.feed(query, controller.signal))
+      .then((result) => {
+        if (controller.signal.aborted) return;
+        const incoming = result.items.filter((item) => tab === 'mine' || item.status === 'APPROVED');
+        setListing((current) => ({ loading: false, error: '', hasMore: result.hasMore,
+          items: page === 1 ? incoming : [...new Map([...current.items, ...incoming].map((item) => [item.id, item])).values()] }));
+      })
+      .catch((error) => {
+        if (controller.signal.aborted) return;
+        setListing((current) => ({ ...current, loading: false, error: communityError(error),
+          ...([401, 403].includes(error.status) ? { items: [], hasMore: false } : {}) }));
+      });
     return () => controller.abort();
   }, [tab, filters, page, revision]);
-  function changeTab(next) { ++detailRequest.current; setTab(next); setPage(1); setFilters({ search: '', category: '', status: '' });
-    setDraftFilters({ search: '', category: '', status: '' }); setListing({ loading: true, error: '', result: null });
-    setSelected(null); setDetail({ loading: false, error: '', post: null }); setNotice(''); }
-  function clearSelection() { ++detailRequest.current; setSelected(null); setDetail({ loading: false, error: '', post: null }); }
-  function apply(event) { event.preventDefault(); clearSelection(); setPage(1); setFilters({ ...draftFilters, search: draftFilters.search.trim() }); }
-  function refresh() { clearSelection(); setListing({ loading: true, error: '', result: null }); setRevision((value) => value + 1); }
-  function changePage(next) { clearSelection(); setPage(next); }
-  async function openPost(item) {
-    const request = ++detailRequest.current, own = tab === 'mine';
-    setSelected({ id: item.id, own }); setDetail({ loading: true, error: '', post: null });
-    try { const response = await api.detail(item.id, own);
-      if (request === detailRequest.current) setDetail({ loading: false, error: '', post: response.post }); }
-    catch (error) { if (request !== detailRequest.current) return;
-      if ([401, 403].includes(error.status)) { setListing({ loading: false, error: communityError(error), result: null }); setSelected(null); }
-      setDetail({ loading: false, error: communityError(error), post: null }); }
+
+  function reset(nextFilters = filters) {
+    setPage(1); setFilters(nextFilters); setListing(emptyListing); setRevision((value) => value + 1);
   }
-  function review(event) { event.preventDefault(); const error = validateCommunityPost(post, acknowledged);
-    if (error) { setFormError(error); return; } setFormError(''); setReviewOpen(true); }
-  async function submit() {
-    if (submittingRef.current || !reviewOpen) return;
-    const error = validateCommunityPost(post, acknowledged);
-    if (error) { setFormError(error); setReviewOpen(false); return; }
-    submittingRef.current = true; setSubmitting(true); setFormError('');
-    try {
-      const { acknowledgement } = await api.acknowledge();
-      const result = await api.submit(post, acknowledgement.id);
-      setReviewOpen(false); setPost(initialPost); setAcknowledged(false);
-      setNotice(result.alreadySubmitted ? 'This submission was already received and remains pending administrator review.' : 'Your post was submitted for administrator review. It will appear in the community feed only after approval.');
-      setTab('mine'); setPage(1); setFilters({ search: '', category: '', status: '' }); setListing({ loading: true, error: '', result: null });
-      setDraftFilters({ search: '', category: '', status: '' }); setRevision((value) => value + 1);
-    } catch (failure) { setReviewOpen(false); setFormError(communityError(failure, 'submit')); }
-    finally { submittingRef.current = false; setSubmitting(false); }
+  function changeTab(next) {
+    setTab(next); setDraftSearch(''); setNotice(''); reset(emptyFilters);
   }
-  const result = listing.result;
-  const visibleItems = result?.items.filter((item) => tab === 'mine' || item.status === 'APPROVED') ?? [];
-  return <>
-    <PageHeader eyebrow="Security awareness" title="Security Community" description="Share practical cybersecurity guidance. Every new post is reviewed before it appears in the organization-wide feed." />
-    <div className="mb-6 flex flex-wrap items-center justify-between gap-3"><Tabs tabs={tabs} active={tab} onChange={changeTab} label="Community views" panelId="community-panel" /><p className="text-xs text-slate-500">Text posts only · Attachments are unavailable</p></div>
-    {notice && <div role="status" className="mb-5 rounded-xl border border-success-200 bg-success-50 p-4 text-sm font-medium text-success-900">{notice}</div>}
-    <div id="community-panel" role="tabpanel" aria-labelledby={`community-panel-${tab}`} tabIndex={0}>
-    {tab !== 'create' && <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_minmax(20rem,0.78fr)]"><section aria-label={tab === 'mine' ? 'My submissions' : 'Approved community feed'}>
-      <Card className="mb-5 p-5 sm:p-6"><form onSubmit={apply} className="grid gap-3 sm:grid-cols-2"><label className="text-sm font-semibold text-slate-700">Search title or description<Input className="mt-2" type="search" maxLength={100} value={draftFilters.search} onChange={(event) => setDraftFilters((value) => ({ ...value, search: event.target.value }))} /></label><label className="text-sm font-semibold text-slate-700">Category<Select className="mt-2" value={draftFilters.category} onChange={(event) => setDraftFilters((value) => ({ ...value, category: event.target.value }))}><option value="">All categories</option>{categories.map((value) => <option key={value} value={value}>{label(value)}</option>)}</Select></label>{tab === 'mine' && <label className="text-sm font-semibold text-slate-700">Moderation status<Select className="mt-2" value={draftFilters.status} onChange={(event) => setDraftFilters((value) => ({ ...value, status: event.target.value }))}><option value="">All statuses</option>{statuses.map((value) => <option key={value} value={value}>{label(value)}</option>)}</Select></label>}<div className="flex flex-wrap items-end gap-2"><Button type="submit">Apply filters</Button><Button variant="secondary" onClick={refresh}>Refresh</Button></div></form></Card>
-      {listing.loading && <Card className="p-6" role="status">Loading community posts…</Card>}
-      {listing.error && <Card className="p-5"><StatePanel icon={AlertCircle} tone="error" title="Community posts could not be loaded" description={listing.error} action={<Button variant="secondary" onClick={refresh}>Try again</Button>} /></Card>}
-      {!listing.loading && !listing.error && result && visibleItems.length === 0 && <Card className="p-5"><StatePanel icon={MessageSquareText} title={tab === 'mine' ? 'No matching submissions' : 'No approved posts yet'} description={tab === 'mine' ? 'Your submitted posts and moderation statuses will appear here. Try another filter or create a post.' : 'Approved security tips and warnings will appear here after administrator review.'} action={tab === 'mine' && <Button onClick={() => changeTab('create')}>Create post</Button>} /></Card>}
-      {visibleItems.length > 0 && <Card className="p-4 sm:p-5"><div className="space-y-3">{visibleItems.map((item) => <article key={item.id} className="rounded-xl border border-slate-200 p-4 sm:p-5"><div className="flex flex-wrap items-center justify-between gap-2"><Badge tone="brand">{label(item.category)}</Badge>{tab === 'mine' && <Status value={item.status} />}</div><h2 className="mt-3 break-words text-lg font-bold text-slate-900">{item.title}</h2><p className="mt-2 line-clamp-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-600">{item.body}</p><div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-3"><p className="text-xs text-slate-500">{item.authorName} · {dateTime(tab === 'mine' ? item.submittedAt : item.approvedAt)}</p><Button variant="secondary" size="sm" onClick={() => openPost(item)}>View post</Button></div></article>)}</div><Pager result={result} page={page} onChange={changePage} /></Card>}
-    </section><section aria-label="Post details" className="xl:sticky xl:top-24"><h2 className="mb-3 text-lg font-bold text-slate-900">Post details</h2>{!selected && <Card className="p-5"><StatePanel icon={BookOpenText} title="Select a post" description="Open a post to read the full guidance and its publication or submission status." /></Card>}{detail.loading && <Card className="p-6" role="status">Loading post details…</Card>}{detail.error && <Card className="p-5"><StatePanel icon={AlertCircle} tone="error" title="Post could not be loaded" description={detail.error} action={selected && <Button variant="secondary" onClick={() => openPost(selected)}>Try again</Button>} /></Card>}{detail.post && <Card className="p-5 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-2"><Badge tone="brand">{label(detail.post.category)}</Badge>{selected?.own && <Status value={detail.post.status} />}</div><h3 className="mt-4 break-words text-xl font-bold text-slate-900">{detail.post.title}</h3><p className="mt-2 text-xs text-slate-500">{detail.post.authorName} · {dateTime(selected?.own ? detail.post.submittedAt : detail.post.approvedAt)}</p><p className="mt-6 whitespace-pre-wrap break-words border-t border-slate-100 pt-5 text-sm leading-7 text-slate-700">{detail.post.body}</p>{selected?.own && <p className="mt-5 rounded-xl bg-slate-50 p-4 text-sm text-slate-700">{detail.post.status === 'PENDING_REVIEW' ? 'Awaiting administrator review. This post is not visible in the shared feed.' : detail.post.status === 'APPROVED' ? 'Approved and visible in the shared community feed.' : detail.post.status === 'REJECTED' ? 'This post was not approved and remains private to you.' : 'This post was removed from the shared feed.'}</p>}</Card>}</section></div>}
-    {tab === 'create' && <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.6fr)]"><Card className="p-5 sm:p-7"><h2 className="text-lg font-bold text-slate-900">Create a community post</h2><p className="mt-1 text-sm text-slate-600">Share a tip, warning, or educational example. An administrator reviews every submission.</p><form onSubmit={review} className="mt-6 space-y-5" noValidate><label className="block text-sm font-semibold text-slate-700">Title <span className="text-danger-700">*</span><Input className="mt-2" value={post.title} maxLength={200} onChange={(event) => setPost((value) => ({ ...value, title: event.target.value }))} /></label><label className="block text-sm font-semibold text-slate-700">Category <span className="text-danger-700">*</span><Select className="mt-2" value={post.category} onChange={(event) => setPost((value) => ({ ...value, category: event.target.value }))}><option value="">Choose a category</option>{categories.map((value) => <option key={value} value={value}>{label(value)}</option>)}</Select></label><label className="block text-sm font-semibold text-slate-700">Description <span className="text-danger-700">*</span><Textarea className="mt-2 min-h-52" value={post.body} maxLength={5000} onChange={(event) => setPost((value) => ({ ...value, body: event.target.value }))} /></label><p className="text-xs text-slate-500">{post.body.length} / 5,000 characters. Plain text only; attachments are unavailable.</p>
-      <section className="rounded-xl border border-warning-200 bg-warning-50 p-5" aria-label="Sensitive-information notice"><div className="flex items-start gap-3"><ShieldCheck className="mt-0.5 size-5 shrink-0 text-warning-800" aria-hidden="true" /><div><h3 className="font-bold text-warning-950">{DISCLAIMER_DEFINITION.title}</h3><p className="mt-2 text-sm leading-6 text-warning-900">{DISCLAIMER_DEFINITION.summary}</p></div></div><ul className="mt-4 list-disc space-y-1 pl-5 text-sm leading-6 text-warning-900">{DISCLAIMER_DEFINITION.prohibitedItems.map((item) => <li key={item}>{item}</li>)}<li>Internal documents not approved for sharing</li></ul><p className="mt-4 text-sm font-semibold leading-6 text-warning-900">{DISCLAIMER_DEFINITION.restrictedGuidance}</p><label className="mt-5 flex items-start gap-3 rounded-lg border border-warning-300 bg-white p-4 text-sm font-semibold text-slate-800"><input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} className="mt-0.5 size-4 accent-brand-600" /><span>{DISCLAIMER_DEFINITION.confirmation}</span></label></section>
-      {formError && <p role="alert" className="rounded-lg bg-danger-50 p-3 text-sm text-danger-800">{formError}</p>}<Button type="submit" disabled={submitting}><Send className="size-4" aria-hidden="true" />Review submission</Button></form></Card><Card className="p-5 sm:p-6"><h2 className="font-bold text-slate-900">How publication works</h2><ol className="mt-4 space-y-4 text-sm leading-6 text-slate-600"><li><strong>1. Submit.</strong> Your post starts as pending review.</li><li><strong>2. Security review.</strong> An administrator checks the content before publication.</li><li><strong>3. Publication.</strong> Only approved posts appear in the shared feed.</li></ol><p className="mt-5 text-xs leading-5 text-slate-500">Use the approved security-reporting channel for confidential or urgent incidents.</p></Card></div>}
+  function retry() {
+    setListing((current) => ({ ...current, loading: true, error: '' })); setRevision((value) => value + 1);
+  }
+  function submitted(result) {
+    setComposing(false); setTab('mine'); setDraftSearch(''); reset(emptyFilters);
+    setNotice(result.alreadySubmitted ? 'This post was already received and is awaiting review.' : 'Post submitted for review. It will appear in the community once approved.');
+  }
+  const filtered = Boolean(filters.search || filters.category || filters.status);
+  function engagementChanged(id, engagement) {
+    if (tab === 'saved' && engagement.saved === false) { reset(); return; }
+    setListing((current) => ({ ...current, items: current.items.map((post) => post.id === id ? { ...post, ...engagement } : post) }));
+  }
+
+  return <div className="community-page">
+    <PageHeader title="Security Community" description="Share knowledge, stay informed, and help build a stronger security culture."
+      actions={<Button onClick={() => setComposing(true)}><PenLine className="size-4" aria-hidden="true" />Create Post</Button>} />
+    <div className="community-layout">
+      <section className="community-feed" aria-label="Community feed">
+        {notice && <p role="status" className="flex items-start gap-2 rounded-xl bg-success-50 p-4 text-sm leading-6 text-success-800"><CheckCircle2 className="mt-0.5 size-5 shrink-0" aria-hidden="true" />{notice}</p>}
+        <div className="community-toolbar">
+          <div className="flex items-center justify-between gap-3"><Tabs tabs={tabs} active={tab} onChange={changeTab} label="Community views" panelId="community-panel" /><IconButton label="Refresh" onClick={() => reset()}><RefreshCw className="size-4" aria-hidden="true" /></IconButton></div>
+          <form className="community-filters" role="search" onSubmit={(event) => { event.preventDefault(); reset({ ...filters, search: draftSearch.trim() }); }}>
+            <div className="flex min-w-0 flex-1 items-center gap-1 rounded-xl border border-slate-200 bg-white pr-1"><Input type="search" className="border-0 bg-transparent shadow-none" aria-label="Search title or description" placeholder="Search the community" maxLength={100} value={draftSearch} onChange={(event) => setDraftSearch(event.target.value)} /><IconButton label="Search posts" type="submit"><Search className="size-4" aria-hidden="true" /></IconButton></div>
+            <Select aria-label="Filter by category" value={filters.category} onChange={(event) => reset({ ...filters, category: event.target.value })}><option value="">All topics</option>{categories.map((category) => <option key={category} value={category}>{label(category)}</option>)}</Select>
+            {tab === 'mine' && <Select aria-label="Moderation status" value={filters.status} onChange={(event) => reset({ ...filters, status: event.target.value })}><option value="">All statuses</option>{statuses.map((status) => <option key={status} value={status}>{status === 'APPROVED' ? 'Published' : label(status)}</option>)}</Select>}
+          </form>
+          {filtered && <button className="community-text-action" onClick={() => { setDraftSearch(''); reset(emptyFilters); }}>Clear filters</button>}
+        </div>
+        <section id="community-panel" role="tabpanel" aria-labelledby={`community-panel-${tab}`} tabIndex={0} className="space-y-4" aria-busy={listing.loading}>
+          {listing.items.map((post) => <CommunityPostCard key={`${tab}-${post.id}`} post={post} own={tab === 'mine'} onEngagement={engagementChanged} onUnavailable={() => reset()} onDeleted={() => { reset(); setNotice('Post deleted.'); }} />)}
+          {listing.loading && <div role="status" className="community-post"><span className="sr-only">Loading community posts…</span><div className="flex items-center gap-3"><Skeleton className="size-11 rounded-full" /><Skeleton className="h-4 w-36" /></div><div className="mt-6 space-y-3"><Skeleton className="h-5 w-3/4" /><Skeleton className="h-4 w-full" /><Skeleton className="h-4 w-5/6" /></div></div>}
+          {listing.error && <div role="alert" className="community-empty"><AlertCircle className="size-7 text-danger-600" aria-hidden="true" /><h2>Community posts could not be loaded</h2><p>{listing.error}</p><Button variant="secondary" onClick={retry}>Try again</Button></div>}
+          {!listing.loading && !listing.error && listing.items.length === 0 && <div className="community-empty"><MessageSquareText className="size-8 text-brand-700" aria-hidden="true" /><h2>{filtered ? 'No matching posts' : tab === 'saved' ? 'No saved posts yet' : tab === 'mine' ? 'Your ideas belong here' : 'Start a stronger security conversation'}</h2><p>{filtered ? 'Try a different search or topic to find what you need.' : tab === 'saved' ? 'Save useful posts from the feed to find them here later. Only published posts are shown.' : tab === 'mine' ? 'Your submissions and review statuses will appear here. Share something useful with your colleagues.' : 'Approved tips, experiences, and warnings will appear here. Be the first to contribute.'}</p><Button variant="subtle" onClick={() => filtered ? (setDraftSearch(''), reset(emptyFilters)) : tab === 'saved' ? changeTab('feed') : setComposing(true)}>{filtered ? 'Clear filters' : tab === 'saved' ? 'Browse latest posts' : 'Create a post'}</Button></div>}
+          {!listing.error && listing.hasMore && <div className="flex justify-center py-3"><Button variant="secondary" disabled={listing.loading} onClick={() => { setListing((current) => ({ ...current, loading: true })); setPage((value) => value + 1); }}>{listing.loading ? 'Loading…' : 'Load more'}</Button></div>}
+          {!listing.loading && !listing.error && !listing.hasMore && listing.items.length > 0 && <p className="py-3 text-center text-xs text-slate-500">You’re all caught up.</p>}
+        </section>
+      </section>
+      <aside className="community-guidelines" aria-label="Community guidelines">
+        <ShieldCheck className="size-7 text-brand-700" aria-hidden="true" /><h2 className="mt-4 font-bold text-navy-900">A more secure workplace,<br />one conversation at a time.</h2><p className="mt-3 text-sm leading-6 text-slate-600">Practical knowledge makes a difference. Share what you’ve learned and help colleagues spot the warning signs.</p>
+        <ul className="mt-5 space-y-4 text-sm leading-6 text-slate-600"><li><strong className="block text-navy-900">Make it useful</strong>Offer clear tips and lessons others can apply.</li><li><strong className="block text-navy-900">Keep it respectful</strong>Focus on learning, never blame.</li><li><strong className="block text-navy-900">Protect private information</strong>Remove sensitive details before sharing.</li></ul>
+        <div className="mt-6 border-t border-slate-200 pt-5"><p className="text-sm font-semibold text-navy-900">Have a security concern?</p><p className="mt-1 text-xs leading-5 text-slate-600">Use the approved reporting process for incidents or confidential evidence.</p><Link to="/incidents" className="community-text-action mt-2">Go to My Incidents<ArrowRight className="size-4" aria-hidden="true" /></Link></div>
+      </aside>
     </div>
-    <Modal open={reviewOpen} onClose={() => { if (!submitting) setReviewOpen(false); }} title="Review your community post" description="Confirm the text is appropriate for the shared community. The post will remain private until approved." footer={<><Button variant="secondary" disabled={submitting} onClick={() => setReviewOpen(false)}>Edit post</Button><Button disabled={submitting} onClick={submit}>{submitting ? 'Submitting…' : 'Submit for review'}</Button></>}><p className="text-xs font-bold uppercase tracking-wide text-brand-700">{label(post.category)}</p><h3 className="mt-2 break-words font-bold text-slate-900">{post.title}</h3><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-6 text-slate-700">{post.body}</p></Modal>
-  </>;
+    <CommunityComposer open={composing} onClose={() => setComposing(false)} onSubmitted={submitted} api={api} name={name} />
+  </div>;
 }

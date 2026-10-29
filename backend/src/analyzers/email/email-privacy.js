@@ -24,7 +24,7 @@ export function displayAddress(address) {
 // Use the analyzer-produced result; no submitted free text is serialized here.
 export function minimizeEmailEvidence(result) {
   return {
-    analyzer: 'EMAIL', analyzerVersion: '6A1.1', inputType: result.inputType,
+    analyzer: 'EMAIL', analyzerVersion: result.analyzerVersion, inputType: result.inputType,
     provisionalClassification: result.provisionalClassification,
     indicatorIds: result.indicators.map(({ id }) => id),
     authentication: Object.fromEntries(['spf', 'dkim', 'dmarc'].map((method) => [method, {

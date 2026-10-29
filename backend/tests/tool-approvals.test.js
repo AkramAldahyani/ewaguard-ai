@@ -123,6 +123,7 @@ test('8B2A durable approval HTTP boundaries with synthetic analyzers and no paid
     assert.equal(JSON.stringify(response.data).includes('SyntheticPrivateBody8B2'), false);
     const stored = await database.toolApproval.findUniqueOrThrow({ where: { id: row.id } });
     assert.equal(stored.encryptedParameters, null); assert.ok(stored.emailAnalysisId);
+    assert.equal((await database.emailAnalysis.findUniqueOrThrow({ where: { id: stored.emailAnalysisId } })).userId, owner.id);
     const replay = await decision(row); assert.equal(replay.status, 200); assert.equal(replay.data.replayed, true);
     assert.equal(replay.data.approval.analysisId, stored.emailAnalysisId); assert.equal(scans, before + 1);
     assert.equal((await decision(row, 'REJECT')).status, 409);
@@ -132,6 +133,8 @@ test('8B2A durable approval HTTP boundaries with synthetic analyzers and no paid
     const before = network; const row = await prepare(input('URL')); assert.equal(network, before);
     const response = await decision(row); assert.equal(response.status, 200, JSON.stringify(response.data));
     assert.equal(network, before + 1); assert.equal(response.data.result.data.analyzerType, 'URL');
+    const stored = await database.toolApproval.findUniqueOrThrow({ where: { id: row.id } });
+    assert.equal((await database.urlAnalysis.findUniqueOrThrow({ where: { id: stored.urlAnalysisId } })).userId, owner.id);
     assert.equal(JSON.stringify(response.data).includes('example.com'), false);
     await decision(row); assert.equal(network, before + 1);
     for (const url of ['file:///etc/passwd', 'http://127.0.0.1', 'http://2130706433', 'http://[::1]', 'https://example.com/?token=secret']) {

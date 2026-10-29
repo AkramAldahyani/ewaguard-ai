@@ -1,4 +1,5 @@
 import { buildIncidentAssistance } from '../../backend/src/assistance/incident-assistance.js';
+import { waitForSubmission } from './analysis-wait.mjs';
 import { evaluateRisk } from '../../backend/src/risk/risk-engine.js';
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -15,15 +16,23 @@ test('URL employee UI and state lifecycle', async (t) => {
   t.after(() => server.close());
   const { UrlAnalyzerPage, UrlInputForm } = await server.ssrLoadModule('/src/features/url/UrlAnalyzerPage.jsx');
   const { UrlResults } = await server.ssrLoadModule('/src/features/url/UrlResults.jsx');
+  await t.test('retry receipt renders without requiring original submission details', () => {
+    const html = renderToStaticMarkup(createElement(UrlResults, { analysis: { replayed: true,
+      analysisId: 'saved-id', analyzerType: 'URL', severity: 'LOW', riskScore: 0,
+      createdAt: '2026-10-19T12:00:00Z', incident: { state: 'NOT_REQUIRED' } } }));
+    assert.match(html, /Previously completed analysis/);
+    assert.match(html, /This retry did not create another scan/);
+  });
   const render = (C, props) => renderToStaticMarkup(createElement(MemoryRouter, { initialEntries: ['/analyze/url'] }, createElement(C, props)));
   const analyzer = createUrlAnalyzer({ resolveTarget: async () => ({ addresses: ['8.8.8.8'], evidence: { status: 'RESOLVED', resolvedIpCount: 1 } }), tlsInspector: async () => ({ status: 'UNAVAILABLE' }) });
   const analysis = { analysisId: 'test-id', createdAt: new Date().toISOString(), result: await analyzer('https://example.com/login?token=VALUE_SECRET') };
   analysis.result.risk = evaluateRisk({ analyzerType: 'URL', evidence: analysis.result, evaluatedAt: analysis.createdAt });
   analysis.result.assistance = buildIncidentAssistance({ analyzerType: 'URL', riskResult: analysis.result.risk });
-  const ready = (submit = async () => analysis) => { const flow = createUrlFlow(submit); flow.acknowledge(); flow.edit('https://example.com'); return flow; };
-  await t.test('unchecked acknowledgement and provider disclosure before input', () => {
-    const html = render(UrlAnalyzerPage); assert.match(html, /Sensitive Information Notice/); assert.match(html, /VirusTotal.*dataset/);
-    assert.doesNotMatch(html, /id="url-input"|checked=""|Preview only/);
+  const ready = (submit = async () => analysis) => { const flow = createUrlFlow(submit); flow.edit('https://example.com'); return flow; };
+  await t.test('URL input is available without a disclaimer', () => {
+    const html = render(UrlAnalyzerPage);
+    assert.match(html, /id="url-input"/);
+    assert.doesNotMatch(html, /Before You Continue|Before you analyze|Sensitive Information Notice|type="checkbox"/);
   });
   await t.test('input labels and bounds guidance', () => {
     const flow = ready(); const html = render(UrlInputForm, { flow, state: flow.getSnapshot() });
@@ -53,23 +62,22 @@ test('URL employee UI and state lifecycle', async (t) => {
     const result = { ...analysis.result, normalizedUrl: { ...analysis.result.normalizedUrl, redactedUrl: '<img src=x onerror=alert(1)>' } };
     assert.match(render(UrlResults, { analysis: { ...analysis, result } }), /&lt;img/);
   });
-  await t.test('invalid input and unacknowledged state never submit', async () => {
-    const flow = createUrlFlow(() => assert.fail()); flow.edit('https://example.com'); await flow.submit(); flow.acknowledge();
+  await t.test('invalid input never submits', async () => {
+    const flow = createUrlFlow(() => assert.fail());
     for (const value of ['', 'javascript:alert(1)', 'a'.repeat(4097)]) { flow.edit(value); await flow.submit(); assert.equal(flow.getSnapshot().status, 'error'); }
   });
   await t.test('loading, duplicate protection, success clears raw URL and reset clears result', async () => {
     let finish; let calls = 0;
     const flow = ready(() => { calls++; return new Promise((resolve) => { finish = resolve; }); });
-    const pending = flow.submit(); await flow.submit(); assert.equal(calls, 1);
+    const pending = flow.submit(); await flow.submit(); await waitForSubmission(() => calls === 1); assert.equal(calls, 1);
     assert.match(render(UrlInputForm, { flow, state: flow.getSnapshot() }), /aria-busy="true"/);
     finish(analysis); await pending; assert.equal(flow.getSnapshot().url, ''); assert.ok(flow.getSnapshot().result);
     flow.reset(); assert.equal(flow.getSnapshot().result, null);
   });
-  await t.test('abort ignores late response, expired notice renews, failures sanitized', async () => {
+  await t.test('abort ignores late response and failures are sanitized', async () => {
     let finish; let signal;
     const flow = ready((_, s) => { signal = s; return new Promise((resolve) => { finish = resolve; }); });
-    const pending = flow.submit(); flow.reset(); assert.ok(signal.aborted); finish(analysis); await pending; assert.equal(flow.getSnapshot().result, null);
-    const expired = ready(async () => { throw { code: 'URL_ACKNOWLEDGEMENT_REQUIRED' }; }); await expired.submit(); assert.equal(expired.getSnapshot().acknowledged, false);
+    const pending = flow.submit(); await waitForSubmission(() => signal); flow.reset(); assert.ok(signal.aborted); finish(analysis); await pending; assert.equal(flow.getSnapshot().result, null);
     for (const status of [401, 429, 500, 413]) assert.doesNotMatch(urlErrorMessage({ status, message: 'SECRET' }), /SECRET/);
   });
 });

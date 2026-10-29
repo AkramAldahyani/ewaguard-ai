@@ -82,6 +82,9 @@ export function attachRealtime(server, { database, config, pollIntervalMs = 5000
     disconnectSession(id) {
       for (const [socketId, session] of sessions) if (session.claims.jti === id) io.sockets.sockets.get(socketId)?.disconnect(true);
     },
+    disconnectUser(id) {
+      for (const [socketId, session] of sessions) if (session.user.id === id) io.sockets.sockets.get(socketId)?.disconnect(true);
+    },
     close() { return new Promise((resolve) => io.close(resolve)); },
   };
 }

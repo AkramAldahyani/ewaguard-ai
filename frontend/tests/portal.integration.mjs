@@ -32,27 +32,31 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
       if (['/', '/community'].includes(path)) assert.doesNotMatch(html, /Preview only/);
       for (const control of html.matchAll(/<(?:input|textarea)\b[^>]*>/g)) {
         if (path === '/assistant') assert.match(control[0], /id="chat-message"/);
+        else if (path === '/community' && control[0].includes('type="file"')) assert.match(control[0], /accept="image\/jpeg,image\/png,image\/webp"/);
         else if (path === '/community') assert.doesNotMatch(control[0], /disabled=""/);
         else if (path !== '/password-security' && !['/analyze/email', '/analyze/file', '/analyze/url', '/training', '/monthly-quiz'].includes(path)) assert.match(control[0], /disabled=""/);
-        else if (['/analyze/email', '/analyze/file', '/analyze/url'].includes(path)) {
+        else if (path === '/analyze/email') {
           assert.match(control[0], /type="checkbox"/);
           assert.doesNotMatch(control[0], /checked/);
         }
       }
-      assert.doesNotMatch(html, /type="file"/);
+      if (['/analyze/file', '/community'].includes(path)) assert.match(html, /type="file"/);
+      else assert.doesNotMatch(html, /type="file"/);
     }
-    assert.match(render('/community'), /Community feed|My submissions/);
+    assert.match(render('/community'), /Community feed|My Posts/);
     assert.doesNotMatch(render('/'), /68%|Representative only/);
   });
-  await t.test('email and file analysis require the active disclaimer before their preview step', () => {
-    for (const path of ['/analyze/email', '/analyze/file', '/analyze/url']) {
-      const html = render(path);
-      assert.match(html, /Sensitive Information Notice/);
-      assert.match(html, /Acknowledge and continue/);
-      assert.match(html, /disabled=""/);
-      assert.doesNotMatch(html, /No analysis service connected/);
-    }
-    assert.match(render('/analyze/url'), /Acknowledge and continue/);
+  await t.test('email requires acknowledgement while URL and file inputs open directly', () => {
+    const email = render('/analyze/email');
+    assert.match(email, /Before You Continue/);
+    assert.match(email, /Continue to Email Analysis/);
+    assert.match(email, /disabled=""/);
+    assert.doesNotMatch(email, /id="email-body"|type="file"/);
+    const url = render('/analyze/url');
+    const file = render('/analyze/file');
+    assert.match(url, /id="url-input"/);
+    assert.match(file, /type="file"/);
+    assert.doesNotMatch(`${url}${file}`, /Sensitive Information Notice|Before You Continue|type="checkbox"/);
   });
   await t.test('password security is operational, local-only, and employee restricted', () => {
     const html = render('/password-security');
@@ -75,9 +79,15 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
     assert.doesNotMatch(render('/design-system/chat', { user: null, loading: false }), /Chat component previews/);
     assert.doesNotMatch(render('/design-system/chat', { user: { ...user, role: 'IT_SECURITY_ADMIN' }, loading: false }), /Chat component previews/);
   });
+  await t.test('removed interface system is absent from navigation and routing', () => {
+    assert.doesNotMatch(render('/'), /Interface system/);
+    assert.match(render('/design-system'), /Page not found/);
+    assert.doesNotMatch(render('/design-system'), /EWAGuard design system/);
+  });
   await t.test('profile uses session fields and does not serialize internal fields', () => {
     const html = render('/profile');
     for (const value of ['Portal Fixture', user.email, user.employeeIdentifier, user.department.name]) assert.ok(html.includes(value));
+    assert.match(html, />User ID</);
     assert.doesNotMatch(html, /MUST_NOT_RENDER|INTERNAL_ID/);
     const missing = render('/profile', { user: { ...user, department: null, employeeIdentifier: null }, loading: false });
     assert.match(missing, /Not assigned/); assert.match(missing, /Not provided/);
@@ -90,11 +100,14 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
     }
   });
   await t.test('admin does not receive employee pages or navigation; employees cannot render admin area', () => {
-    for (const [path, title] of pages) {
+    for (const [path, title] of pages.filter(([path]) => path !== '/profile')) {
       const html = render(path, { user: { ...user, role: 'IT_SECURITY_ADMIN' }, loading: false });
       assert.doesNotMatch(html, new RegExp(`<h1[^>]*>${title}</h1>`));
       assert.doesNotMatch(html, /href="\/training"|href="\/analyze\/email"|href="\/monthly-quiz"/);
     }
+    const adminProfile = render('/profile', { user: { ...user, employeeIdentifier: 'ADM-001', department: { name: 'IT' }, role: 'IT_SECURITY_ADMIN' }, loading: false });
+    for (const value of ['Profile', 'ADM-001', 'IT', 'IT / Security Administrator']) assert.ok(adminProfile.includes(value));
+    assert.match(adminProfile, /href="\/profile"/);
     assert.doesNotMatch(render('/admin'), /Authorized access for IT and security administrators/);
     assert.match(render('/unauthorized'), /Access restricted/);
   });

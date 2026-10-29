@@ -4,7 +4,10 @@ import { PageHeader } from '../../components/PageHeader.jsx';
 import { Badge, Button, Card, Input, Select, StatePanel, Textarea } from '../../components/ui/index.jsx';
 import { Modal } from '../../components/ui/Dialog.jsx';
 import { createAdminCommunityApi } from './admin-community-api.js';
+import { CommunityImageReview } from './CommunityImages.jsx';
 import { categories, dateTime, label, moderationError, statuses, validReason } from './community-model.js';
+import { AdminCommentPanel } from './AdminCommentPanel.jsx';
+import { AdminReportsPanel } from './AdminReportsPanel.jsx';
 
 const api = createAdminCommunityApi();
 const initialFilters = { search: '', status: 'PENDING_REVIEW', category: '', authorId: '', submittedFrom: '', submittedTo: '', sort: 'submitted_desc' };
@@ -13,6 +16,11 @@ const statusTone = { PENDING_REVIEW: 'warning', APPROVED: 'success', REJECTED: '
 function Status({ value }) { return <Badge tone={statusTone[value] ?? 'neutral'}>{label(value)}</Badge>; }
 
 export function AdminCommunityPage() {
+  const [section, setSection] = useState('Post moderation');
+  return <><nav aria-label="Moderation sections" className="mb-5 flex flex-wrap gap-2">{['Post moderation', 'Comment moderation', 'Reported content'].map((name) => <Button key={name} variant={section === name ? 'primary' : 'secondary'} aria-pressed={section === name} onClick={() => setSection(name)}>{name}</Button>)}</nav>{section === 'Comment moderation' ? <AdminCommentPanel /> : section === 'Reported content' ? <AdminReportsPanel /> : <PostModerationPanel />}</>;
+}
+
+function PostModerationPanel() {
   const [draft, setDraft] = useState(initialFilters), [filters, setFilters] = useState(initialFilters);
   const [page, setPage] = useState(1), [revision, setRevision] = useState(0);
   const [queue, setQueue] = useState({ loading: true, error: '', result: null });
@@ -21,9 +29,11 @@ export function AdminCommunityPage() {
   const [confirm, setConfirm] = useState(null), [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState(''), [actionError, setActionError] = useState(''), [stale, setStale] = useState(false);
   const detailRequest = useRef(0);
+  const [reviewedImages, setReviewedImages] = useState([]);
   const clearProtected = (message) => { ++detailRequest.current; setQueue({ loading: false, error: message, result: null }); setDetail({ loading: false, error: '', post: null }); setSelectedId(null); setConfirm(null); };
   const loadDetail = useCallback(async (id, { preserveReason = false } = {}) => {
     const requestId = ++detailRequest.current;
+    setReviewedImages([]);
     setSelectedId(id); setDetail({ loading: true, error: '', post: null });
     if (!preserveReason) { setReason(''); setReasonError(''); setStale(false); setNotice(''); setActionError(''); }
     try {
@@ -53,6 +63,9 @@ export function AdminCommunityPage() {
     setPage(1); setFilters({ ...draft, search: draft.search.trim() });
   }
   function requestDecision(action) {
+    if (action === 'approve' && detail.post?.images?.length && reviewedImages.length !== detail.post.images.length) {
+      setActionError('Preview and acknowledge every attached photo before approving this post.'); return;
+    }
     if (!validReason(reason)) { setReasonError('Enter a plain-text reason of 1–1000 characters without HTML.'); return; }
     setReasonError(''); setActionError(''); setConfirm(action);
   }
@@ -61,7 +74,7 @@ export function AdminCommunityPage() {
     if (!action || !post || busy || stale || !actions[post.status]?.includes(action)) return;
     setConfirm(null); setBusy(true); setActionError(''); setNotice('');
     try {
-      await api.decide(post.id, action, reason.trim(), post.updatedAt);
+      await api.decide(post.id, action, reason.trim(), post.updatedAt, post.images?.length && action === 'approve' ? reviewedImages : undefined);
       await loadDetail(post.id, { preserveReason: true });
       setReason(''); setStale(false); setNotice(`Post ${action === 'remove' ? 'removed' : action === 'reject' ? 'rejected' : 'approved'} successfully.`);
       refreshQueue();
@@ -102,6 +115,7 @@ export function AdminCommunityPage() {
         {detail.loading && <Card className="p-6" role="status">Loading post details…</Card>}
         {detail.error && <Card className="p-5"><StatePanel icon={AlertCircle} tone="error" title="Post could not be loaded" description={detail.error} action={selectedId && <Button variant="secondary" onClick={() => loadDetail(selectedId, { preserveReason: true })}>Try again</Button>} /></Card>}
         {post && <Card className="p-5 sm:p-7"><div className="flex flex-wrap items-center justify-between gap-3"><Status value={post.status} /><span className="text-xs text-slate-500">{label(post.category)}</span></div><h3 className="mt-4 break-words text-xl font-bold text-slate-950">{post.title}</h3><dl className="mt-4 grid gap-3 text-sm sm:grid-cols-2"><div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Author</dt><dd className="mt-1 break-words">{post.author.name}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Submitted</dt><dd className="mt-1">{dateTime(post.submittedAt)}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Approved</dt><dd className="mt-1">{dateTime(post.approvedAt)}</dd></div><div><dt className="text-xs font-semibold uppercase tracking-wide text-slate-500">Removed</dt><dd className="mt-1">{dateTime(post.removedAt)}</dd></div></dl><div className="mt-6 rounded-xl border border-slate-200 bg-slate-50 p-4"><h4 className="text-xs font-bold uppercase tracking-wide text-slate-600">Submitted content</h4><p className="mt-3 whitespace-pre-wrap break-words text-sm leading-7 text-slate-800">{post.body}</p></div>
+          {post.images?.length > 0 && <CommunityImageReview key={`${post.id}-${post.updatedAt}`} images={post.images} onReview={setReviewedImages} />}
           {notice && <p role="status" className="mt-5 rounded-lg bg-success-50 p-3 text-sm text-success-800">{notice}</p>}
           {actionError && <p role="alert" className="mt-5 rounded-lg bg-danger-50 p-3 text-sm text-danger-800">{actionError}</p>}
           {stale && <div className="mt-5 rounded-xl border border-warning-200 bg-warning-50 p-4"><p className="text-sm font-semibold text-warning-900">This post changed during your review. Read the updated content and history before choosing another action.</p><Button variant="secondary" className="mt-3" onClick={() => { setStale(false); setActionError(''); }}>I have reviewed the latest post</Button></div>}

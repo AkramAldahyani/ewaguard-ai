@@ -1,9 +1,10 @@
 import { apiRequest } from '../../services/api.js';
+import { createSubmissionKey } from '../analysis-submission.js';
 import { FILE_EXTENSIONS, FILE_MAX_BYTES } from '../../../../shared/file-policy.js';
 
-export function analyzeFile(file, signal) {
+export function analyzeFile(file, signal, key) {
   const body = new FormData(); body.append('file', file);
-  return apiRequest('/api/analysis/file', { method: 'POST', body, signal });
+  return apiRequest('/api/analysis/file', { method: 'POST', body, signal, headers: key ? { 'Idempotency-Key': key } : {} });
 }
 export function validateFile(file) {
   if (!file) return 'Choose one file to analyze.';
@@ -17,7 +18,6 @@ export function fileErrorMessage(error) {
   if (error.status === 429) return 'Too many file submissions. Wait a minute and try again.';
   if (error.status === 413) return 'The file exceeds the 10 MiB upload limit.';
   return ({
-    FILE_ACKNOWLEDGEMENT_REQUIRED: 'Please renew your acknowledgement before submitting a file.',
     INVALID_FILE_UPLOAD: 'Choose exactly one supported file and try again.',
     UNSUPPORTED_FILE: 'The file extension or detected content format is not supported.',
     EMPTY_FILE: 'The selected file is empty.',
@@ -28,36 +28,38 @@ export function fileErrorMessage(error) {
 }
 const empty = { file: null, result: null, status: 'idle', error: '' };
 export function createFileFlow(submit = analyzeFile) {
-  let state = { ...empty, acknowledged: false, noticeKey: 0 };
+  const submission = createSubmissionKey();
+  let state = { ...empty };
   let controller; let generation = 0;
   const listeners = new Set();
   const set = (update) => { state = { ...state, ...update }; listeners.forEach((fn) => fn()); };
   return {
     getSnapshot: () => state,
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
-    acknowledge: () => set({ acknowledged: true, error: '' }),
     selectFiles: (files) => {
       if (state.status === 'submitting') return;
       const file = files.length === 1 ? files[0] : null;
       const error = files.length > 1 ? 'Choose exactly one file.' : file ? validateFile(file) : '';
       set({ ...empty, file: error ? null : file, error, status: error ? 'error' : 'idle' });
     },
-    reset: () => { generation++; controller?.abort(); set(empty); },
-    dispose: () => { generation++; controller?.abort(); state = { ...state, ...empty }; },
+    reset: () => { submission.clear(); generation++; controller?.abort(); set(empty); },
+    dispose: () => { submission.clear(); generation++; controller?.abort(); state = { ...state, ...empty }; },
     submit: async () => {
-      if (!state.acknowledged || state.status === 'submitting') return;
+      if (state.status === 'submitting') return;
       const error = validateFile(state.file);
       if (error) { set({ error, status: 'error' }); return; }
       const current = ++generation;
       controller = new AbortController();
       set({ status: 'submitting', error: '', result: null });
       try {
-        const result = await submit(state.file, controller.signal);
-        if (current === generation) set({ ...empty, result, status: 'success' });
+        const input = state.file;
+        const key = await submission.forInput(input);
+        if (current !== generation) return;
+        const result = await submit(input, controller.signal, key);
+        if (current === generation) { submission.clear(); set({ ...empty, result, status: 'success' }); }
       } catch (failure) {
         if (current !== generation) return;
-        const expired = failure.code === 'FILE_ACKNOWLEDGEMENT_REQUIRED';
-        set({ ...empty, status: 'error', error: fileErrorMessage(failure), ...(expired ? { acknowledged: false, noticeKey: state.noticeKey + 1 } : {}) });
+        set({ ...empty, status: 'error', error: fileErrorMessage(failure) });
       }
     },
   };

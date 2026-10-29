@@ -1,0 +1,2 @@
+malicious_url_list
+http://cloud-browse.codes/debb44e1d0c0d4804e94a5deb80f28f1df840bffbbc6159803d405dad7a792c7

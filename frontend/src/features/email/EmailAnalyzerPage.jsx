@@ -5,6 +5,7 @@ import { Button, Card, Field, Textarea } from '../../components/ui/index.jsx';
 import { SensitiveInformationNotice } from '../disclaimer/SensitiveInformationNotice.jsx';
 import { createEmailFlow, byteLength, formatBytes, EMAIL_INPUT_LIMITS } from './email-state.js';
 import { EmailResults } from './EmailResults.jsx';
+import { AnalysisPageTheme } from '../../components/analysis-risk-theme.jsx';
 
 export function EmailInputForm({ state, flow }) {
   const picker = useRef(null);
@@ -34,12 +35,16 @@ export function EmailAnalyzerPage() {
     if (state.result) resultRef.current?.focus();
     else if (state.acknowledged) inputRef.current?.focus();
   }, [state.result, state.acknowledged]);
-  return <div className="mx-auto w-full max-w-6xl min-w-0">
-    <PageHeader eyebrow="Security analysis" title="Analyze Email" description="Review suspicious messages using local email checks, then understand the evidence and the next steps." />
-    <div role="status" aria-live="polite" className="mb-3 text-sm font-semibold text-brand-700">{state.status === 'submitting' ? 'Analyzing email… Reviewing message structure and available evidence.' : state.status === 'validating' ? 'Checking your input…' : state.status === 'success' ? 'Email analysis complete.' : ''}</div>
-    {state.error && <div ref={errorRef} tabIndex={-1} role="alert" className="mb-5 rounded-xl border border-warning-300 bg-warning-50 p-4 text-sm font-medium text-warning-900">{state.error}</div>}
-    {!state.acknowledged && <SensitiveInformationNotice key={state.noticeKey} context="EMAIL_ANALYSIS" continuation="email analysis" onAcknowledged={flow.acknowledge} />}
-    {state.acknowledged && !state.result && <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"><Card className="min-w-0 p-5 sm:p-7"><h2 ref={inputRef} tabIndex={-1} className="mb-5 text-lg font-bold text-slate-950">Email content</h2><EmailInputForm state={state} flow={flow} /></Card><Card className="p-5 sm:p-6"><ShieldCheck className="mb-3 size-6 text-brand-700" aria-hidden="true" /><h2 className="font-bold text-slate-950">Before you analyze</h2><p className="mt-3 text-sm leading-6 text-slate-600">Submit only content permitted by your organization. Never include passwords, credentials, secrets, or confidential information.</p><p className="mt-3 text-sm leading-6 text-slate-600">Submitted content is sent to the server for analysis. Raw email content and uploaded .eml files are not persisted by this analyzer. Minimized evidence is stored.</p><p className="mt-3 text-sm leading-6 text-slate-600">These checks do not verify URL reputation or scan attachments for malware. Findings are provisional.</p></Card></div>}
-    {state.result && <section aria-labelledby="email-result-title"><div className="mb-5 flex flex-wrap items-center justify-between gap-3"><h2 id="email-result-title" ref={resultRef} tabIndex={-1} className="text-xl font-bold text-slate-950">Email analysis result</h2><div className="flex flex-wrap gap-2"><Button onClick={flow.reset}>Analyze Another Email</Button><Button variant="secondary" onClick={flow.reset}>Clear Result</Button></div></div><EmailResults analysis={state.result} /></section>}
-  </div>;
+  const activeRisk = state.status === 'success'
+    ? state.result?.result?.risk ?? (state.result?.replayed ? { riskLevel: state.result.severity } : null)
+    : null;
+  return <AnalysisPageTheme risk={activeRisk} className="mx-auto w-full min-w-0">
+    <div className="mx-auto w-full max-w-6xl"><PageHeader eyebrow="Security analysis" title="Analyze Email" description="Review suspicious messages using local email checks, then understand the evidence and the next steps." />
+      <div role="status" aria-live="polite" className="mb-3 text-sm font-semibold text-brand-700">{state.status === 'submitting' ? 'Analyzing email… Reviewing message structure and available evidence.' : state.status === 'validating' ? 'Checking your input…' : state.status === 'success' ? 'Email analysis complete.' : ''}</div>
+      {state.error && <div ref={errorRef} tabIndex={-1} role="alert" className="mb-5 rounded-xl border border-warning-300 bg-warning-50 p-4 text-sm font-medium text-warning-900">{state.error}</div>}
+    </div>
+    {!state.acknowledged && <SensitiveInformationNotice key={state.noticeKey} context="EMAIL_ANALYSIS" continuation="email analysis" compact onAcknowledged={flow.acknowledge} />}
+    {state.acknowledged && !state.result && <div className="mx-auto grid w-full max-w-6xl items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]"><Card className="min-w-0 p-5 sm:p-7"><h2 ref={inputRef} tabIndex={-1} className="mb-5 text-lg font-bold text-slate-950">Email content</h2><EmailInputForm state={state} flow={flow} /></Card><Card className="p-5 sm:p-6"><ShieldCheck className="mb-3 size-6 text-brand-700" aria-hidden="true" /><h2 className="font-bold text-slate-950">Before you analyze</h2><p className="mt-3 text-sm leading-6 text-slate-600">Submit only content permitted by your organization. Never include passwords, credentials, secrets, or confidential information.</p><p className="mt-3 text-sm leading-6 text-slate-600">Submitted content is sent to the server for analysis. Raw email content and uploaded .eml files are not persisted by this analyzer. Minimized evidence is stored.</p><p className="mt-3 text-sm leading-6 text-slate-600">These checks do not verify URL reputation or scan attachments for malware. Findings are provisional.</p></Card></div>}
+    {state.result && <section className="mx-auto w-full max-w-6xl" aria-labelledby="email-result-title"><div className="analysis-result-heading mb-5 flex flex-wrap items-center justify-between gap-3"><h2 id="email-result-title" ref={resultRef} tabIndex={-1} className="text-xl font-bold text-slate-950">Email analysis result</h2><div className="analysis-result-actions flex flex-wrap gap-2"><Button onClick={flow.reset}>Analyze Another Email</Button><Button variant="secondary" onClick={flow.reset}>Clear Result</Button></div></div><EmailResults analysis={state.result} /></section>}
+  </AnalysisPageTheme>;
 }

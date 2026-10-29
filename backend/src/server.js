@@ -2,6 +2,7 @@ import { createApp } from './app.js';
 import { parseConfig } from './config/env.js';
 import { createFileTempStore } from './analyzers/file/file-temp.js';
 import { startRetentionWorker } from './privacy/retention-service.js';
+import { cleanupCommunityMedia } from './community/media-retention.js';
 
 import { createServer } from 'node:http';
 import { attachRealtime } from './notifications/realtime.js';
@@ -11,6 +12,9 @@ try {
   await createFileTempStore().cleanupStale();
   const app = createApp(config);
   const stopRetention = startRetentionWorker(app.locals.database, config.retention);
+  const stopMediaRetention = startRetentionWorker(app.locals.database, config.retention, {
+    run: (database) => cleanupCommunityMedia(database, app.locals.communityMedia, { apply: true }),
+  });
   const server = createServer(app);
   const realtime = attachRealtime(server, { database: app.locals.database, config });
   app.locals.realtime = realtime;
@@ -30,6 +34,7 @@ try {
     deadline.unref();
     void realtime.close().then(async () => {
       await stopRetention();
+      await stopMediaRetention();
       clearTimeout(deadline);
       await app.locals.database.$disconnect();
     });

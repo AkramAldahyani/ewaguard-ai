@@ -1,11 +1,13 @@
 import { ManagementError, STATUSES, TRANSITIONS, NOTE_NOTICE, invalid, uuid, fields, choice, timestamp, pagination, noteInput } from './management-policy.js';
 import { projectIncidentDetail } from './incident-detail.js';
 import { persistIncidentNotifications } from '../notifications/notification-service.js';
+import { identitySelect, actorKind } from '../users/user-identity.js';
 
 const person = { id: true, firstName: true, lastName: true };
 const summarySelect = { id: true, number: true, title: true, severity: true, riskScore: true,
   type: true, detectionSource: true, status: true, createdAt: true, updatedAt: true, resolvedAt: true, closedAt: true };
-const adminSelect = { ...summarySelect, reporter: { select: person }, assignee: { select: person },
+const adminSelect = { ...summarySelect, reporterId: true, assigneeId: true,
+  reporter: { select: identitySelect }, assignee: { select: identitySelect },
   department: { select: { id: true, name: true } } };
 const orderBy = [{ createdAt: 'desc' }, { id: 'desc' }];
 const missing = () => { throw new ManagementError(404, 'INCIDENT_NOT_FOUND', 'Incident not found.'); };
@@ -77,9 +79,12 @@ export function createIncidentManagement(database) {
       await find(user, admin, id);
       const rows = await database.incidentEvent.findMany({ where: { incidentId: id,
         ...(admin ? {} : { type: { in: ['CREATED', 'STATUS_CHANGED'] } }) },
-      select: { id: true, type: true, createdAt: true, details: true, ...(admin ? { actor: { select: person } } : {}) }, ...pageArgs(paging) });
+      select: { id: true, type: true, createdAt: true, details: true,
+        ...(admin ? { actorId: true, actor: { select: identitySelect } } : {}) }, ...pageArgs(paging) });
       // Never return arbitrary historical JSON, including internal resolution text.
-      const items = rows.map(({ details, ...row }) => ({ ...row, details: Object.fromEntries(
+      const items = rows.map(({ details, ...row }) => ({ ...row,
+        ...(admin ? { actorKind: actorKind(row.actorId, details?.source) } : {}),
+        details: Object.fromEntries(
         ['status', 'fromStatus', 'toStatus'].filter((key) => STATUSES.includes(details?.[key])).map((key) => [key, details[key]])),
         ...(admin && row.type === 'ASSIGNED' ? { assignment: Object.fromEntries(['previousAssigneeId', 'assigneeId']
           .filter((key) => details?.[key] === null || (typeof details?.[key] === 'string' && /^[0-9a-f-]{36}$/i.test(details[key])))
@@ -92,7 +97,7 @@ export function createIncidentManagement(database) {
       await find(user, admin, id);
       const rows = await database.incidentComment.findMany({ where: { incidentId: id, redactedAt: null,
         ...(admin ? {} : { visibility: 'REPORTER' }) }, select: { id: true, body: true, createdAt: true,
-        ...(admin ? { visibility: true, author: { select: person } } : {}) }, ...pageArgs(paging) });
+        ...(admin ? { visibility: true, authorId: true, author: { select: identitySelect } } : {}) }, ...pageArgs(paging) });
       if (admin) await audit(database, user, id, 'INCIDENT_NOTES_VIEWED');
       return pageResult(rows, paging.page, paging.pageSize);
     },

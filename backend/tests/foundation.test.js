@@ -43,6 +43,7 @@ test('origin validation permits same-origin browser reads without weakening writ
 test('configuration accepts defaults and rejects invalid deployment settings', () => {
   assert.equal(parseConfig(configEnv()).port, 5000);
   assert.equal(parseConfig(configEnv()).host, '127.0.0.1');
+  assert.equal(parseConfig(configEnv()).accessTokenTtlSeconds, 1800);
   assert.equal(parseConfig(configEnv({ PORT: '5432', FRONTEND_URL: 'https://example.com/' })).frontendUrl, 'https://example.com');
   for (const env of [
     { PORT: '' }, { PORT: '0' }, { PORT: '65536' }, { PORT: '5e3' }, { PORT: '5000x' },

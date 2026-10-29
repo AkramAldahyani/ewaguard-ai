@@ -1,0 +1,12 @@
+{
+  "documents": [
+    { "documentKey": "bahrain-pdpl", "title": "Bahrain Personal Data Protection Law", "filename": "pdpl/bahrain_pdpl.pdf", "kind": "PDPL", "version": 1, "classification": "PRODUCTION", "sourceUse": "PUBLIC_LEGISLATION" },
+    { "documentKey": "demo-acceptable-use", "title": "Acceptable Use Policy", "filename": "company-policies/Acceptable_Use_Policy.docx", "kind": "COMPANY_POLICY", "version": 1, "classification": "DEMONSTRATION", "sourceUse": "DEMONSTRATION" },
+    { "documentKey": "demo-ai-third-party", "title": "AI and Third Party Tools Usage Policy", "filename": "company-policies/AI_and_Third_Party_Tools_Usage_Policy.docx", "kind": "COMPANY_POLICY", "version": 1, "classification": "DEMONSTRATION", "sourceUse": "DEMONSTRATION" },
+    { "documentKey": "demo-data-classification", "title": "Data Classification Policy", "filename": "company-policies/Data_Classification_Policy.docx", "kind": "COMPANY_POLICY", "version": 1, "classification": "DEMONSTRATION", "sourceUse": "DEMONSTRATION" },
+    { "documentKey": "demo-information-security", "title": "Information Security Policy", "filename": "company-policies/Information_Security_Policy.docx", "kind": "COMPANY_POLICY", "version": 1, "classification": "DEMONSTRATION", "sourceUse": "DEMONSTRATION" },
+    { "documentKey": "demo-password-authentication", "title": "Password and Authentication Policy", "filename": "company-policies/Password_and_Authentication_Policy.docx", "kind": "COMPANY_POLICY", "version": 1, "classification": "DEMONSTRATION", "sourceUse": "DEMONSTRATION" },
+    { "documentKey": "demo-physical-clean-desk", "title": "Physical Security and Clean Desk Policy", "filename": "company-policies/Physical_Security_and_Clean_Desk_Policy.docx", "kind": "COMPANY_POLICY", "version": 1, "classification": "DEMONSTRATION", "sourceUse": "DEMONSTRATION" },
+    { "documentKey": "demo-remote-work-vpn", "title": "Remote Work and VPN Security Policy", "filename": "company-policies/Remote_Work_and_VPN_Security_Policy.docx", "kind": "COMPANY_POLICY", "version": 1, "classification": "DEMONSTRATION", "sourceUse": "DEMONSTRATION" }
+  ]
+}

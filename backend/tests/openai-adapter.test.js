@@ -2,7 +2,20 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { readFile } from 'node:fs/promises';
 import { createOpenAIAdapter, providerError, responseText } from '../src/ai/openai-adapter.js';
-import { containsSecret, modelPricing, SYSTEM_INSTRUCTIONS } from '../src/ai/chat-policy.js';
+import { containsSecret, containsResponseSecret, modelPricing, SYSTEM_INSTRUCTIONS } from '../src/ai/chat-policy.js';
+import { PDPL_RESPONSE_FORMAT } from '../src/rag/pdpl-response-format.js';
+import { inputBound } from '../src/ai/tool-round-budget.js';
+
+test('only the trusted PDPL answer round requests a strict schema and accounts for its tokens', async () => {
+  const requests = [];
+  const adapter = createOpenAIAdapter({ apiKey: 'synthetic', client: { responses: { create: async body => { requests.push(body); return {}; } } } });
+  await adapter.respond([]);
+  await adapter.respond([], { pdplResponse: true });
+  assert.equal(requests[0].text, undefined);
+  assert.deepEqual(requests[1].text.format, PDPL_RESPONSE_FORMAT);
+  assert.equal(requests[1].tool_choice, 'none');
+  assert.equal(inputBound([], false, true) - inputBound([], false), Buffer.byteLength(JSON.stringify(PDPL_RESPONSE_FORMAT)));
+});
 
 test('adapter uses Responses, server instructions, low reasoning, no tools/storage/retries', async () => {
   let calls = 0;
@@ -21,6 +34,10 @@ test('adapter uses Responses, server instructions, low reasoning, no tools/stora
 test('missing key, unknown model and expired pricing fail closed', async () => {
   await assert.rejects(createOpenAIAdapter().verify(), { code: 'AI_NOT_CONFIGURED' });
   await assert.rejects(createOpenAIAdapter({ apiKey: 'synthetic', model: 'unpriced' }).verify(), { code: 'AI_PRICING_UNAVAILABLE' });
+  assert.deepEqual(
+    { input: modelPricing('gpt-6-luna').inputMicrosPerToken, output: modelPricing('gpt-6-luna').outputMicrosPerToken },
+    { input: 0.125, output: 0.5 },
+  );
   assert.throws(() => modelPricing('gpt-6-luna', new Date('2027-01-01')), { code: 'AI_PRICING_UNAVAILABLE' });
 });
 test('provider errors mapped without raw provider error text or keys', async () => {
@@ -49,6 +66,15 @@ test('response validation rejects empty, malformed, incomplete and tool outputs'
 test('privacy detection blocks common credentials and token URLs while allowing guidance', () => {
   for (const text of ['password is SyntheticSecret', 'MFA code: 123456', 'api_key=synthetic', 'Bearer synthetic', '-----BEGIN PRIVATE KEY-----', 'https://example.invalid/path?access_token=synthetic', 'https://user:secret@example.invalid']) assert.equal(containsSecret(text), true);
   for (const text of ['What is phishing?', 'How do passwords and MFA work?', 'Explain password security.']) assert.equal(containsSecret(text), false);
+});
+
+test('generated security education is not a credential assignment; actual secrets still fail', () => {
+  for (const text of ['A strong password is long, unique, and hard to guess.', 'MFA helps if a password is stolen.']) {
+    assert.equal(containsResponseSecret(text), false);
+    assert.equal(containsSecret(text), true); // Strict input screening is unchanged.
+  }
+  for (const text of ['password is SyntheticSecret', 'password: long', 'password is longSecret', 'MFA code: 123456', 'api_key=synthetic', 'A password is strong. Bearer secret-token'])
+    assert.equal(containsResponseSecret(text), true);
 });
 
 test('real SDK transport is mocked; secrets stay in provider auth and never logs/frontend', async (t) => {

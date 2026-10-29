@@ -25,11 +25,11 @@ try {
     await tx.user.upsert({
       where: { employeeIdentifier: 'DEV-EMP-001' },
       create: {
-        employeeIdentifier: 'DEV-EMP-001', firstName: 'Development', lastName: 'Employee',
+        employeeIdentifier: 'DEV-EMP-001', firstName: 'Akram', lastName: 'Aldahyani',
         email: 'employee@ewa.bh', passwordHash: employeeHash, status: 'ACTIVE',
         roleId: employeeRole.id, departmentId: operations.id,
       },
-      update: { email: 'employee@ewa.bh', passwordHash: employeeHash, status: 'ACTIVE', deactivatedAt: null, roleId: employeeRole.id, departmentId: operations.id },
+      update: { email: 'employee@ewa.bh', firstName: 'Akram', lastName: 'Aldahyani', passwordHash: employeeHash, status: 'ACTIVE', deactivatedAt: null, roleId: employeeRole.id, departmentId: operations.id },
     });
     await tx.user.upsert({
       where: { employeeIdentifier: 'DEV-ADM-001' },

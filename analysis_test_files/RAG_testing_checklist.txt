@@ -1,0 +1,43 @@
+RAG testing checklist
+
+
+
+What are the company rules for passwords?
+
+Expected source: Password and Authentication Policy
+
+
+
+Can I install unauthorized software on a company computer?
+
+Expected source: Acceptable Use Policy
+
+
+
+What are the different company data classification levels?
+
+Expected source: Data Classification Policy
+
+
+
+Can I work from a public Wi-Fi network?
+
+Expected source: Remote Work and VPN Security Policy
+
+
+
+What should I do before leaving my desk?
+
+Expected source: Physical Security and Clean Desk Policy
+
+
+
+Can I upload confidential company documents to a public AI chatbot?
+
+Expected source: AI and Third-Party Tools Usage Policy
+
+
+
+What does the Bahrain PDPL say about personal data?
+
+Expected source: Bahrain PDPL

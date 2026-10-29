@@ -35,6 +35,11 @@ enum AnalysisStatus {
   ERROR
 }
 
+enum FileAnalysisKind {
+  UPLOAD
+  HASH_LOOKUP
+}
+
 enum Severity {
   LOW
   MEDIUM
@@ -240,6 +245,11 @@ model User {
   mfaChallengeCredential String?                     @db.VarChar(64)
   status                 AccountStatus               @default(INVITED)
   deactivatedAt          DateTime?                   @db.Timestamptz(3)
+  deletedAt              DateTime?                   @db.Timestamptz(3)
+  lastLoginAt            DateTime?                   @db.Timestamptz(3)
+  sessionVersion         Int                         @default(0)
+  setupTokenHash         String?                     @unique @db.VarChar(64)
+  setupTokenExpiresAt    DateTime?                   @db.Timestamptz(3)
   createdAt              DateTime                    @default(now()) @db.Timestamptz(3)
   updatedAt              DateTime                    @updatedAt @db.Timestamptz(3)
   roleId                 String                      @db.Uuid
@@ -271,10 +281,19 @@ model User {
   reviewedQuestions      QuizQuestion[]              @relation("QuizQuestion_reviewedBy")
   quizAttempts           QuizAttempt[]               @relation("QuizAttempt_employee")
   posts                  CommunityPost[]             @relation("CommunityPost_author")
+  communityLikes         CommunityPostLike[]
+  communitySaves         CommunityPostSave[]
+  communityComments      CommunityComment[]
+  commentModeration      CommentModerationAction[]
+  communityReports       CommunityReport[]           @relation("Report_author")
+  reviewedReports        CommunityReport[]           @relation("Report_reviewer")
   moderationActions      PostModerationAction[]      @relation("PostModerationAction_moderator")
   auditLogs              AuditLog[]                  @relation("AuditLog_actor")
 
   @@index([status])
+  @@index([deletedAt, createdAt])
+  @@index([lastName, firstName])
+  @@index([lastLoginAt])
   @@index([roleId])
   @@index([departmentId])
   @@map("users")
@@ -446,25 +465,25 @@ model EmailAnalysis {
 }
 
 model UrlAnalysis {
-  toolApprovals     ToolApproval[]            @relation("ToolApproval_url")
-  id                String                    @id @default(uuid()) @db.Uuid
-  status            AnalysisStatus            @default(PENDING)
-  evidence          Json                      @default("{}")
+  toolApprovals     ToolApproval[]             @relation("ToolApproval_url")
+  id                String                     @id @default(uuid()) @db.Uuid
+  status            AnalysisStatus             @default(PENDING)
+  evidence          Json                       @default("{}")
   riskScore         Int?
   severity          Severity?
-  riskRuleVersion   String?                   @db.VarChar(40)
-  analyzedAt        DateTime?                 @db.Timestamptz(3)
-  expiresAt         DateTime                  @db.Timestamptz(3)
+  riskRuleVersion   String?                    @db.VarChar(40)
+  analyzedAt        DateTime?                  @db.Timestamptz(3)
+  expiresAt         DateTime                   @db.Timestamptz(3)
   // Never store URL credentials, query strings, or fragments here.
-  hostname          String                    @db.VarChar(253)
-  urlSha256         String                    @db.Char(64)
-  createdAt         DateTime                  @default(now()) @db.Timestamptz(3)
-  updatedAt         DateTime                  @updatedAt @db.Timestamptz(3)
-  userId            String                    @db.Uuid
-  acknowledgementId String                    @db.Uuid
-  user              User                      @relation("UrlAnalysis_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  acknowledgement   DisclaimerAcknowledgement @relation("UrlAnalysis_acknowledgement", fields: [acknowledgementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  incidentEvidence  IncidentEvidence[]        @relation("IncidentEvidence_urlAnalysis")
+  hostname          String                     @db.VarChar(253)
+  urlSha256         String                     @db.Char(64)
+  createdAt         DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime                   @updatedAt @db.Timestamptz(3)
+  userId            String                     @db.Uuid
+  acknowledgementId String?                    @db.Uuid
+  user              User                       @relation("UrlAnalysis_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  acknowledgement   DisclaimerAcknowledgement? @relation("UrlAnalysis_acknowledgement", fields: [acknowledgementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  incidentEvidence  IncidentEvidence[]         @relation("IncidentEvidence_urlAnalysis")
 
   @@index([userId, createdAt])
   @@index([expiresAt])
@@ -474,31 +493,32 @@ model UrlAnalysis {
 }
 
 model FileAnalysis {
-  id                  String                    @id @default(uuid()) @db.Uuid
-  status              AnalysisStatus            @default(PENDING)
-  evidence            Json                      @default("{}")
+  id                  String                     @id @default(uuid()) @db.Uuid
+  status              AnalysisStatus             @default(PENDING)
+  evidence            Json                       @default("{}")
   riskScore           Int?
   severity            Severity?
-  riskRuleVersion     String?                   @db.VarChar(40)
-  analyzedAt          DateTime?                 @db.Timestamptz(3)
-  expiresAt           DateTime                  @db.Timestamptz(3)
-  sha256              String                    @db.Char(64)
-  sizeBytes           BigInt
-  detectedMime        String                    @db.VarChar(120)
-  extension           String                    @db.VarChar(20)
+  riskRuleVersion     String?                    @db.VarChar(40)
+  analyzedAt          DateTime?                  @db.Timestamptz(3)
+  expiresAt           DateTime                   @db.Timestamptz(3)
+  sha256              String                     @db.Char(64)
+  kind                FileAnalysisKind           @default(UPLOAD)
+  sizeBytes           BigInt?
+  detectedMime        String?                    @db.VarChar(120)
+  extension           String?                    @db.VarChar(20)
   // Opaque randomized storage key, never an original filename or absolute path.
-  storageKey          String?                   @unique @db.VarChar(200)
-  clamavStatus        ScanStatus                @default(NOT_SCANNED)
-  yaraStatus          ScanStatus                @default(NOT_SCANNED)
-  deletedAt           DateTime?                 @db.Timestamptz(3)
-  createdAt           DateTime                  @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime                  @updatedAt @db.Timestamptz(3)
-  userId              String                    @db.Uuid
-  acknowledgementId   String                    @db.Uuid
-  user                User                      @relation("FileAnalysis_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  acknowledgement     DisclaimerAcknowledgement @relation("FileAnalysis_acknowledgement", fields: [acknowledgementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  incidentEvidence    IncidentEvidence[]        @relation("IncidentEvidence_fileAnalysis")
-  communityAttachment CommunityPostAttachment?  @relation("CommunityPostAttachment_fileAnalysis")
+  storageKey          String?                    @unique @db.VarChar(200)
+  clamavStatus        ScanStatus                 @default(NOT_SCANNED)
+  yaraStatus          ScanStatus                 @default(NOT_SCANNED)
+  deletedAt           DateTime?                  @db.Timestamptz(3)
+  createdAt           DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                   @updatedAt @db.Timestamptz(3)
+  userId              String                     @db.Uuid
+  acknowledgementId   String?                    @db.Uuid
+  user                User                       @relation("FileAnalysis_user", fields: [userId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  acknowledgement     DisclaimerAcknowledgement? @relation("FileAnalysis_acknowledgement", fields: [acknowledgementId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  incidentEvidence    IncidentEvidence[]         @relation("IncidentEvidence_fileAnalysis")
+  communityAttachment CommunityPostAttachment?   @relation("CommunityPostAttachment_fileAnalysis")
 
   @@index([userId, createdAt])
   @@index([sha256])
@@ -652,26 +672,29 @@ model RevokedSession {
 }
 
 model KnowledgeDocument {
-  id             String          @id @default(uuid()) @db.Uuid
+  id                String          @id @default(uuid()) @db.Uuid
   // One versioned document model avoids duplicate PDPL/company pipelines.
-  kind           DocumentKind
-  documentKey    String          @db.VarChar(100)
-  version        Int             @default(1)
-  title          String          @db.VarChar(240)
-  source         String          @db.VarChar(1000)
-  storageKey     String?         @unique @db.VarChar(200)
-  contentSha256  String?         @db.Char(64)
-  status         ApprovalStatus  @default(DRAFT)
-  active         Boolean         @default(false)
-  indexingStatus IndexingStatus  @default(NOT_INDEXED)
-  approvedAt     DateTime?       @db.Timestamptz(3)
-  createdAt      DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt      DateTime        @updatedAt @db.Timestamptz(3)
-  uploadedById   String          @db.Uuid
-  approvedById   String?         @db.Uuid
-  uploadedBy     User            @relation("KnowledgeDocument_uploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  approvedBy     User?           @relation("KnowledgeDocument_approvedBy", fields: [approvedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  chunks         DocumentChunk[] @relation("DocumentChunk_document")
+  kind              DocumentKind
+  documentKey       String          @db.VarChar(100)
+  version           Int             @default(1)
+  title             String          @db.VarChar(240)
+  source            String          @db.VarChar(1000)
+  storageKey        String?         @unique @db.VarChar(200)
+  contentSha256     String?         @db.Char(64)
+  filename          String?         @db.VarChar(255)
+  classification    String          @default("UNSPECIFIED") @db.VarChar(20)
+  ingestionMetadata Json            @default("{}")
+  status            ApprovalStatus  @default(DRAFT)
+  active            Boolean         @default(false)
+  indexingStatus    IndexingStatus  @default(NOT_INDEXED)
+  approvedAt        DateTime?       @db.Timestamptz(3)
+  createdAt         DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime        @updatedAt @db.Timestamptz(3)
+  uploadedById      String          @db.Uuid
+  approvedById      String?         @db.Uuid
+  uploadedBy        User            @relation("KnowledgeDocument_uploadedBy", fields: [uploadedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  approvedBy        User?           @relation("KnowledgeDocument_approvedBy", fields: [approvedById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  chunks            DocumentChunk[] @relation("DocumentChunk_document")
 
   @@unique([kind, documentKey, version])
   @@index([kind, status, active, indexingStatus])
@@ -968,6 +991,7 @@ model Certificate {
 }
 
 model CommunityPost {
+  deletedAt         DateTime?                 @db.Timestamptz(3)
   id                String                    @id @default(uuid()) @db.Uuid
   title             String                    @db.VarChar(200)
   body              String                    @db.Text
@@ -986,6 +1010,10 @@ model CommunityPost {
   training          TrainingProgram?          @relation("CommunityPost_training", fields: [trainingId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   attachments       CommunityPostAttachment[] @relation("CommunityPostAttachment_post")
   moderationActions PostModerationAction[]    @relation("PostModerationAction_post")
+  likes             CommunityPostLike[]
+  saves             CommunityPostSave[]
+  comments          CommunityComment[]
+  reports           CommunityReport[]
 
   @@index([status, category, createdAt])
   @@index([authorId, createdAt])
@@ -993,6 +1021,100 @@ model CommunityPost {
   @@index([acknowledgementId])
   @@index([trainingId])
   @@map("community_posts")
+}
+
+model CommunityComment {
+  id                     String                    @id @default(uuid()) @db.Uuid
+  postId                 String                    @db.Uuid
+  authorId               String                    @db.Uuid
+  parentId               String?                   @db.Uuid
+  body                   String                    @db.VarChar(2000)
+  status                 CommunityStatus           @default(PENDING_REVIEW)
+  moderationReason       String?                   @db.VarChar(1000)
+  acknowledgementVersion String?                   @db.VarChar(40)
+  acknowledgedAt         DateTime?                 @db.Timestamptz(3)
+  createdAt              DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                  @updatedAt @db.Timestamptz(3)
+  author                 User                      @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  post                   CommunityPost             @relation(fields: [postId], references: [id], onDelete: Cascade)
+  parent                 CommunityComment?         @relation("CommunityCommentReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies                CommunityComment[]        @relation("CommunityCommentReplies")
+  moderationActions      CommentModerationAction[]
+  reports                CommunityReport[]
+
+  @@index([postId, parentId, status, createdAt])
+  @@index([status, createdAt])
+  @@index([authorId])
+  @@index([parentId])
+  @@map("community_comments")
+}
+
+model CommunityReport {
+  id         String            @id @default(uuid()) @db.Uuid
+  reporterId String            @db.Uuid
+  postId     String?           @db.Uuid
+  commentId  String?           @db.Uuid
+  category   String            @db.VarChar(40)
+  details    String?           @db.VarChar(1000)
+  status     String            @default("PENDING") @db.VarChar(20)
+  reason     String?           @db.VarChar(1000)
+  reviewerId String?           @db.Uuid
+  reviewedAt DateTime?         @db.Timestamptz(3)
+  createdAt  DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt  DateTime          @updatedAt @db.Timestamptz(3)
+  reporter   User              @relation("Report_author", fields: [reporterId], references: [id], onDelete: Restrict)
+  reviewer   User?             @relation("Report_reviewer", fields: [reviewerId], references: [id], onDelete: Restrict)
+  post       CommunityPost?    @relation(fields: [postId], references: [id], onDelete: Cascade)
+  comment    CommunityComment? @relation(fields: [commentId], references: [id], onDelete: Cascade)
+
+  @@unique([reporterId, postId])
+  @@unique([reporterId, commentId])
+  @@index([status, createdAt])
+  @@index([postId])
+  @@index([commentId])
+  @@index([reviewerId])
+  @@map("community_reports")
+}
+
+model CommentModerationAction {
+  id             String             @id @default(uuid()) @db.Uuid
+  commentId      String             @db.Uuid
+  moderatorId    String             @db.Uuid
+  previousStatus CommunityStatus
+  decision       ModerationDecision
+  reason         String             @db.VarChar(1000)
+  createdAt      DateTime           @default(now()) @db.Timestamptz(3)
+  comment        CommunityComment   @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  moderator      User               @relation(fields: [moderatorId], references: [id], onDelete: Restrict)
+
+  @@index([commentId, createdAt])
+  @@index([moderatorId])
+  @@map("comment_moderation_actions")
+}
+
+model CommunityPostLike {
+  userId    String        @db.Uuid
+  postId    String        @db.Uuid
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+  @@map("community_post_likes")
+}
+
+model CommunityPostSave {
+  userId    String        @db.Uuid
+  postId    String        @db.Uuid
+  createdAt DateTime      @default(now()) @db.Timestamptz(3)
+  user      User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  post      CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  @@id([userId, postId])
+  @@index([postId])
+  @@index([userId, createdAt])
+  @@map("community_post_saves")
 }
 
 model CommunityPostAttachment {

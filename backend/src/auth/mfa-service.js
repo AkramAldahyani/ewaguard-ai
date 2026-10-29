@@ -5,7 +5,7 @@ import { authAudit } from './auth-audit.js';
 
 const MAX_ATTEMPTS = 5;
 const digest = (value) => createHash('sha256').update(value).digest('hex');
-const eligible = (user) => user?.status === 'ACTIVE' && !user.deactivatedAt && user.role.name === 'IT_SECURITY_ADMIN';
+const eligible = (user) => user?.status === 'ACTIVE' && !user.deactivatedAt && !user.deletedAt && user.role.name === 'IT_SECURITY_ADMIN';
 const clearedChallenge = { mfaChallengeHash: null, mfaChallengeExpiresAt: null, mfaChallengeCredential: null, mfaPendingSecret: null, mfaChallengeAttempts: 0 };
 
 export function mfaCookie(config) {
@@ -99,15 +99,15 @@ export async function completeMfa(database, token, code, config) {
     }
     const enabledAt = user.mfaEnabledAt ?? new Date();
     await tx.user.update({ where: { id: user.id }, data: {
-      ...clearedChallenge, mfaSecretEncrypted: encrypted, mfaEnabledAt: enabledAt, mfaLastCounter: counter,
+      ...clearedChallenge, mfaSecretEncrypted: encrypted, mfaEnabledAt: enabledAt, mfaLastCounter: counter, lastLoginAt: new Date(),
     } });
     // Enabling administrator MFA is a durable security mutation: audit failure
     // must roll back enrollment. Routine verification audits run after commit.
     if (enrollment) await authAudit(tx, 'MFA_ENROLLMENT_COMPLETED', user.id, { required: true });
-    return { userId: user.id, enabledAt, enrollment };
+    return { userId: user.id, enabledAt, enrollment, sessionVersion: user.sessionVersion };
   });
   if (!result || !result.enrollment) await authAudit(database, result ? 'MFA_CHALLENGE_SUCCEEDED' : 'MFA_CHALLENGE_FAILED', auditUserId);
-  return result ? { userId: result.userId, enabledAt: result.enabledAt } : null;
+  return result ? { userId: result.userId, enabledAt: result.enabledAt, sessionVersion: result.sessionVersion } : null;
 }
 
 export async function cancelMfa(database, token, config) {

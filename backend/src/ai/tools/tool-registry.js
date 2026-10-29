@@ -37,6 +37,16 @@ export const TOOL_REGISTRY = freeze([
   read('get_analysis_result', 'Retrieve minimized evidence and the stored final risk result for an owned completed analysis.'),
   read('explain_risk', 'Return the stored final risk and fixed reason descriptions; never recalculate or accept a supplied score.'),
   read('get_security_recommendations', 'Return existing deterministic incident-assistance guidance from the stored final risk; no incident is created.'),
+  { ...read('search_pdpl', 'Search approved Bahrain PDPL passages for the current employee question. Required before explaining Bahrain PDPL. No company policies, arbitrary queries, approval changes or legal advice.', schema({})),
+    execution: 'CHAT_CONTEXT_ONLY', allowedService: 'approved-pdpl-retrieval', acknowledgementContext: 'CHAT',
+    inputRequirements: 'Owned conversation, active session, current chat privacy consent; question supplied by the server.',
+    privacyRestrictions: 'Current non-sensitive employee question only; bounded OpenAI embedding request; public approved PDPL excerpts only.',
+    outputProjection: 'pdpl-reference-result-v1', timeoutMs: 30000 },
+  { ...read('search_company_policy', 'Search reviewed demonstration cybersecurity policies for the current employee question. Examples only, NOT official EWA requirements. Server demo mode required; no arbitrary queries or changes.', schema({})),
+    execution: 'CHAT_CONTEXT_ONLY', allowedService: 'demonstration-policy-retrieval', acknowledgementContext: 'CHAT',
+    inputRequirements: 'Owned conversation, active employee session, current chat consent and server demonstration mode.',
+    privacyRestrictions: 'Current non-sensitive question only; bounded embeddings and reviewed fictional sample excerpts only.',
+    outputProjection: 'company-policy-reference-result-v1', timeoutMs: 30000 },
 ]);
 
 export class ToolError extends Error {

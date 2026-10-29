@@ -25,15 +25,18 @@ test('policy requirements and changed policy are evaluated centrally', () => {
 
 test('generated passwords meet length and enabled organization requirements', () => {
   deterministicCrypto.calls = 0; deterministicCrypto.next = 0;
-  const password = generatePassword({ length: 32, uppercase: true, lowercase: true, numbers: true, symbols: true }, PASSWORD_POLICY, deterministicCrypto);
-  assert.equal(password.length, 32);
-  assert.match(password, /[A-Z]/); assert.match(password, /[a-z]/); assert.match(password, /[0-9]/); assert.match(password, /[^A-Za-z0-9\s]/);
-  assert.equal(evaluatePolicy(password).compliant, true);
+  for (const length of [8, 20]) {
+    const password = generatePassword({ length, uppercase: true, lowercase: true, numbers: true, symbols: true }, PASSWORD_POLICY, deterministicCrypto);
+    assert.equal(password.length, length);
+    assert.match(password, /[A-Z]/); assert.match(password, /[a-z]/); assert.match(password, /[0-9]/); assert.match(password, /[^A-Za-z0-9\s]/);
+    assert.equal(evaluatePolicy(password).compliant, true);
+  }
   assert.ok(deterministicCrypto.calls > 0);
 });
 
 test('generator rejects insecure providers and options that violate policy', () => {
   assert.throws(() => generatePassword(undefined, PASSWORD_POLICY, {}), /Secure password generation/);
+  for (const length of [7, 21]) assert.throws(() => generatePassword({ length, uppercase: true, lowercase: true, numbers: true, symbols: true }, PASSWORD_POLICY, deterministicCrypto), /8 to 20/);
   assert.throws(() => generatePassword({ length: 20, uppercase: true, lowercase: true, numbers: true, symbols: false }, PASSWORD_POLICY, deterministicCrypto), /organization-required/);
 });
 

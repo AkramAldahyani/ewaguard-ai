@@ -12,6 +12,8 @@ const safeUserSelect = {
   email: true,
   status: true,
   deactivatedAt: true,
+  deletedAt: true,
+  sessionVersion: true,
   mfaEnabledAt: true,
   role: { select: { name: true } },
   department: { select: { id: true, name: true, code: true } },
@@ -27,13 +29,14 @@ export async function authenticateCredentials(database, email, password) {
     include: { role: true, department: true },
   });
   const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? await dummyHash);
-  if (!user || !passwordMatches || user.status !== 'ACTIVE' || user.deactivatedAt) return null;
-  return { user: toSafeUser(user), credentialHash: user.passwordHash };
+  if (!user || !passwordMatches || user.status !== 'ACTIVE' || user.deactivatedAt || user.deletedAt) return null;
+  return { user: toSafeUser(user), credentialHash: user.passwordHash, sessionVersion: user.sessionVersion };
 }
 
-export async function findActiveUser(database, id, mfaProof) {
+export async function findActiveUser(database, id, mfaProof, sessionVersion) {
   const user = await database.user.findUnique({ where: { id }, select: safeUserSelect });
-  if (!user || user.status !== 'ACTIVE' || user.deactivatedAt) return null;
+  if (!user || user.status !== 'ACTIVE' || user.deactivatedAt || user.deletedAt) return null;
+  if (sessionVersion !== undefined && user.sessionVersion !== sessionVersion) return null;
   if (user.role.name === 'IT_SECURITY_ADMIN' && (!user.mfaEnabledAt || mfaProof !== user.mfaEnabledAt.toISOString())) return null;
   return toSafeUser(user);
 }

@@ -18,6 +18,7 @@ const suggestions = [
   { title: 'Password Security', prompt: 'How do I create a strong password?', icon: KeyRound },
   { title: 'Security Incident', prompt: 'What should I do if I click a suspicious link?', icon: ShieldAlert },
   { title: 'Cybersecurity Guidance', prompt: 'Give me tips to stay secure at work.', icon: ShieldCheck },
+  { title: 'Bahrain PDPL', prompt: 'What does Bahrain PDPL mean by personal data?', icon: FileSearch },
 ];
 
 export function ChatWelcome({ busy, onPrompt }) {
@@ -27,12 +28,12 @@ export function ChatWelcome({ busy, onPrompt }) {
     <h2>How can <span className="assistant-brand-name">EWAGuard AI</span> help you today?</h2>
     <p className="assistant-welcome-subtitle">Get trusted cybersecurity guidance, analyze suspicious activity, and learn how to stay secure.</p>
     <div className="assistant-suggestions">{suggestions.map(({ title, prompt, icon: Icon }) => <button key={title} type="button" disabled={busy} className="assistant-suggestion" onClick={() => onPrompt(prompt)}><Icon className="size-5 text-brand-700" aria-hidden="true" /><span className="assistant-suggestion-title">{title}</span><span className="assistant-suggestion-prompt">{prompt}</span><ArrowUpRight className="assistant-suggestion-arrow size-4" aria-hidden="true" /></button>)}</div>
-    <p className="assistant-welcome-note">Company-policy and Bahrain PDPL sources are not connected. Approved analyses may automatically record security incidents.</p>
+    <p className="assistant-welcome-note">Bahrain PDPL answers use an unofficial English translation. Company-policy examples require demonstration mode and are not official EWA requirements. Approved analyses may automatically record security incidents.</p>
   </section>;
 }
 
 export function ChatPrivacy({ notice, acknowledged, onChange }) {
-  return <section aria-label="Chat privacy acknowledgement" className="mb-5 rounded-xl border border-brand-200 bg-brand-50 p-4"><div className="flex items-center gap-2"><LockKeyhole className="size-4 text-brand-700" aria-hidden="true" /><h2 className="text-sm font-bold text-brand-900">Before you chat</h2></div><p className="mt-2 text-sm leading-6 text-slate-700">{notice?.text ?? 'Loading the current privacy notice. Sending remains disabled until it is available and acknowledged.'}</p>{notice && <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg bg-white p-3"><input type="checkbox" className="mt-1 size-4 accent-brand-600" checked={acknowledged} onChange={(e) => onChange(e.target.checked)} /><span className="text-sm leading-6 text-slate-800">I understand that submitted chat content and minimized analysis findings are processed by the AI provider. I will not submit passwords, MFA codes, confidential company data or restricted personal information.</span></label>}</section>;
+  return <section aria-label="Chat privacy acknowledgement" className="mb-5 rounded-xl border border-brand-200 bg-brand-50 p-4"><div className="flex items-center gap-2"><LockKeyhole className="size-4 text-brand-700" aria-hidden="true" /><h2 className="text-sm font-bold text-brand-900">Before you chat</h2></div><p className="mt-2 whitespace-pre-line text-sm leading-6 text-slate-700">{notice?.text ?? 'Loading the current privacy notice. Sending remains disabled until it is available and acknowledged.'}</p>{notice && <label className="mt-3 flex cursor-pointer items-start gap-3 rounded-lg bg-white p-3"><input type="checkbox" className="mt-1 size-4 accent-brand-600" checked={acknowledged} onChange={(e) => onChange(e.target.checked)} /><span className="text-sm leading-6 text-slate-800">I understand that submitted chat content and minimized analysis findings are processed by the AI provider. I will not submit passwords, MFA codes, confidential company data or restricted personal information.</span></label>}</section>;
 }
 
 export function ChatPrivacyGate({ acknowledged, notice, error, busy, onChange, onReload, children }) {

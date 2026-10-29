@@ -8,7 +8,10 @@ export async function authenticateSession(database, config, token) {
   const claims = verifyAccessToken(token, config);
   if (!uuid.test(claims.sub ?? '') || !uuid.test(claims.jti ?? '') || !Number.isFinite(claims.exp)) return null;
   if (await database.revokedSession.findUnique({ where: { id: claims.jti }, select: { id: true } })) return null;
-  const user = await findActiveUser(database, claims.sub, claims.mfa);
+  // Older tokens remain valid only for accounts that have never been invalidated.
+  const version = claims.version ?? 0;
+  if (!Number.isSafeInteger(version) || version < 0) return null;
+  const user = await findActiveUser(database, claims.sub, claims.mfa, version);
   return user ? { user, claims } : null;
 }
 
