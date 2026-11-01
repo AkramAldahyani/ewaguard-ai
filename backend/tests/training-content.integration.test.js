@@ -23,6 +23,10 @@ const expected = {
     keys: ['why-physical-security-matters', 'lock-screen-protect-desk', 'badges-visitors-tailgating', 'devices-and-documents', 'when-something-looks-suspicious'] },
   'reporting-security-incidents': { title: 'Reporting Security Incidents', topic: 'INCIDENT_REPORTING',
     keys: ['what-is-a-security-incident', 'why-reporting-quickly-matters', 'what-to-do-first', 'making-a-useful-report', 'after-you-report'] },
+  'secure-remote-work': { title: 'Secure Remote Work', topic: 'OTHER',
+    keys: ['why-remote-security-matters', 'protecting-work-devices', 'wifi-and-networks', 'protecting-information-remotely', 'remote-work-checklist'] },
+  'responsible-ai': { title: 'Responsible AI', topic: 'OTHER',
+    keys: ['what-is-ai', 'protecting-data-with-ai', 'ai-not-always-correct', 'ai-powered-scams', 'using-ewaguard-ai-responsibly'] },
 };
 
 test('training content satisfies the existing course and quiz contracts', () => {
@@ -71,6 +75,29 @@ test('TC3 courses invent no contacts, response times or disruptive containment s
   assert.match(reporting, /do not replace official incident reporting/);
 });
 
+test('TC4 courses name no products or approved tools and make no AI privacy or safety guarantees', () => {
+  for (const slug of ['secure-remote-work', 'responsible-ai']) {
+    const text = JSON.stringify(trainingContent[slug]);
+    assert.doesNotMatch(text, /AnyConnect|GlobalProtect|FortiClient|Zscaler|Intune|Zero Trust|Copilot|ChatGPT|Gemini|@|\+973/i, slug);
+    assert.match(text, /approved/, slug);
+  }
+  const remote = JSON.stringify(trainingContent['secure-remote-work']);
+  assert.match(remote, /does not make a harmful website safe/);
+  assert.match(remote, /Other devices have their own lock/);
+  // Quiz statements and Responsible AI lesson 3 quote deliberately false "is safe" claims, so this check covers
+  // the Secure Remote Work lessons and the Responsible AI lesson that describes EWAGuard AI itself.
+  const claims = /(EWAGuard AI|OpenAI|the provider|VPN|connection|network|your (data|information|messages|conversations?)) (is|are|keeps? (it|them)) (always |completely |fully )?(safe|secure|confidential|private)\b/i;
+  assert.doesNotMatch(JSON.stringify(trainingContent['secure-remote-work'].course), claims);
+  assert.doesNotMatch(trainingContent['responsible-ai'].course.content.sections[4].body, claims);
+  const ai = JSON.stringify(trainingContent['responsible-ai']);
+  // Lesson 5 must match the implemented notices: external processing and retention, no confidentiality promise,
+  // and no claim of PDPL or company-policy document retrieval.
+  assert.match(ai, /external AI provider \(OpenAI\)/); assert.match(ai, /may retain data for abuse prevention/);
+  assert.match(ai, /does not guarantee that something is safe/); assert.match(ai, /does not replace it/);
+  assert.doesNotMatch(ai, /PDPL|company[- ]polic|knowledge base|retriev/i);
+  assert.doesNotMatch(trainingContent['responsible-ai'].course.content.sections[4].body, /never (stored|retained|shared)|fully confidential|guaranteed (private|confidential|safe)/i);
+});
+
 test('training content provisioning and employee lifecycle', async (t) => {
   const url = new URL(databaseUrl());
   assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)); assert.equal(url.pathname, '/ewaguard_ai');
@@ -111,8 +138,9 @@ test('training content provisioning and employee lifecycle', async (t) => {
       ...(role === 'IT_SECURITY_ADMIN' ? { mfaEnabledAt: new Date(), mfaSecretEncrypted: 'synthetic', mfaLastCounter: 0n } : {}), ...extra } });
     users.push(row.id); return row;
   }
-  const admin = await user('IT_SECURITY_ADMIN'), noMfa = await user('IT_SECURITY_ADMIN', { mfaEnabledAt: null, mfaSecretEncrypted: null, mfaLastCounter: null });
-  const employee = await user(), other = await user();
+  const noMfa = await user('IT_SECURITY_ADMIN', { mfaEnabledAt: null, mfaSecretEncrypted: null, mfaLastCounter: null });
+  // Fresh synthetic actors per course keep each flow within the existing per-user training rate limits.
+  let admin, employee, other;
   async function request(path, { actor = admin, body } = {}) {
     const response = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { method: body === undefined ? 'GET' : 'POST',
       headers: { Origin: config.frontendUrl, Cookie: `${authCookie(config).name}=${issueAccessToken(actor.id, config, actor.mfaEnabledAt)}`,
@@ -121,6 +149,7 @@ test('training content provisioning and employee lifecycle', async (t) => {
   }
 
   for (const [slug, content] of Object.entries(trainingContent)) {
+    admin = await user('IT_SECURITY_ADMIN'); employee = await user(); other = await user();
     const title = `${content.course.title} synthetic ${randomUUID()}`; titles.push(title);
     const course = { ...content.course, title }, keys = expected[slug].keys;
     const provision = (adminEmail, override = course) => provisionCourse(db, { adminEmail, course: override, quiz: content.quiz });

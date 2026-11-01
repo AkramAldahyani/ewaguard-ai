@@ -138,5 +138,9 @@ test('every provisioned course renders each lesson with accessible structure and
   const tailgating = renderToStaticMarkup(createElement(CourseContent, { course: trainingContent['physical-security'].course, activeIndex: 2 }));
   assert.match(tailgating, /aria-label="Example: The forgotten badge"/); assert.match(tailgating, /aria-label="Watch out: Stay safe"/);
   const reported = renderToStaticMarkup(createElement(CourseContent, { course: trainingContent['reporting-security-incidents'].course, activeIndex: 4 }));
+  const networks = renderToStaticMarkup(createElement(CourseContent, { course: trainingContent['secure-remote-work'].course, activeIndex: 2 }));
+  assert.match(networks, /aria-label="Example: Two similar networks"/); assert.match(networks, /aria-label="Watch out: A secure connection has limits"/);
+  const voice = renderToStaticMarkup(createElement(CourseContent, { course: trainingContent['responsible-ai'].course, activeIndex: 3 }));
+  assert.match(voice, /aria-label="Example: The urgent voice message"/);
   assert.match(reported, /aria-label="Example: Doing it right"/); assert.equal((reported.match(/<ol class="mt-2/g) ?? []).length, 2);
 });

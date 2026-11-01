@@ -179,3 +179,21 @@ Safe Browsing and Data Privacy are provisioned as drafts with the same services 
 ## Training Content Phase TC3
 
 Physical Security (`PHYSICAL_SECURITY`) and Reporting Security Incidents (`INCIDENT_REPORTING`) are registered in the content registry and provisioned as drafts (see `docs/training-physical-security-incident-reporting.md`). The shared content test also checks that certificates are not duplicated and that program-filtered Awareness Analytics counts are correct for every course. No platform, schema or UI behaviour changed.
+
+## Training Content Phase TC4 and the seven-course catalogue
+
+Secure Remote Work and Responsible AI complete the planned catalogue (see `docs/training-secure-remote-work-responsible-ai.md`). All seven courses are registered in `backend/src/training/content/index.js` and can be provisioned with `npm run training:provision -- --course all --admin-email <administrator email>`.
+
+In the local development database, all seven exist as **drafts with draft quizzes (80% to pass, 3 attempts)**. None is reviewed, published or assigned. Employees see a course only after an administrator reviews and publishes it, approves and publishes its quiz, and assigns them.
+
+| Phase | Course | Topic | State (local dev DB) | Documentation |
+| --- | --- | --- | --- | --- |
+| TC1 | Phishing Awareness | `PHISHING` | Draft | `docs/training-phishing-awareness.md` |
+| TC2 | Safe Browsing | `SAFE_BROWSING` | Draft | `docs/training-safe-browsing-data-privacy.md` |
+| TC2 | Data Privacy | `INFORMATION_HANDLING` | Draft | `docs/training-safe-browsing-data-privacy.md` |
+| TC3 | Physical Security | `PHYSICAL_SECURITY` | Draft | `docs/training-physical-security-incident-reporting.md` |
+| TC3 | Reporting Security Incidents | `INCIDENT_REPORTING` | Draft | `docs/training-physical-security-incident-reporting.md` |
+| TC4 | Secure Remote Work | `OTHER` | Draft | `docs/training-secure-remote-work-responsible-ai.md` |
+| TC4 | Responsible AI | `OTHER` | Draft | `docs/training-secure-remote-work-responsible-ai.md` |
+
+The shared content test uses fresh synthetic actors for each course, so the seven full flows stay within the existing per-user training rate limits. No platform, schema or UI behaviour changed in TC4.

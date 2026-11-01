@@ -3,6 +3,8 @@ import { safeBrowsingCourse, safeBrowsingQuiz } from './safe-browsing.js';
 import { dataPrivacyCourse, dataPrivacyQuiz } from './data-privacy.js';
 import { physicalSecurityCourse, physicalSecurityQuiz } from './physical-security.js';
 import { reportingSecurityIncidentsCourse, reportingSecurityIncidentsQuiz } from './reporting-security-incidents.js';
+import { secureRemoteWorkCourse, secureRemoteWorkQuiz } from './secure-remote-work.js';
+import { responsibleAiCourse, responsibleAiQuiz } from './responsible-ai.js';
 
 // Reviewed, human-authored course content available to the development provisioning command.
 export const trainingContent = Object.freeze({
@@ -11,4 +13,6 @@ export const trainingContent = Object.freeze({
   'data-privacy': { course: dataPrivacyCourse, quiz: dataPrivacyQuiz },
   'physical-security': { course: physicalSecurityCourse, quiz: physicalSecurityQuiz },
   'reporting-security-incidents': { course: reportingSecurityIncidentsCourse, quiz: reportingSecurityIncidentsQuiz },
+  'secure-remote-work': { course: secureRemoteWorkCourse, quiz: secureRemoteWorkQuiz },
+  'responsible-ai': { course: responsibleAiCourse, quiz: responsibleAiQuiz },
 });
