@@ -151,6 +151,7 @@ export function createCourseQuizService(database) {
       return { available, reason: !training.requiresQuiz ? 'NOT_REQUIRED' : training.status !== 'PUBLISHED' ? 'COURSE_ARCHIVED'
         : !quiz || quiz.status !== 'PUBLISHED' ? 'UNPUBLISHED' : !ready ? 'READING_INCOMPLETE' : null,
       quiz: available && ready ? employeeQuiz(quiz) : null,
+      passingPercent: available ? quiz.passingPercent : null,
       attempts: attempts.map(attemptSummary), attemptsRemaining: quiz ? Math.max(0, quiz.maxAttempts - attempts.length) : 0 };
     },
     async start(user, id, body) {

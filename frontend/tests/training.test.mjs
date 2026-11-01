@@ -85,3 +85,31 @@ test('training routes, editor controls and content use role guards and safe text
   assert.match(renderToStaticMarkup(createElement(ProgressBar, { progress: { progressPercent: 75 } })), /aria-valuenow="75"/);
   assert.match(renderToStaticMarkup(createElement(TrainingBadge, { status: 'ARCHIVED' })), /Archived/);
 });
+
+test('lesson bodies render structured plain text without interpreting HTML', async (t) => {
+  const { lessonBlocks } = await import('../src/features/training/lesson-blocks.js');
+  assert.deepEqual(lessonBlocks('One paragraph.\nSame paragraph.\n\nSigns:\n- first\n- second\n\n1. step one\n2. step two'), [
+    { type: 'paragraph', lines: ['One paragraph.', 'Same paragraph.'] },
+    { type: 'list', lead: 'Signs:', items: ['first', 'second'] },
+    { type: 'steps', lead: null, items: ['step one', 'step two'] },
+  ]);
+  assert.deepEqual(lessonBlocks('Key takeaway: Report quickly.'), [{ type: 'callout', variant: 'takeaway', label: 'Key takeaway', title: null,
+    blocks: [{ type: 'paragraph', lines: ['Report quickly.'] }] }]);
+  assert.equal(lessonBlocks('Example: The email\nFrom: someone@example.com')[0].title, 'The email');
+  assert.deepEqual(lessonBlocks('Plain legacy text without markers.'), [{ type: 'paragraph', lines: ['Plain legacy text without markers.'] }]);
+  assert.deepEqual(lessonBlocks(undefined), []);
+
+  const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+  t.after(() => server.close());
+  const { CourseContent } = await server.ssrLoadModule('/src/features/training/TrainingCommon.jsx');
+  const { phishingAwarenessCourse } = await import('../../backend/src/training/content/phishing-awareness.js');
+  const first = renderToStaticMarkup(createElement(CourseContent, { course: phishingAwarenessCourse, activeIndex: 0 }));
+  for (const text of ['What you will learn', '5 sections', 'About 9 minutes', 'Final quiz required', 'Lesson 1: What is phishing?', 'Key takeaway']) assert.match(first, new RegExp(text));
+  assert.match(first, /<aside aria-label="Example: An unexpected email"/); assert.match(first, /<ul class="mt-2/);
+  const later = renderToStaticMarkup(createElement(CourseContent, { course: phishingAwarenessCourse, activeIndex: 2 }));
+  assert.doesNotMatch(later, /What you will learn/); assert.match(later, /Section 3 of 5/); assert.match(later, /<ol class="mt-2/);
+  assert.match(later, /Watch out: The unsafe action/);
+  const hostile = { ...phishingAwarenessCourse, content: { version: 1, sections: [{ key: 'one', title: 'T', body: 'Tip: <img src=x onerror=alert(1)>\n- <script>x</script>\n\n' + 'long '.repeat(1200) }] } };
+  const markup = renderToStaticMarkup(createElement(CourseContent, { course: hostile }));
+  assert.doesNotMatch(markup, /<img src=x|<script>/); assert.match(markup, /&lt;img/); assert.match(markup, /break-words/);
+});

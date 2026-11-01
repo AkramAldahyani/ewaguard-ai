@@ -143,7 +143,7 @@ test('Phase 11B2 quiz React workflows with mocked authenticated APIs', async (t)
     let submitted, started = false, passed = false; let completionRefreshes = 0;
     globalThis.fetch = async (path, request = {}) => {
       if (path === `/api/training/${assignmentId}/quiz` && !request.method) return reply({ available: true, reason: null, quiz: employeeQuiz(),
-        attempts: started ? [summary(passed ? 'SUBMITTED' : 'IN_PROGRESS')] : [], attemptsRemaining: passed ? 0 : 2 });
+        attempts: started ? [summary(passed ? 'SUBMITTED' : 'IN_PROGRESS')] : [], attemptsRemaining: passed ? 0 : 2, passingPercent: 80 });
       if (path.endsWith('/quiz/attempts') && request.method === 'POST') { started = true; return reply({ attempt: summary(), quiz: employeeQuiz() }); }
       if (path.endsWith('/submit')) { submitted = JSON.parse(request.body); passed = true; return reply(result()); }
       if (path.endsWith(`quiz/attempts/${attemptId}`)) return reply(result());
@@ -151,6 +151,7 @@ test('Phase 11B2 quiz React workflows with mocked authenticated APIs', async (t)
     };
     render(createElement(EmployeeQuizPanel, { assignmentId, onCompleted: () => completionRefreshes++ }));
     await screen.findByRole('button', { name: 'Start assessment' });
+    screen.getByText('Passing score: 80%');
     assert.doesNotMatch(document.body.textContent, /Report the suspicious request|Correct answer:/);
     fireEvent.click(screen.getByRole('button', { name: 'Start assessment' }));
     await screen.findByText('Which action?');
