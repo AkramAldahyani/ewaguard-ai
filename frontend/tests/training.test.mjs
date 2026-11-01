@@ -135,4 +135,8 @@ test('every provisioned course renders each lesson with accessible structure and
   assert.match(privacy, /aria-label="Example: You want to use an AI tool to summarize a work document"/);
   const browsing = renderToStaticMarkup(createElement(CourseContent, { course: trainingContent['safe-browsing'].course, activeIndex: 3 }));
   assert.match(browsing, /aria-label="Example: The sticker in the break room"/); assert.match(browsing, /cafeteria-rewards\.example/);
+  const tailgating = renderToStaticMarkup(createElement(CourseContent, { course: trainingContent['physical-security'].course, activeIndex: 2 }));
+  assert.match(tailgating, /aria-label="Example: The forgotten badge"/); assert.match(tailgating, /aria-label="Watch out: Stay safe"/);
+  const reported = renderToStaticMarkup(createElement(CourseContent, { course: trainingContent['reporting-security-incidents'].course, activeIndex: 4 }));
+  assert.match(reported, /aria-label="Example: Doing it right"/); assert.equal((reported.match(/<ol class="mt-2/g) ?? []).length, 2);
 });

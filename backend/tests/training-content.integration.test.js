@@ -19,6 +19,10 @@ const expected = {
     keys: ['browsing-safely', 'dangerous-websites', 'downloads-attachments', 'qr-codes-online-tricks', 'safe-browsing-habits'] },
   'data-privacy': { title: 'Data Privacy', topic: 'INFORMATION_HANDLING',
     keys: ['what-is-data-privacy', 'recognizing-sensitive-information', 'handling-information-safely', 'data-privacy-in-bahrain', 'everyday-privacy-decisions'] },
+  'physical-security': { title: 'Physical Security', topic: 'PHYSICAL_SECURITY',
+    keys: ['why-physical-security-matters', 'lock-screen-protect-desk', 'badges-visitors-tailgating', 'devices-and-documents', 'when-something-looks-suspicious'] },
+  'reporting-security-incidents': { title: 'Reporting Security Incidents', topic: 'INCIDENT_REPORTING',
+    keys: ['what-is-a-security-incident', 'why-reporting-quickly-matters', 'what-to-do-first', 'making-a-useful-report', 'after-you-report'] },
 };
 
 test('training content satisfies the existing course and quiz contracts', () => {
@@ -53,6 +57,18 @@ test('Data Privacy PDPL lesson stays high-level and invents no obligations', () 
   const lesson = trainingContent['data-privacy'].course.content.sections[3].body;
   assert.match(lesson, /not legal advice/); assert.match(lesson, /Data Protection Officer/);
   assert.doesNotMatch(lesson, /\b(Article|Law No|fine|penalt|days|hours|BHD|dinar|consent)\b/i);
+});
+
+test('TC3 courses invent no contacts, response times or disruptive containment steps', () => {
+  for (const slug of ['physical-security', 'reporting-security-incidents']) {
+    const { course, quiz } = trainingContent[slug];
+    const text = JSON.stringify([course, quiz]);
+    assert.doesNotMatch(text, /@|\+973|\bext\.|\b\d{3,}[- ]?\d{3,}\b|within \d+ (minutes|hours|days)/i, slug);
+    assert.match(text, /approved (security |reporting |IT or security )?channel/, slug);
+  }
+  const reporting = JSON.stringify(trainingContent['reporting-security-incidents']);
+  assert.doesNotMatch(reporting, /disconnect (the|your) (device|computer) from the network/i);
+  assert.match(reporting, /do not replace official incident reporting/);
 });
 
 test('training content provisioning and employee lifecycle', async (t) => {
@@ -185,6 +201,13 @@ test('training content provisioning and employee lifecycle', async (t) => {
       const done = (await request(own, { actor: employee })).data.assignment.progress;
       assert.equal(done.status, 'COMPLETED'); assert.ok(done.completedAt);
       assert.equal(await db.certificate.count({ where: { progress: { assignmentId } } }), 1);
+      // Listing certificates runs historical reconciliation; it must not issue a second certificate.
+      const certificates = (await request('/api/certificates?pageSize=50', { actor: employee })).data.items;
+      assert.equal(certificates.filter((item) => item.trainingTitle === title).length, 1);
+      assert.equal(await db.certificate.count({ where: { progress: { assignmentId } } }), 1);
+      const analytics = (await request(`/api/admin/analytics/awareness?programId=${programId}`)).data;
+      assert.deepEqual([analytics.training.assignments, analytics.training.completed, analytics.courseQuizzes.submittedAttempts,
+        analytics.courseQuizzes.passedAttempts, analytics.certificates.totalIssued], [1, 1, 2, 1, 1]);
     });
   }
 });
