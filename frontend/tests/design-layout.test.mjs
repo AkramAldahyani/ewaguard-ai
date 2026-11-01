@@ -25,9 +25,10 @@ test('Phase 19A shared layout and accessible design contracts', async (t) => {
       const doc = portal(path, 'IT_SECURITY_ADMIN');
       for (const nav of doc.querySelectorAll('nav[aria-label="Primary navigation"]')) {
         const links = [...nav.querySelectorAll('a')];
-        assert.equal(links.length, 9);
-        assert.equal(new Set(links.map((a) => a.getAttribute('href'))).size, links.length);
-        assert.ok(links.every((a) => a.getAttribute('href').startsWith('/admin')));
+        const hrefs = links.map((a) => a.getAttribute('href'));
+        assert.deepEqual(hrefs, ['/admin', '/admin/incidents', '/admin/analytics/security', '/admin/analytics/incidents', '/admin/audit',
+          '/admin/training', '/admin/monthly-quizzes', '/admin/certificates', '/admin/analytics/awareness', '/admin/community', '/admin/users', '/profile']);
+        assert.equal(new Set(hrefs).size, hrefs.length);
         assert.equal(nav.querySelectorAll('a[aria-current="page"]').length, 1);
         assert.match(nav.textContent, /Security operations/);
         assert.match(nav.textContent, /Security awareness/);

@@ -171,3 +171,7 @@ Phase 11D2 validation: 214 frontend regression tests and 452 backend regression 
 ## Training Content Phase TC1
 
 The first production course, Phishing Awareness, is provisioned as a draft through the existing services (see `docs/training-phishing-awareness.md`). The reader now displays plain-text lesson conventions (paragraphs, `- ` bullets, `1. ` steps, and `Key takeaway:` / `Example:` / `Watch out:` / `Tip:` callouts) as React text nodes. The content contract and validation are unchanged. The course overview appears with the first section and shows the section count, duration and quiz requirement. The employee quiz-detail response now includes the published quiz's `passingPercent` (or `null`), and the quiz panel displays it. No schema, migration, scoring, attempt, completion or certificate rules changed.
+
+## Training Content Phase TC2
+
+Safe Browsing and Data Privacy are provisioned as drafts with the same services and renderer (see `docs/training-safe-browsing-data-privacy.md`). Provisioning now uses one script and a course registry: `backend/scripts/provision-training-course.js` and `backend/src/training/content/index.js`. `backend/tests/training-content.integration.test.js` covers all three courses. No platform, schema or UI behaviour changed.

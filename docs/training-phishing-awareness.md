@@ -51,11 +51,11 @@ Passing score **80%** (4 of 5), **3 attempts** (the existing authoring defaults)
 
 ## Provisioning
 
-`npm run training:provision:phishing -- --admin-email <administrator email>` (development only; refuses `NODE_ENV=production`).
+`npm run training:provision:phishing -- --admin-email <administrator email>` (development only; refuses `NODE_ENV=production`). Since TC2, this is an alias for `npm run training:provision -- --course phishing-awareness`, which uses the shared script `backend/scripts/provision-training-course.js`.
 
 - The command calls the existing `createTrainingService().create` and `createCourseQuizService().save` services, so validation, transactions and audit records (`TRAINING_CREATED`, `COURSE_QUIZ_CREATED`) match the administrator API.
 - The named account must be an active `IT_SECURITY_ADMIN` with MFA enrolled. It is recorded as the author.
-- It is idempotent. If a `PHISHING` program titled "Phishing Awareness" already exists, the command changes nothing, unless that program is missing its quiz, in which case only the draft quiz is added. If more than one matching program exists, it stops without changes.
+- It is idempotent. If a program titled "Phishing Awareness" (case-insensitive, any topic since TC2) already exists, the command changes nothing, unless that program is missing its quiz, in which case only the draft quiz is added. If more than one matching program exists, it stops without changes.
 - It only creates a **draft** course and a **draft** quiz. It never reviews, publishes, assigns, edits existing content, or touches progress, attempts or certificates.
 
 In the local development database, the draft was created once by `admin@ewa.bh`. A second run reported "already exists" and changed nothing.

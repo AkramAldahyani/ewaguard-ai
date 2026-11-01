@@ -86,6 +86,8 @@ test('Phase 13C1 awareness aggregates use authorized PostgreSQL records and pres
     assert.equal((await request('?period=custom&start=2091-01-01&end=2092-02-01')).status, 400);
     assert.equal((await request(`?period=custom&start=2091-01-01&end=2091-02-28&departmentId=${smallDepartment.id}`)).status, 400);
   });
+  // totalIssued is an all-time count, so measure it relative to records that existed before these fixtures.
+  const certificatesBefore = (await request()).data.certificates.totalIssued;
   async function program(requiresQuiz) {
     const row = await db.trainingProgram.create({ data: { title: `Synthetic ${requiresQuiz ? 'Quiz' : 'Material'} ${randomUUID()}`,
       description: 'Synthetic training', topic: 'PHISHING', learningObjectives: ['Recognize threats'],
@@ -173,7 +175,7 @@ test('Phase 13C1 awareness aggregates use authorized PostgreSQL records and pres
     assert.deepEqual(monthlyQuizzes.trend.map((row) => [row.period, row.assigned, row.submitted,
       row.averageScorePercent, row.averageChangePoints]),
     [['2091-01', 2, 2, 50, null], ['2091-02', 1, 1, 0, -50]]);
-    assert.deepEqual([certificates.totalIssued, certificates.issuedDuring], [1, 1]);
+    assert.deepEqual([certificates.totalIssued - certificatesBefore, certificates.issuedDuring], [1, 1]);
     assert.equal(departments.suppressed, true); assert.deepEqual(departments.rows, []);
     assert.deepEqual(response.data.filterOptions.departments, [{ id: largeDepartment.id, name: largeDepartment.name }]);
     assert.doesNotMatch(JSON.stringify(response.data), /example.invalid|passwordHash|Synthetic explanation|isCorrect|selectedOptionId|employeeId/);
@@ -204,7 +206,7 @@ test('Phase 13C1 awareness aggregates use authorized PostgreSQL records and pres
     assert.equal(response.data.courseQuizzes.averageScorePercent, null);
     assert.equal(response.data.monthlyQuizzes.averageBestScorePercent, null);
     assert.deepEqual(response.data.monthlyQuizzes.trend, []);
-    assert.equal(response.data.certificates.totalIssued, 1);
+    assert.equal(response.data.certificates.totalIssued, certificatesBefore + 1);
     assert.equal(response.data.certificates.issuedDuring, 0);
   });
   await t.test('department comparison remains private with sparse assignment and score cells', async () => {

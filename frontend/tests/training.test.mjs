@@ -113,3 +113,26 @@ test('lesson bodies render structured plain text without interpreting HTML', asy
   const markup = renderToStaticMarkup(createElement(CourseContent, { course: hostile }));
   assert.doesNotMatch(markup, /<img src=x|<script>/); assert.match(markup, /&lt;img/); assert.match(markup, /break-words/);
 });
+
+test('every provisioned course renders each lesson with accessible structure and plain text only', async (t) => {
+  const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+  t.after(() => server.close());
+  const { CourseContent } = await server.ssrLoadModule('/src/features/training/TrainingCommon.jsx');
+  const { trainingContent } = await import('../../backend/src/training/content/index.js');
+  for (const { course } of Object.values(trainingContent)) {
+    const sections = course.content.sections;
+    for (const [index, section] of sections.entries()) {
+      const html = renderToStaticMarkup(createElement(CourseContent, { course, activeIndex: index }));
+      assert.equal(/What you will learn/.test(html), index === 0, `${course.title} overview only on lesson 1`);
+      assert.match(html, new RegExp(`Section ${index + 1} of 5`));
+      assert.match(html, /<h2[^>]*>Lesson \d: /);
+      assert.match(html, /<aside aria-label="Key takeaway/, `${course.title}: ${section.key}`);
+      assert.match(html, /<ul class="mt-2|<ol class="mt-2/, `${course.title}: ${section.key} has a list`);
+      assert.doesNotMatch(html, /<(script|img|iframe|a )/i);
+    }
+  }
+  const privacy = renderToStaticMarkup(createElement(CourseContent, { course: trainingContent['data-privacy'].course, activeIndex: 4 }));
+  assert.match(privacy, /aria-label="Example: You want to use an AI tool to summarize a work document"/);
+  const browsing = renderToStaticMarkup(createElement(CourseContent, { course: trainingContent['safe-browsing'].course, activeIndex: 3 }));
+  assert.match(browsing, /aria-label="Example: The sticker in the break room"/); assert.match(browsing, /cafeteria-rewards\.example/);
+});
