@@ -19,6 +19,23 @@ test('Phase 11A1 training foundation: PostgreSQL and authenticated HTTP', async 
     await database.auditLog.deleteMany({ where: { actorId: { in: users } } });
     await database.certificate.deleteMany({ where: { progress: { assignment: { trainingId: { in: programs } } } } });
     await database.trainingProgress.deleteMany({ where: { assignment: { trainingId: { in: programs } } } });
+    // This test's own synthetic course quiz is approved and published, so its content is protected by the history
+    // triggers. Same scoped teardown as course-quiz.integration.test.js: triggers are re-enabled in the same transaction.
+    const quizIds = (await database.trainingQuiz.findMany({ where: { trainingId: { in: programs } }, select: { quizId: true } })).map((row) => row.quizId);
+    await database.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe('ALTER TABLE quiz_attempts DISABLE TRIGGER submitted_history');
+      await tx.$executeRawUnsafe('ALTER TABLE quiz_options DISABLE TRIGGER option_history');
+      await tx.$executeRawUnsafe('ALTER TABLE quiz_questions DISABLE TRIGGER question_history');
+      await tx.quizAnswer.deleteMany({ where: { attempt: { quizId: { in: quizIds } } } });
+      await tx.quizAttempt.deleteMany({ where: { quizId: { in: quizIds } } });
+      await tx.quizOption.deleteMany({ where: { question: { quizId: { in: quizIds } } } });
+      await tx.quizQuestion.deleteMany({ where: { quizId: { in: quizIds } } });
+      await tx.trainingQuiz.deleteMany({ where: { quizId: { in: quizIds } } });
+      await tx.quiz.deleteMany({ where: { id: { in: quizIds } } });
+      await tx.$executeRawUnsafe('ALTER TABLE quiz_questions ENABLE TRIGGER question_history');
+      await tx.$executeRawUnsafe('ALTER TABLE quiz_options ENABLE TRIGGER option_history');
+      await tx.$executeRawUnsafe('ALTER TABLE quiz_attempts ENABLE TRIGGER submitted_history');
+    }, { timeout: 15000 });
     await database.trainingAssignment.deleteMany({ where: { trainingId: { in: programs } } });
     await database.trainingProgram.deleteMany({ where: { id: { in: programs } } });
     await database.user.deleteMany({ where: { id: { in: users } } }); await database.$disconnect();
@@ -47,6 +64,15 @@ test('Phase 11A1 training foundation: PostgreSQL and authenticated HTTP', async 
     const current = (await request(`${root}/${program.id}`)).data.program;
     return request(`${root}/${program.id}/${operation}`, { body: { expectedUpdatedAt: current.updatedAt, ...extra } });
   }
+  // A quiz-required course needs an approved quiz before publication and a published quiz before assignment (BUG-008).
+  const quizDraft = { title: 'Synthetic course assessment', passingPercent: 75, maxAttempts: 2, questions: [
+    { text: 'Is this statement true?', type: 'TRUE_FALSE', explanation: 'It is false.', points: 1,
+      options: [{ text: 'True', isCorrect: false }, { text: 'False', isCorrect: true }] }] };
+  async function quizStep(target, action) {
+    if (action === 'create') return request(`${root}/${target.id}/quiz`, { body: quizDraft });
+    const quiz = (await request(`${root}/${target.id}/quiz`)).data.quiz;
+    return request(`${root}/${target.id}/quiz/${action}`, { body: { expectedUpdatedAt: quiz.updatedAt } });
+  }
   const program = await create(); let assignment;
   await t.test('RBAC, MFA, authentication and trusted origin protect reads and writes', async () => {
     for (const actor of [null, noMfa, suspended]) assert.equal((await request(root, { actor })).status, 401);
@@ -65,7 +91,15 @@ test('Phase 11A1 training foundation: PostgreSQL and authenticated HTTP', async 
     assert.equal((await request(`${root}/${program.id}/archive`, { body: { expectedUpdatedAt: program.updatedAt } })).status, 409);
     assert.equal((await request(`${root}/${program.id}/assignments`, { body: { employeeId: employee.id } })).status, 409);
     assert.equal((await change(program, 'review')).status, 200);
+    assert.equal((await change(program, 'publish')).status, 409, 'no quiz yet');
+    assert.equal((await quizStep(program, 'create')).status, 200);
+    assert.equal((await change(program, 'publish')).status, 409, 'quiz still a draft');
+    assert.equal((await quizStep(program, 'approve')).status, 200);
     assert.equal((await change(program, 'publish')).status, 200);
+    assert.equal((await request(`${root}/${program.id}/assignments`, { body: { employeeId: employee.id } })).status, 409, 'quiz not yet published');
+    assert.equal((await request(`${root}/${program.id}/assignments/bulk`, { body: { allEligible: true } })).status, 409, 'bulk assignment blocked too');
+    assert.equal(await database.trainingAssignment.count({ where: { trainingId: program.id } }), 0);
+    assert.equal((await quizStep(program, 'publish')).status, 200);
     assert.equal((await change(program, 'edit', content())).status, 409);
   });
   await t.test('content input rejects HTML, forged publication and invalid boundaries', async () => {

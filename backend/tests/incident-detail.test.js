@@ -80,3 +80,22 @@ test('unknown confidence and absent evidence are unavailable without changing sc
   const result = projectIncidentDetail(row, false);
   assert.equal(result.risk.confidence, 'UNAVAILABLE'); assert.equal(result.risk.score, 60); assert.equal(result.evidence.status, 'UNAVAILABLE');
 });
+
+test('BUG-004 saved 1.0 guidance stays valid and shows corrected notification wording', async () => {
+  const { ASSISTANCE_POLICY: P } = await import('../src/assistance/assistance-policy.js');
+  const { row, snapshot } = fixture('EMAIL');
+  // Rebuild the snapshot exactly as version 1.0 stored it, with the outdated sentences.
+  snapshot.assistance = { ...snapshot.assistance, version: '1.0', disclaimer: P.legacyTexts.disclaimer,
+    escalationRecommendation: { level: 'RECOMMENDED', description: P.legacyTexts.escalation.RECOMMENDED } };
+  const result = projectIncidentDetail(row, false);
+  assert.equal(result.guidance.status, 'AVAILABLE');
+  assert.equal(result.guidance.assistance.version, '1.0');
+  assert.equal(result.guidance.assistance.escalationRecommendation.description, P.escalation.RECOMMENDED);
+  assert.equal(result.guidance.assistance.disclaimer, P.disclaimer);
+  assert.doesNotMatch(JSON.stringify(result.guidance), /notifications (and automated remediation )?are not enabled/);
+  for (const text of [...Object.values(P.escalation), P.disclaimer]) assert.doesNotMatch(text, /not enabled/);
+  snapshot.assistance.disclaimer = 'Injected text';
+  assert.equal(projectIncidentDetail(row, false).guidance.reason, 'GUIDANCE_UNSUPPORTED_OR_INCONSISTENT');
+  snapshot.assistance = { ...snapshot.assistance, disclaimer: P.disclaimer, version: '9.9' };
+  assert.equal(projectIncidentDetail(row, false).guidance.reason, 'GUIDANCE_UNSUPPORTED_OR_INCONSISTENT');
+});

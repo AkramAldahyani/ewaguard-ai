@@ -25,6 +25,12 @@ export const securityAnalyticsApi = {
     if (period === 'custom') { query.set('start', start); query.set('end', end); }
     return apiRequest(`/api/admin/analytics/security?${query}`, { signal });
   },
+  analyses: ({ period, start, end }, page, signal) => {
+    const query = new URLSearchParams({ period });
+    if (period === 'custom') { query.set('start', start); query.set('end', end); }
+    query.set('page', String(page));
+    return apiRequest(`/api/admin/analytics/security/analyses?${query}`, { signal, cache: 'no-store' });
+  },
 };
 
 export function securityAnalyticsError(error) {

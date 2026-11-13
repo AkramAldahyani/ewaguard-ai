@@ -78,6 +78,20 @@ test('Phase 13B1 security analytics uses authorized, bounded PostgreSQL aggregat
     assert.equal((await request('?period=custom&start=2091-01-01&end=2091-04-30')).status, 400);
     assert.equal((await request('?period=30d&employeeId=anything')).status, 400);
   });
+  await t.test('recent analyses page endpoint is administrator-only, validated and bounded to ten rows', async () => {
+    const query = '/analyses?period=custom&start=2091-01-01&end=2091-01-03';
+    assert.equal((await request(query, null)).status, 401);
+    assert.equal((await request(query, employee)).status, 403);
+    assert.equal((await request(query, noMfa)).status, 401);
+    for (const page of ['0', '-1', 'abc', '1.5', '123456']) assert.equal((await request(`${query}&page=${page}`)).status, 400, page);
+    assert.equal((await request(`${query}&page=1&page=2`)).status, 400);
+    assert.equal((await request('/analyses?period=30d&employeeId=x')).status, 400);
+    const response = await request(`${query}&page=500`);
+    assert.equal(response.status, 200); assert.match(response.cache, /no-store/);
+    assert.equal(response.data.pageSize, 10); assert.ok(response.data.items.length <= 10);
+    assert.equal(response.data.page, response.data.totalPages, 'out-of-range pages clamp to the last page');
+    assert.doesNotMatch(JSON.stringify(response.data), /hostname|urlSha256|evidence|passwordHash/);
+  });
   async function incident({ day, severity, status, type = 'SUSPICIOUS_ACTIVITY', source = 'MANUAL_REPORT',
     assigneeId = null, resolvedAt = null }) {
     const createdAt = new Date(`2091-01-${String(day).padStart(2, '0')}T08:00:00.000Z`);
@@ -126,5 +140,26 @@ test('Phase 13B1 security analytics uses authorized, bounded PostgreSQL aggregat
     assert.equal(response.data.metrics.resolvedCurrent, 2);
     assert.deepEqual(response.data.dailyCreated.map((day) => day.count), [1, 1, 2]);
     assert.equal(response.data.metrics.resolution.averageSeconds, 5400);
+  });
+  await t.test('BUG-006 resolved incidents still count after closure; false positives and reopened incidents do not', async () => {
+    const range = '?period=custom&start=2091-01-05&end=2091-01-07';
+    const history = (row, steps) => Promise.all(steps.map(([fromStatus, toStatus], index) => db.incidentEvent.create({ data: {
+      incidentId: row.id, type: 'STATUS_CHANGED', details: { fromStatus, toStatus },
+      createdAt: new Date(row.createdAt.getTime() + (index + 1) * 600000) } })));
+    // Resolved after 3 hours, then closed: counts with its recorded resolution time.
+    const closed = await incident({ day: 5, severity: 'HIGH', status: 'CLOSED', resolvedAt: new Date('2091-01-05T11:00:00.000Z') });
+    await history(closed, [['NEW', 'UNDER_INVESTIGATION'], ['UNDER_INVESTIGATION', 'RESOLVED'], ['RESOLVED', 'CLOSED']]);
+    // Still resolved after 1 hour: counts.
+    await incident({ day: 6, severity: 'HIGH', status: 'RESOLVED', resolvedAt: new Date('2091-01-06T09:00:00.000Z') });
+    // Marked a false positive, then closed: not a resolution.
+    const dismissed = await incident({ day: 6, severity: 'MEDIUM', status: 'CLOSED', resolvedAt: new Date('2091-01-06T08:30:00.000Z') });
+    await history(dismissed, [['NEW', 'FALSE_POSITIVE'], ['FALSE_POSITIVE', 'CLOSED']]);
+    // Closed, then reopened: reopening clears resolvedAt, so it is not counted.
+    const reopened = await incident({ day: 7, severity: 'HIGH', status: 'UNDER_INVESTIGATION' });
+    await history(reopened, [['NEW', 'RESOLVED'], ['RESOLVED', 'CLOSED'], ['CLOSED', 'UNDER_INVESTIGATION']]);
+    const response = await request(range);
+    assert.equal(response.status, 200, JSON.stringify(response.data));
+    assert.deepEqual(response.data.metrics.resolution, { eligibleCount: 2, averageSeconds: (3 * 3600 + 3600) / 2 });
+    assert.equal(response.data.metrics.closedCurrent, 2); assert.equal(response.data.metrics.resolvedCurrent, 1);
   });
 });

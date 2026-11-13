@@ -1,7 +1,8 @@
+import { displayLabel } from '../../lib/labels.js';
 export const topics = ['PHISHING', 'SOCIAL_ENGINEERING', 'PASSWORD_SECURITY', 'MFA', 'MALWARE', 'SAFE_BROWSING', 'USB_SECURITY', 'PHYSICAL_SECURITY', 'INFORMATION_HANDLING', 'INCIDENT_REPORTING', 'OTHER'];
 export const statuses = ['DRAFT', 'PUBLISHED', 'ARCHIVED'];
 export const progressStatuses = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'];
-export const label = (value) => typeof value === 'string' ? value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase()) : 'Unavailable';
+export const label = (value) => displayLabel(value, { titleCase: true }) || 'Unavailable';
 export function formatDate(value) { return value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)) : 'Not yet'; }
 export function emptyDraft() { return { title: '', description: '', topic: 'PHISHING', learningObjectives: [''], estimatedMinutes: 6, requiresQuiz: true,
   content: { version: 1, sections: [{ key: 'introduction', title: 'Introduction', body: '' }, { key: 'key-takeaways', title: 'Key takeaways', body: '' }] } }; }
@@ -34,6 +35,13 @@ export function listQuery(filters = {}, page = 1, admin = false) {
   for (const key of admin ? ['status', 'topic', 'sort', 'search'] : ['status']) if (filters[key]) query[key] = filters[key].trim();
   if (query.search && query.search.length > 100) throw new Error('Search must be at most 100 characters.');
   return query;
+}
+export function bulkAssignmentNotice({ eligible, created, alreadyAssigned, revoked }) {
+  if (!eligible) return 'No active employees were eligible for assignment.';
+  const parts = [`${created} new ${created === 1 ? 'assignment' : 'assignments'} created`];
+  if (alreadyAssigned) parts.push(`${alreadyAssigned} already assigned`);
+  if (revoked) parts.push(`${revoked} skipped because an earlier assignment was revoked`);
+  return `${parts.join(', ')}.`;
 }
 export function nextSection(assignment) {
   const sections = assignment.training.content?.sections ?? [];

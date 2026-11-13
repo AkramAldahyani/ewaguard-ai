@@ -7,8 +7,9 @@ import { securityAnalyticsApi, securityAnalyticsError, validateSecurityRange } f
 import { AssignmentChart, CreationTrend, DistributionChart } from './SecurityAnalyticsCharts.jsx';
 import { AnalysisOverview } from './AnalysisOverview.jsx';
 import { AnalyticsPeriodFilter } from './AnalyticsPeriodFilter.jsx';
+import { displayLabel } from '../../lib/labels.js';
 
-const label = (value) => String(value ?? '').toLowerCase().replaceAll('_', ' ').replace(/^\w/u, (letter) => letter.toUpperCase());
+const label = (value) => displayLabel(String(value ?? ''));
 const number = (value) => Number.isSafeInteger(value) && value >= 0 ? value.toLocaleString() : '—';
 const dateTime = (value) => {
   const date = new Date(value);
@@ -64,5 +65,5 @@ export function SecurityAnalyticsPage() {
   }
   return <><PageHeader eyebrow="Security operations" title="Security analytics" actions={<><Button as={Link} to="/admin/analytics/incidents" variant="secondary">Incident Statistics</Button><Button variant="secondary" disabled={state.loading} onClick={() => setRevision((value) => value + 1)}><RefreshCw className="size-4" aria-hidden="true" />Refresh analytics</Button></>} />
     <AnalyticsPeriodFilter draft={draft} applied={applied} setDraft={(update) => { setDraft(update); setValidation(''); }} validation={validation} errorId="security-period-error" onSubmit={apply} subject="security analysis panels" />
-    {state.loading && <AnalyticsLoading />}{state.error && <Card className="p-5"><StatePanel icon={AlertCircle} tone="error" title="Security analytics unavailable" description={state.error} action={<Button variant="secondary" onClick={() => setRevision((value) => value + 1)}>Try again</Button>} /></Card>}{state.data && !state.loading && <AnalysisOverview data={state.data.analyses} />}</>;
+    {state.loading && <AnalyticsLoading />}{state.error && <Card className="p-5"><StatePanel icon={AlertCircle} tone="error" title="Security analytics unavailable" description={state.error} action={<Button variant="secondary" onClick={() => setRevision((value) => value + 1)}>Try again</Button>} /></Card>}{state.data && !state.loading && <AnalysisOverview data={state.data.analyses} range={applied} />}</>;
 }

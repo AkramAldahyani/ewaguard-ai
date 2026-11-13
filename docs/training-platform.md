@@ -41,7 +41,7 @@ Administrator (`IT_SECURITY_ADMIN`, verified MFA):
 | POST | `/api/admin/training/:programId/archive` | Retain history and stop learning/assignments |
 | GET / POST | `/api/admin/training/:programId/assignments` | Progress report / assign `{ employeeId }` |
 
-Review/publish/archive bodies contain only `expectedUpdatedAt`. Assignment returns `{ assignment, alreadyAssigned }`; repeated active assignments return the same record and do not generate duplicate progress or audit entries. There is no bulk assignment or reassignment endpoint. An administrator may review their own draft; separate-reviewer policy is not imposed in this phase.
+Review/publish/archive bodies contain only `expectedUpdatedAt`. Assignment returns `{ assignment, alreadyAssigned }`; repeated active assignments return the same record and do not generate duplicate progress or audit entries. Bulk assignment was added later (see "Bulk assignment" at the end of this document); there is still no reassignment endpoint. An administrator may review their own draft; separate-reviewer policy is not imposed in this phase.
 
 Employee (`EMPLOYEE`):
 
@@ -197,3 +197,31 @@ In the local development database, all seven exist as **drafts with draft quizze
 | TC4 | Responsible AI | `OTHER` | Draft | `docs/training-secure-remote-work-responsible-ai.md` |
 
 The shared content test uses fresh synthetic actors for each course, so the seven full flows stay within the existing per-user training rate limits. No platform, schema or UI behaviour changed in TC4.
+
+## Bulk assignment
+
+`POST /api/admin/training/:programId/assignments/bulk` requires `IT_SECURITY_ADMIN` with verified MFA and a trusted origin, and uses the existing training rate limits. It accepts exactly one of:
+
+- `{ "employeeIds": ["uuid", ...] }`: 1–200 distinct IDs. If any ID is not an active employee, the whole request is rejected with 400 and nothing is written.
+- `{ "allEligible": true }`: every active employee account at the time of the request.
+
+The program must be published. The request runs in one transaction under the existing program row lock:
+- Each employee without an assignment gets a new NOT_STARTED assignment and progress record, plus one `TRAINING_ASSIGNED` audit record. Its metadata includes `bulk: SELECTED` or `bulk: ALL_ELIGIBLE`.
+- Existing active assignments are counted as `alreadyAssigned`.
+- Revoked assignments are counted as `revoked` and are never reactivated.
+
+The response is `{ eligible, created, alreadyAssigned, revoked }`, so reruns are safe. Employees who join later are not added automatically; run "assign to all" again to include them.
+
+In the assignment panel, administrators can:
+- tick employees (selections persist across searches and pages);
+- use **Select all on this page**;
+- click **Assign selected (n)**;
+- click **Assign to all active employees**, which asks for confirmation first.
+
+The single-employee **Assign course** button is unchanged. Tests: `backend/tests/training-bulk-assignment.integration.test.js`, `frontend/tests/training-ui.test.mjs` and `frontend/tests/training.test.mjs`.
+
+## Monthly awareness quizzes, 2026–2027
+
+Twelve monthly quizzes (November 2026 to October 2027, 15 questions each) are provisioned as **drafts** through the existing monthly quiz service. Use `npm run monthly:provision -- --period all --admin-email <administrator email>`. Calendar, provisioning, the manual monthly publication steps and the full answer key are in `docs/monthly-cybersecurity-quizzes-2026-2027.md`, which is administrator material only.
+
+`backend/tests/monthly-quiz.integration.test.js` now pins its in-process clock to June 2093. Previously it needed the real current month to have no monthly quiz.

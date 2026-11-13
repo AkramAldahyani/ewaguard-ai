@@ -10,6 +10,10 @@ import { authCookie, issueAccessToken } from '../src/auth/auth-token.js';
 test('Phase 11C1 monthly quiz lifecycle, scoring and history', async (t) => {
   const url = new URL(databaseUrl());
   assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)); assert.equal(url.pathname, '/ewaguard_ai');
+  // Only one monthly quiz may exist per month, and only the current month can be OPEN. Pin the in-process clock to
+  // an otherwise unused month so this test never depends on, or collides with, real drafts for the actual current
+  // month. Only Date is mocked; timers and the database clock are unaffected.
+  t.mock.timers.enable({ apis: ['Date'], now: Date.UTC(2093, 5, 15, 12) });
   const db = createDatabaseClient(), users = [], monthlyIds = [], quizIds = [];
   const config = parseConfig({ NODE_ENV: 'test', JWT_SECRET: 'synthetic-monthly-quiz-secret-at-least-32-characters', FRONTEND_URL: 'http://127.0.0.1:5173' });
   const server = createApp(config, { database: db }).listen(0, '127.0.0.1'); await once(server, 'listening');
@@ -40,7 +44,7 @@ test('Phase 11C1 monthly quiz lifecycle, scoring and history', async (t) => {
     users.push(row.id); return row;
   }
   const admin = await user('IT_SECURITY_ADMIN'), noMfa = await user('IT_SECURITY_ADMIN', { mfaEnabledAt: null, mfaSecretEncrypted: null, mfaLastCounter: null });
-  const employee = await user(), other = await user();
+  const employee = await user(), other = await user(), third = await user();
   const adminRoot = '/api/admin/monthly-quizzes', ownRoot = '/api/monthly-quizzes';
   async function request(path, { actor = admin, body, origin = config.frontendUrl } = {}) {
     const response = await fetch(`http://127.0.0.1:${server.address().port}${path}`, { method: body === undefined ? 'GET' : 'POST',
@@ -125,6 +129,12 @@ test('Phase 11C1 monthly quiz lifecycle, scoring and history', async (t) => {
     assert.equal((await request(`${ownRoot}/${id}/attempts/${retry.data.attempt.id}`, { actor: other })).status, 404);
     assert.equal((await request(`${ownRoot}/${id}/attempts/${retry.data.attempt.id}`, { actor: employee })).data.answers.length, 2);
     assert.equal((await request(`${ownRoot}/${id}/attempts`, { actor: employee, body: {} })).status, 409);
+    // BUG-018: once passed, the employee is shown no remaining attempts (the server refuses another one).
+    const afterPass = await request(`${ownRoot}/${id}`, { actor: employee });
+    assert.deepEqual([afterPass.data.passed, afterPass.data.attemptsRemaining], [true, 0]);
+    const listed = (await request(ownRoot, { actor: employee })).data.items.find((item) => item.id === id);
+    assert.deepEqual([listed.passed, listed.attemptsRemaining], [true, 0]);
+    assert.equal((await request(`${ownRoot}/${id}`, { actor: other })).data.passed, false);
     assert.equal(await db.trainingProgress.count({ where: { qualifyingAttemptId: retry.data.attempt.id } }), 0);
     await assert.rejects(db.quizAttempt.update({ where: { id: retry.data.attempt.id }, data: { earnedPoints: 999 } }));
   });
@@ -141,6 +151,14 @@ test('Phase 11C1 monthly quiz lifecycle, scoring and history', async (t) => {
     const report = await request(`${adminRoot}/${id}/report?pageSize=1`);
     assert.equal(report.status, 200); assert.equal(report.data.items.length, 1); assert.equal(report.data.hasMore, true);
     assert.equal(report.data.participation.startedEmployees, 2); assert.equal(report.data.participation.submittedEmployees, 2);
+    // BUG-005: "in progress" counts open attempts, not active employees; "expected" covers employees who never started.
+    assert.equal(report.data.participation.inProgressEmployees, 0);
+    assert.ok(report.data.participation.expectedEmployees >= report.data.participation.startedEmployees);
+    const open = await request(`${ownRoot}/${id}/attempts`, { actor: third, body: {} });
+    assert.equal(open.status, 200, JSON.stringify(open.data));
+    const during = await request(`${adminRoot}/${id}/report`);
+    assert.deepEqual([during.data.participation.startedEmployees, during.data.participation.inProgressEmployees,
+      during.data.participation.submittedEmployees], [3, 1, 2]);
     assert.doesNotMatch(JSON.stringify(report.data), /email|password|isCorrect|explanation/i);
   });
   await t.test('monthly score history uses best submitted result and prior recorded month', async () => {

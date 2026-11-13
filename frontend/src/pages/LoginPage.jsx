@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowRight, Eye, EyeOff, LockKeyhole, ShieldCheck } from 'lucide-react';
 import { useLocation, useNavigate } from 'react-router';
 import building from '../assets/branding/ewa_building.png';
@@ -9,6 +9,8 @@ import { MfaForm } from '../components/auth/MfaForm.jsx';
 import { SecurityTips } from '../components/employee/SecurityTips.jsx';
 
 export function LoginPage() {
+  // After sign-out the tab must not keep the previous page's title (for example "Profile").
+  useEffect(() => { document.title = 'Sign in | EWAGuard AI'; }, []);
   const { login, sessionExpired } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();

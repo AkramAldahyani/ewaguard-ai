@@ -1,6 +1,7 @@
 import { Badge, Button, RiskBadge } from '../../components/ui/index.jsx';
 import { IncidentAssistance } from '../../components/IncidentAssistance.jsx';
 import { IncidentReceipt } from '../../components/IncidentReceipt.jsx';
+import { ExposureReport } from '../../components/ExposureReport.jsx';
 import { AnalysisRiskPanel } from '../../components/analysis-risk-theme.jsx';
 import { CitationCard } from './ChatMessages.jsx';
 
@@ -28,6 +29,9 @@ export function ChatEvidence({ result }) {
   return <AnalysisRiskPanel as="section" risk={risk} aria-label="Verified analysis result" className="min-w-0 space-y-4 rounded-xl border border-[var(--analysis-line)] bg-[var(--analysis-card)] p-4 [overflow-wrap:anywhere] sm:p-5">
     <div className="flex flex-wrap items-center justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wide text-brand-700">Verified backend evidence</p><h3 className="mt-1 font-bold text-slate-900">{data.analyzerType} analysis</h3></div><RiskBadge level={risk.riskLevel} score={risk.score} /></div>
     <p className="text-xs text-slate-500">Analysis ID: {data.analysisId}</p><div className="flex flex-wrap items-center gap-2"><Badge>{risk.confidence?.replaceAll('_', ' ') ?? 'Confidence unavailable'}</Badge><span className="text-xs text-slate-500">Central risk model {risk.version}</span></div>
+    {data.incident && (data.incident.recorded && /^INC-\d{4}-\d{6,10}$/.test(data.incident.reference ?? '')
+      ? <p className="rounded-lg border border-warning-200 bg-warning-50 px-3 py-2 text-sm text-warning-900">Linked incident <strong>{data.incident.reference}</strong> · {data.incident.severity} · {String(data.incident.status).replaceAll('_', ' ')}{data.incident.securityTeamAlerted ? ' · Security team alerted' : ''}{data.incident.credentialExposureReported ? ' · Credential exposure reported' : ''}</p>
+      : !data.incident.recorded && <p className="text-sm text-slate-600">No incident is recorded for this analysis.</p>)}
     <p className="text-sm leading-6 text-slate-600">This is the stored EWAGuard risk evaluation, separate from AI advice and individual analyzer findings. Low risk does not guarantee safety.</p>
     <div><h4 className="text-sm font-bold">Risk reasons</h4><ul className="mt-2 space-y-2 text-sm leading-6 text-slate-700">{(data.reasons ?? []).map((reason) => <li key={reason.code}>{reason.description}<span className="block text-xs text-slate-500">{reason.code}</span></li>)}</ul></div>
     {data.indicatorCodes?.length > 0 && <details><summary className="cursor-pointer text-sm font-semibold text-brand-700">Analyzer indicators ({data.indicatorCodes.length})</summary><ul className="mt-2 space-y-1 text-xs text-slate-600">{data.indicatorCodes.map((code) => <li key={code}>{code}</li>)}</ul></details>}
@@ -39,18 +43,22 @@ const approvalLabels = { PENDING: 'Waiting for employee approval', COMPLETED: 'A
 export function ChatReceipt({ request, busy, acknowledged, onRecover, onReview, onExplain }) {
   const approval = request.approval; const approvalId = approval?.id ?? request.toolMetadata?.approvalId; const hasResults = request.verifiedResults?.length > 0;
   if (!approvalId && !request.toolMetadata?.results?.length && !hasResults && request.status === 'COMPLETED') return null;
-  const compactSources = request.status === 'COMPLETED' && !approvalId && hasResults &&
-    request.verifiedResults.every(result => ['PDPL', 'COMPANY_POLICY'].includes(result.data?.kind) && result.data.status === 'MATCHES');
-  const Container = compactSources ? 'details' : 'section';
-  return <Container aria-label="Tool request" className="my-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
-    {compactSources && <summary className="cursor-pointer rounded text-sm font-semibold text-brand-700 focus-visible:outline-2 focus-visible:outline-brand-600">View full source passages and retrieval status</summary>}
+  // Knowledge-base lookups: the answer already carries its server-rendered citations, so retrieval
+  // diagnostics stay out of the employee view. Only a withdrawn-source warning remains user-relevant.
+  const sourceLookup = request.status === 'COMPLETED' && !approvalId && hasResults &&
+    request.verifiedResults.every(result => ['PDPL', 'COMPANY_POLICY'].includes(result.data?.kind));
+  if (sourceLookup) return request.verifiedResults.some(result => result.data.status === 'SOURCES_UNAVAILABLE')
+    ? <p role="status" className="my-3 rounded-xl border border-warning-200 bg-warning-50 px-4 py-3 text-sm leading-6 text-warning-900">Some sources behind this answer have since been withdrawn or replaced. Do not rely on it without checking with IT/Security or the DPO.</p>
+    : null;
+  return <section aria-label="Tool request" className="my-4 space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:p-4">
     <div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-slate-900">{approval ? approvalLabels[approval.status] ?? 'Saved analysis request' : approvalId ? 'Saved analysis approval' : 'Request findings and recovery'}</h3><Badge>{approval?.toolName === 'analyze_email' ? 'Email' : approval?.toolName === 'analyze_url' ? 'URL' : 'Backend record'}</Badge></div>
     {approval?.status === 'PENDING' && <p className="text-sm leading-6 text-slate-600">Review the exact private input before approving. Expires {new Date(approval.expiresAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. The server verifies expiration before execution.</p>}
     {['REJECTED', 'EXPIRED'].includes(approval?.status) && <p className="text-sm text-slate-600">This request cannot run. Use Private analysis to deliberately prepare a new operation.</p>}
     <IncidentReceipt incident={request.incident} analysisId={approval?.analysisId} analyzerType={approval?.toolName === 'analyze_email' ? 'EMAIL' : 'URL'} />
+    {approval?.status === 'COMPLETED' && approval.analysisId && <ExposureReport analysisId={approval.analysisId} analyzerType={approval.toolName === 'analyze_email' ? 'EMAIL' : 'URL'} />}
     {request.resultUnavailable && <p className="text-sm text-slate-600">The completed result is no longer available. This approval remains consumed.</p>}
     <div className="flex flex-wrap gap-2"><Button size="sm" variant="secondary" disabled={busy} onClick={onRecover}>Retrieve saved status</Button>{approvalId && (!approval || approval.status === 'PENDING') && <Button size="sm" disabled={busy} onClick={() => onReview(approvalId)}>Review private request</Button>}{approval?.status === 'COMPLETED' && hasResults && <Button size="sm" variant="subtle" disabled={busy || !acknowledged || Boolean(request.explanation)} onClick={() => onExplain(approval.id)}>Explain with AI</Button>}</div>
     {request.explanation?.status === 'UNAVAILABLE' && <p role="status" className="text-sm text-slate-600">AI explanation unavailable. The completed analysis and deterministic guidance remain available below. No new scan was performed.</p>}
     {request.verifiedResults?.map((result) => <ChatEvidence key={result.key} result={result} />)}
-  </Container>;
+  </section>;
 }

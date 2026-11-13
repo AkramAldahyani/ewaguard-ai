@@ -29,7 +29,7 @@ export function UploadPreview({ label = 'Choose a file', description = 'File sel
   </div>;
 }
 
-export function PortalLinkCard({ icon: Icon, image, compactImage = false, coverImage = false, title, description, to, preview = true }) {
+export function PortalLinkCard({ icon: Icon, image, compactImage = false, coverImage = false, title, description, to, preview = false }) {
   return <Link to={to} className="portal-link group block h-full rounded-2xl">
     <Card className="h-full overflow-hidden transition-colors group-hover:border-brand-300">
       {image && <div className="border-b border-slate-100 bg-white"><img src={image} alt="" loading="lazy" className={`block w-full ${coverImage ? 'h-40 object-cover object-center' : compactImage ? 'h-40 object-contain' : 'aspect-[3/2] object-contain'}`} /></div>}

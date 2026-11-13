@@ -33,7 +33,7 @@ export function AdminReportsPanel() {
   }
   return <section aria-label="Reported content" className="space-y-5">
     <div className="flex flex-wrap items-end justify-between gap-3"><div><h1 className="text-2xl font-bold text-navy-900">Reported content</h1><p className="mt-1 text-sm text-slate-600">Review employee concerns and record the outcome.</p></div>
-      <label className="text-sm font-semibold">Report status<Select value={status} disabled={busy} onChange={(event) => { setStatus(event.target.value); setPage(1); refresh(); }}>{['PENDING', 'ACTIONED', 'DISMISSED'].map((value) => <option key={value}>{value}</option>)}</Select></label><Button variant="secondary" disabled={busy} onClick={refresh}>Refresh reports</Button></div>
+      <label className="text-sm font-semibold">Report status<Select value={status} disabled={busy} onChange={(event) => { setStatus(event.target.value); setPage(1); refresh(); }}>{['PENDING', 'ACTIONED', 'DISMISSED'].map((value) => <option key={value} value={value}>{label(value)}</option>)}</Select></label><Button variant="secondary" disabled={busy} onClick={refresh}>Refresh reports</Button></div>
     {notice && <p role="status">{notice}</p>}{state.loading && <p role="status">Loading reports…</p>}
     {state.error && <p role="alert" className="text-danger-700">{state.error}</p>}
     {!state.loading && !state.error && !state.items.length && <Card className="p-8 text-center text-slate-600">No reports in this queue.</Card>}

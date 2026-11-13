@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { createDatabaseClient } from '../src/config/database.js';
 import { databaseUrl } from '../src/config/env.js';
 import { submitOnce } from '../src/analyzers/submission-idempotency.js';
-import { analysisOverview } from '../src/analytics/analysis-analytics.js';
+import { analysisOverview, recentAnalyses } from '../src/analytics/analysis-analytics.js';
 import { securityPeriod } from '../src/analytics/security-analytics.js';
 import { completeAnalysisEscalation } from '../src/incidents/incident-engine.js';
 import { cleanupTestIncidents } from './incident-cleanup.js';
@@ -61,8 +61,11 @@ test('analysis records, retry uniqueness and PostgreSQL analytics across all sev
     assert.deepEqual(result.severity.map((r) => r.count), [3, 3, 3, 3]);
     assert.deepEqual(result.byType.map((r) => r.count), [4, 4, 4, 0]);
     assert.deepEqual(result.daily.map((r) => r.count), [12, 0]);
-    assert.equal(result.recent.filter((r) => r.incidentId).length, 6);
-    for (const row of result.recent) {
+    assert.equal(result.recent.length, 10); assert.deepEqual(result.recentPage, { page: 1, pageSize: 10, total: 12, totalPages: 2 });
+    const all = [...result.recent, ...(await recentAnalyses(db, range, 2)).items];
+    assert.equal(all.length, 12); assert.equal(new Set(all.map((r) => `${r.type}:${r.id}`)).size, 12);
+    assert.equal(all.filter((r) => r.incidentId).length, 6);
+    for (const row of all) {
       assert.equal(row.userId, user.id);
       assert.equal(row.submittedBy.id, user.id);
       assert.equal(row.submittedBy.firstName, 'Synthetic');
@@ -85,7 +88,15 @@ test('analysis records, retry uniqueness and PostgreSQL analytics across all sev
     ].map((fields) => ({ ...fields, userId: user.id, analyzedAt: date, hostname: 'example.invalid', urlSha256: 'a'.repeat(64), expiresAt: date })) });
     const result = await analysisOverview(db, range);
     assert.equal(result.unclassified, 1); assert.equal(result.failed, 1); assert.equal(result.total, 36);
-    assert.equal(result.recent.length, 20);
+    assert.equal(result.recent.length, 10); assert.equal(result.recentPage.totalPages, 4);
+    const pages = await Promise.all([1, 2, 3, 4].map((page) => recentAnalyses(db, range, page)));
+    assert.deepEqual(pages.map((page) => page.items.length), [10, 10, 10, 6]);
+    const rows = pages.flatMap((page) => page.items);
+    assert.equal(new Set(rows.map((r) => `${r.type}:${r.id}`)).size, 36, 'pages never repeat or skip a record');
+    for (let index = 1; index < rows.length; index++) assert.ok(new Date(rows[index - 1].analyzedAt) >= new Date(rows[index].analyzedAt));
+    assert.deepEqual((await recentAnalyses(db, range, 99)).pagination, { page: 4, pageSize: 10, total: 36, totalPages: 4 });
+    const empty = await recentAnalyses(db, securityPeriod({ period: 'custom', start: '2093-02-02', end: '2093-02-02' }), 3);
+    assert.deepEqual(empty, { items: [], pagination: { page: 1, pageSize: 10, total: 0, totalPages: 1 } });
   });
   await t.test('failed work saves no completed result and the same submission key can recover', async () => {
     const key = randomUUID();

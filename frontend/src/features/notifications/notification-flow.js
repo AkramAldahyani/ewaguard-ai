@@ -4,7 +4,7 @@ import { notificationApi } from './notification-api.js';
 export const socketOptions = Object.freeze({ path: '/api/realtime', withCredentials: true,
   autoConnect: false, reconnection: false, forceNew: true, timeout: 8000, transports: ['websocket', 'polling'], tryAllTransports: true });
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
-const kinds = ['INCIDENT_CREATED', 'INCIDENT_ASSIGNED', 'STATUS_CHANGED', 'EMPLOYEE_UPDATE', 'INVESTIGATION_UPDATED'];
+const kinds = ['INCIDENT_CREATED', 'INCIDENT_ASSIGNED', 'STATUS_CHANGED', 'EMPLOYEE_UPDATE', 'INVESTIGATION_UPDATED', 'EXPOSURE_REPORTED'];
 export function notificationItems(items, role) {
   const allowed = role === 'EMPLOYEE' ? ['STATUS_CHANGED', 'EMPLOYEE_UPDATE'] : role === 'IT_SECURITY_ADMIN' ? kinds : [];
   return (Array.isArray(items) ? items : []).filter((item) => uuid.test(item.id) && uuid.test(item.incidentId) && allowed.includes(item.kind))

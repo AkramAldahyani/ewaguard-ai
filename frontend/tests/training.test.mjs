@@ -144,3 +144,12 @@ test('every provisioned course renders each lesson with accessible structure and
   assert.match(voice, /aria-label="Example: The urgent voice message"/);
   assert.match(reported, /aria-label="Example: Doing it right"/); assert.equal((reported.match(/<ol class="mt-2/g) ?? []).length, 2);
 });
+
+test('bulk assignment requests and result summaries', async () => {
+  const { bulkAssignmentNotice } = await import('../src/features/training/training-model.js');
+  const calls = []; const api = createTrainingApi(true, async (path, options) => { calls.push([path, JSON.parse(options.body)]); return {}; });
+  await api.assignMany(id, new Set([employeeId]).keys()); await api.assignMany(id, 'ALL');
+  assert.deepEqual(calls, [[`/api/admin/training/${id}/assignments/bulk`, { employeeIds: [employeeId] }], [`/api/admin/training/${id}/assignments/bulk`, { allEligible: true }]]);
+  assert.equal(bulkAssignmentNotice({ eligible: 3, created: 1, alreadyAssigned: 1, revoked: 1 }), '1 new assignment created, 1 already assigned, 1 skipped because an earlier assignment was revoked.');
+  assert.equal(bulkAssignmentNotice({ eligible: 0, created: 0, alreadyAssigned: 0, revoked: 0 }), 'No active employees were eligible for assignment.');
+});

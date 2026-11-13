@@ -23,6 +23,18 @@ async function lockProgram(tx, id) {
   if (!row) missing();
   return row;
 }
+// A quiz-required course must be completable. Its quiz must be approved before the course is published (the quiz
+// itself can only be published afterwards), and published before anyone is assigned the course. Callers hold the
+// program row lock, which quiz transitions also take first, so the status read here cannot change underneath them.
+async function courseQuizStatus(tx, trainingId) {
+  const link = await tx.trainingQuiz.findUnique({ where: { trainingId }, select: { quiz: { select: { status: true } } } });
+  return link?.quiz.status ?? null;
+}
+async function requireAssignableQuiz(tx, program) {
+  if (program.requiresQuiz && await courseQuizStatus(tx, program.id) !== 'PUBLISHED') {
+    conflict('Publish the course quiz before assigning this course. Employees cannot complete it without the quiz.');
+  }
+}
 function filters(query) {
   const where = {};
   if (query.status !== undefined) {
@@ -45,9 +57,11 @@ export function createTrainingService(database) {
     },
     async detail(id) {
       const program = await database.trainingProgram.findUnique({ where: { id: identifier(id) }, select: { ...summary,
-        learningObjectives: true, content: true, reviewedAt: true, createdBy: { select: person }, reviewedBy: { select: person } } });
+        learningObjectives: true, content: true, reviewedAt: true, createdBy: { select: person }, reviewedBy: { select: person },
+        quiz: { select: { quiz: { select: { status: true } } } } } });
       if (!program) missing();
-      return { program };
+      const { quiz, ...rest } = program;
+      return { program: { ...rest, courseQuizStatus: quiz?.quiz.status ?? null } };
     },
     async create(user, body) {
       const data = courseInput(body);
@@ -71,6 +85,9 @@ export function createTrainingService(database) {
           Object.assign(update, { reviewedAt: new Date(), reviewedById: user.id });
         } else if (operation === 'publish') {
           if (!current.reviewedAt || !current.reviewedById) conflict('An administrator must review the current draft before publishing.');
+          if (current.requiresQuiz && !['APPROVED', 'PUBLISHED'].includes(await courseQuizStatus(tx, current.id))) {
+            conflict('This course requires a quiz. Create and approve the course quiz before publishing the course.');
+          }
           Object.assign(update, { status: 'PUBLISHED', publishedAt: new Date() });
         } else if (operation === 'archive') update.status = 'ARCHIVED';
         else fail();
@@ -79,9 +96,15 @@ export function createTrainingService(database) {
         return { program };
       });
     },
+    // With trainingId, lists only employees who can still be assigned that course: anyone holding an assignment
+    // record for it (active or revoked, matched by user and course ID) is excluded. Other courses are unaffected.
     async employees(query) {
-      const paging = pageInput(query, ['search']); const search = searchText(query.search);
-      const rows = await database.user.findMany({ where: { ...eligible, ...(search ? { OR: ['firstName', 'lastName', 'employeeIdentifier'].map((key) => ({ [key]: { contains: search, mode: 'insensitive' } })) } : {}) },
+      const paging = pageInput(query, ['search', 'trainingId']); const search = searchText(query.search);
+      const trainingId = query.trainingId === undefined ? null : identifier(query.trainingId);
+      if (trainingId && !await database.trainingProgram.findUnique({ where: { id: trainingId }, select: { id: true } })) missing();
+      const rows = await database.user.findMany({ where: { ...eligible,
+        ...(trainingId ? { trainingAssignments: { none: { trainingId } } } : {}),
+        ...(search ? { OR: ['firstName', 'lastName', 'employeeIdentifier'].map((key) => ({ [key]: { contains: search, mode: 'insensitive' } })) } : {}) },
         select: { ...person, employeeIdentifier: true }, ...args(paging) });
       return page(rows, paging);
     },
@@ -90,6 +113,7 @@ export function createTrainingService(database) {
       return database.$transaction(async (tx) => {
         const program = await lockProgram(tx, id);
         if (program.status !== 'PUBLISHED') conflict('Only published programs can be assigned.');
+        await requireAssignableQuiz(tx, program);
         if (!await tx.user.findFirst({ where: { id: employeeId, ...eligible }, select: { id: true } })) fail('Select an active employee.');
         const previous = await tx.trainingAssignment.findUnique({ where: { trainingId_employeeId: { trainingId: program.id, employeeId } }, select: assignmentSelect });
         if (previous) {
@@ -100,6 +124,40 @@ export function createTrainingService(database) {
         await audit(tx, user, program.id, 'TRAINING_ASSIGNED', { assignmentId: assignment.id, employeeId });
         return { assignment, alreadyAssigned: false };
       });
+    },
+    // Assigns a published program to selected employees ({ employeeIds }) or to every eligible employee
+    // ({ allEligible: true }). Selected lists are validated as a whole: any ineligible ID rejects the request
+    // without partial writes. Existing active assignments are reported, revoked ones are never reactivated, and
+    // each new assignment keeps its own TRAINING_ASSIGNED audit record.
+    async assignMany(user, id, body) {
+      fields(body, ['employeeIds', 'allEligible']);
+      const all = body.allEligible === true;
+      if (all === Object.hasOwn(body, 'employeeIds') || (Object.hasOwn(body, 'allEligible') && !all)) fail('Choose selected employees or all eligible employees.');
+      let ids = null;
+      if (!all) {
+        if (!Array.isArray(body.employeeIds) || body.employeeIds.length < 1 || body.employeeIds.length > 200) fail('Select between 1 and 200 employees.');
+        ids = body.employeeIds.map(identifier);
+        if (new Set(ids).size !== ids.length) fail('Each employee may be selected only once.');
+      }
+      return database.$transaction(async (tx) => {
+        const program = await lockProgram(tx, id);
+        if (program.status !== 'PUBLISHED') conflict('Only published programs can be assigned.');
+        await requireAssignableQuiz(tx, program);
+        const employees = await tx.user.findMany({ where: { ...eligible, ...(ids ? { id: { in: ids } } : {}) }, select: { id: true } });
+        if (ids && employees.length !== ids.length) fail('Select only active employees.');
+        const existing = await tx.trainingAssignment.findMany({ where: { trainingId: program.id, employeeId: { in: employees.map((row) => row.id) } },
+          select: { employeeId: true, revokedAt: true } });
+        const known = new Map(existing.map((row) => [row.employeeId, row]));
+        const result = { eligible: employees.length, created: 0, alreadyAssigned: 0, revoked: 0 };
+        for (const { id: employeeId } of employees) {
+          const previous = known.get(employeeId);
+          if (previous) { result[previous.revokedAt ? 'revoked' : 'alreadyAssigned']++; continue; }
+          const assignment = await tx.trainingAssignment.create({ data: { trainingId: program.id, employeeId, assignedById: user.id, progress: { create: {} } }, select: { id: true } });
+          await audit(tx, user, program.id, 'TRAINING_ASSIGNED', { assignmentId: assignment.id, employeeId, bulk: all ? 'ALL_ELIGIBLE' : 'SELECTED' });
+          result.created++;
+        }
+        return result;
+      }, { timeout: 60000 });
     },
     async assignments(id, query) {
       const paging = pageInput(query, ['status']); identifier(id);

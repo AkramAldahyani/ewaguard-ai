@@ -131,3 +131,37 @@ reported zero vulnerabilities. The existing frontend bundle-size warning remains
 Live tests used loopback HTTP, real PostgreSQL and synthetic analyzer/provider
 fixtures; no live malware, paid OpenAI calls or administrator notifications were used.
 Browser interaction/visual verification was not performed.
+
+## Employee-confirmed credential exposure
+
+`POST /api/analysis-escalations/:analyzerType/:analysisId/exposure` (employees only, trusted origin, 30 requests/minute)
+records an employee's explicit statement that they entered work credentials after opening one of their own **email or URL**
+analyses. The body must be exactly `{ "exposure": "CREDENTIALS_SUBMITTED", "confirmed": true }`; no severity, user, status or
+free text is accepted.
+
+- The risk engine (`escalateConfirmedRisk`) applies `CONFIRMED_CREDENTIAL_SUBMISSION` to the stored risk: the score becomes
+  `max(stored score, 75)` and the level CRITICAL. The confirmation never comes from analyzed content, chat text or the model.
+- No incident yet (LOW/MEDIUM analysis): a CRITICAL `CREDENTIAL_COMPROMISE` incident is created through the same creation path as
+  automatic escalation, with an `INCIDENT_CREATED` administrator alert.
+- Existing incident: the first evidence snapshot keeps `originalRisk` and receives the escalated `risk`, reported-exposure guidance and
+  `reportedExposure`; the incident row is updated to match. A `SEVERITY_CHANGED` event (or `EVIDENCE_ADDED` when it was already
+  CRITICAL), an `INCIDENT_EXPOSURE_REPORTED` audit entry and an `EXPOSURE_REPORTED` administrator alert are written in the same transaction.
+  Resolved, false-positive or closed incidents return to `UNDER_INVESTIGATION`.
+- Repeated reports are idempotent (`exposureRecorded: false`) under the same per-source advisory lock.
+- Employees see the severity change in their incident timeline; the AI assistant directs employees to this action but cannot call it.
+
+## Incident type and department
+
+New incidents take their type from the stored risk reason codes (`incidentTypeFor` in `escalation-policy.js`), never from
+analyzed text or model output:
+
+| Type | Any of these reason codes |
+| --- | --- |
+| `CREDENTIAL_COMPROMISE` | `CONFIRMED_CREDENTIAL_SUBMISSION` (employee-confirmed exposure) |
+| `MALWARE` | `FILE_CLAMAV_DETECTION`, `FILE_YARA_MATCH`, `FILE_VT_MALICIOUS`, `FILE_VT_SUSPICIOUS` |
+| `PHISHING` | Email credential, MFA or login requests, combined phishing, deceptive or credential-bearing links, Reply-To or display-name impersonation, lookalike senders, payment or approval-bypass pressure, attachment invitations; URL account terms or paths and brand impersonation |
+| `SUSPICIOUS_ACTIVITY` | Everything else, for example reputation-only URL detections |
+
+`DATA_EXPOSURE` and `OTHER` are never assigned automatically. The incident also stores the reporting employee's department
+at creation time, so the queue's department filter and category statistics match. Incidents created before this change keep
+`SUSPICIOUS_ACTIVITY` and no department; they are not rewritten automatically.

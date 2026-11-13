@@ -84,8 +84,19 @@ export function Table({ caption, columns, rows }) {
   return <div className="overflow-x-auto"><table className="min-w-full text-left text-sm"><caption className="sr-only">{caption}</caption><thead><tr className="border-b border-slate-200 bg-slate-50/80">{columns.map((column) => <th key={column.key} scope="col" className="whitespace-nowrap px-5 py-3 text-xs font-semibold uppercase tracking-wide text-slate-500">{column.label}</th>)}</tr></thead><tbody className="divide-y divide-slate-100">{rows.map((row) => <tr key={row.id} className="transition-colors hover:bg-slate-50/80">{columns.map((column) => <td key={column.key} className="max-w-72 break-words px-5 py-4 align-top text-slate-700">{column.render ? column.render(row) : row[column.key]}</td>)}</tr>)}</tbody></table></div>;
 }
 
-export function Pagination({ page = 1, pages = 1, onChange = () => {} }) {
-  return <nav aria-label="Pagination" className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4"><p className="text-sm text-slate-500">Page <strong className="text-slate-700">{page}</strong> of {pages}</p><div className="flex gap-2"><Button variant="secondary" size="sm" disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</Button><Button variant="secondary" size="sm" disabled={page >= pages} onClick={() => onChange(page + 1)}>Next</Button></div></nav>;
+// Windowed page list: first, last and the neighbours of the current page, with gaps marked by null.
+function pageWindow(page, pages) {
+  const shown = [...new Set([1, page - 1, page, page + 1, pages])].filter((value) => value >= 1 && value <= pages).sort((a, b) => a - b);
+  return shown.flatMap((value, index) => index && value - shown[index - 1] > 1 ? [null, value] : [value]);
+}
+
+export function Pagination({ page = 1, pages = 1, onChange = () => {}, label = 'Pagination', summary, disabled = false, numbers = false }) {
+  return <nav aria-label={label} className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 px-5 py-4"><p className="text-sm text-slate-500" role="status">Page <strong className="text-slate-700">{page}</strong> of {pages}{summary && <span className="hidden sm:inline"> · {summary}</span>}</p><div className="flex flex-wrap items-center gap-1.5"><Button variant="secondary" size="sm" disabled={disabled || page <= 1} onClick={() => onChange(page - 1)}>Previous</Button>
+    {numbers && pages > 1 && <span className="hidden items-center gap-1 sm:inline-flex">{pageWindow(page, pages).map((value, index) => value === null
+      ? <span key={`gap-${index}`} className="px-1 text-sm text-slate-400" aria-hidden="true">…</span>
+      : <button key={value} type="button" disabled={disabled} aria-current={value === page ? 'page' : undefined} aria-label={`Page ${value}`} onClick={() => value !== page && onChange(value)}
+        className={cn('min-h-11 min-w-10 rounded-[0.7rem] px-2 text-sm font-semibold tabular-nums transition-colors focus-visible:outline-2 focus-visible:outline-brand-600 disabled:opacity-60', value === page ? 'bg-navy-900 text-white' : 'text-slate-600 hover:bg-slate-100')}>{value}</button>)}</span>}
+    <Button variant="secondary" size="sm" disabled={disabled || page >= pages} onClick={() => onChange(page + 1)}>Next</Button></div></nav>;
 }
 
 export function Tabs({ tabs, active, onChange, label = 'Sections', panelId }) {

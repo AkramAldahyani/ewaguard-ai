@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
-import { ArrowDown, ArrowUpRight, FileSearch, History, KeyRound, LockKeyhole, Mail, Link2, Plus, ShieldAlert, ShieldCheck } from 'lucide-react';
+import { ArrowDown, ArrowUpRight, FileSearch, History, KeyRound, LockKeyhole, Mail, Link2, Plus, ShieldAlert } from 'lucide-react';
 import { Link } from 'react-router';
 import { Button } from '../../components/ui/index.jsx';
 import { Modal } from '../../components/ui/Dialog.jsx';
@@ -17,7 +17,6 @@ const suggestions = [
   { title: 'Suspicious Email', prompt: 'How can I identify a phishing email?', icon: Mail },
   { title: 'Password Security', prompt: 'How do I create a strong password?', icon: KeyRound },
   { title: 'Security Incident', prompt: 'What should I do if I click a suspicious link?', icon: ShieldAlert },
-  { title: 'Cybersecurity Guidance', prompt: 'Give me tips to stay secure at work.', icon: ShieldCheck },
   { title: 'Bahrain PDPL', prompt: 'What does Bahrain PDPL mean by personal data?', icon: FileSearch },
 ];
 
@@ -91,12 +90,11 @@ export function AssistantPage() {
             <div role="log" aria-label="Conversation messages" aria-live="polite" aria-relevant="additions" className="chat-message-list">{state.messages.map((message) => <div key={message.id}>{message.role === 'USER' ? <EmployeeMessage preview={false} content={message.content} /> : <AIMessage preview={false} content={message.content} />}</div>)}{state.pendingMessage && <div><EmployeeMessage preview={false} content={state.pendingMessage.content} /><p className="text-right text-xs text-slate-500">Awaiting backend confirmation</p></div>}</div>
             {state.requests.map((request) => <ChatReceipt key={request.requestId} request={request} busy={busy} acknowledged={acknowledged} onRecover={() => flow.recover(request.requestId)} onReview={(id) => flow.review(request.requestId, id)} onExplain={(id) => flow.explain(request.requestId, id)} />)}
             {activities[state.status] && <ToolRunningState preview={false} label={activities[state.status]} />}
-            {state.error && <div role="alert" className="my-4 rounded-xl border border-danger-200 bg-danger-50 p-4"><p className="text-sm leading-6 text-danger-800">{state.error}</p><Button className="mt-3" size="sm" variant="secondary" disabled={busy} onClick={() => state.privacy ? flow.dismissError() : flow.init()}>{state.privacy ? 'Dismiss notice' : 'Reload chat'}</Button></div>}
           </div>
         </div>
-        {away && <div className="assistant-jump"><Button variant="secondary" size="sm" onClick={() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); follow.current = true; setAway(false); }}><ArrowDown className="size-4" aria-hidden="true" />Jump to latest</Button></div>}
+        {away && (state.messages.length > 0 || state.pendingMessage || state.requests.length > 0) && <div className="assistant-jump"><Button variant="secondary" size="sm" onClick={() => { log.current?.scrollTo({ top: log.current.scrollHeight, behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth' }); follow.current = true; setAway(false); }}><ArrowDown className="size-4" aria-hidden="true" />Jump to latest</Button></div>}
     </section>
-    <ChatComposer value={state.draft} onChange={flow.edit} onSend={() => send()} disabled={busy || !acknowledged} sendDisabled={busy || !acknowledged || !state.draft.trim() || state.draft.length > CHAT_MAX_LENGTH} inputRef={input} accessories={<>
+    <ChatComposer notice={state.error && <div id="chat-error" role="alert" className="mb-2 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-danger-200 bg-danger-50 px-4 py-3"><p className="min-w-0 flex-1 text-sm leading-6 text-danger-800">{state.error}</p><Button size="sm" variant="secondary" disabled={busy} onClick={() => state.privacy ? flow.dismissError() : flow.init()}>{state.privacy ? 'Dismiss notice' : 'Reload chat'}</Button></div>} value={state.draft} onChange={flow.edit} onSend={() => send()} disabled={busy || !acknowledged} sendDisabled={busy || !acknowledged || !state.draft.trim() || state.draft.length > CHAT_MAX_LENGTH} inputRef={input} accessories={<>
       <button type="button" className="chat-tool" disabled={busy || !acknowledged} onClick={() => setPrivateType('EMAIL')} aria-label="Upload an .eml email for private analysis"><Mail className="size-4" aria-hidden="true" /><span>Email <span className="hidden sm:inline">.eml</span></span></button>
       <button type="button" className="chat-tool" disabled={busy || !acknowledged} onClick={() => setPrivateType('URL')} aria-label="Analyze a URL privately"><Link2 className="size-4" aria-hidden="true" />URL</button>
       <Link to="/analyze/file" className="chat-tool" aria-label="Open file analyzer"><FileSearch className="size-4" aria-hidden="true" /><span>Files</span></Link>

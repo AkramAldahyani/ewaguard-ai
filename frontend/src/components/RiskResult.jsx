@@ -1,3 +1,4 @@
+import { confidenceLabel } from '../lib/labels.js';
 import { Badge, Card, RiskBadge } from './ui/index.jsx';
 import {
   AnalysisRiskPanel,
@@ -22,7 +23,7 @@ export function RiskResult({ risk, inconclusive = false }) {
   const nextAction = recommendedActions[0] || null;
   const score = Number.isFinite(risk.score) ? risk.score : risk.riskScore;
   const hasScore = Number.isFinite(score);
-  const confidence = typeof risk.confidence === 'string' ? risk.confidence.replaceAll('_', ' ') : null;
+  const confidence = typeof risk.confidence === 'string' ? confidenceLabel(risk.confidence) : null;
 
   return <AnalysisRiskPanel risk={risk} neutral={inconclusive}>
     <Card className="risk-summary min-w-0 overflow-hidden p-0" aria-label="EWAGuard Risk Level">

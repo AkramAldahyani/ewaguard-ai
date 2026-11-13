@@ -10,12 +10,16 @@ import { hashPassword } from '../src/auth/auth-service.js';
 import { authCookie, issueAccessToken } from '../src/auth/auth-token.js';
 import { attachRealtime } from '../src/notifications/realtime.js';
 import { io } from 'socket.io-client';
+import { findFixtureUsers, purgeFixtureUsers } from './fixture-users.js';
 
 async function fixture(t, demoEnabled = true) {
   const url = new URL(databaseUrl());
   assert.ok(['localhost', '127.0.0.1', '[::1]'].includes(url.hostname), 'Integration fixtures must use the local development database.');
   assert.equal(url.pathname, '/ewaguard_ai');
   const db = createDatabaseClient(), ids = [], incidents = [], sockets = [];
+  // A run interrupted before teardown (killed process, timeout) leaves its accounts behind; sweep any older
+  // than 30 minutes so they never accumulate in local application data. Recent ones may belong to a live run.
+  await purgeFixtureUsers(db, await findFixtureUsers(db, { createdBefore: new Date(Date.now() - 30 * 60_000) }), { apply: true });
   const config = parseConfig({ NODE_ENV: 'test', DEMO_ACCOUNT_SETUP_ENABLED: String(demoEnabled), JWT_SECRET: 'user-management-test-secret-with-sufficient-length', FRONTEND_URL: 'http://127.0.0.1:5173', LOGIN_RATE_LIMIT_MAX: '100' });
   const app = createApp(config, { database: db }), server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
@@ -23,13 +27,23 @@ async function fixture(t, demoEnabled = true) {
   app.locals.realtime = realtime;
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => {
+    // Each step runs even if an earlier one fails, so fixture accounts are always removed.
+    const failures = [];
+    const step = async (work) => { try { await work(); } catch (error) { failures.push(error); } };
     for (const socket of sockets) socket.disconnect();
-    await realtime.close();
-    await new Promise((resolve) => server.close(resolve));
-    await db.incident.deleteMany({ where: { id: { in: incidents } } });
-    await db.auditLog.deleteMany({ where: { OR: [{ actorId: { in: ids } }, { resourceType: 'USER', resourceId: { in: ids } }] } });
-    await db.user.deleteMany({ where: { id: { in: ids } } });
+    await step(() => realtime.close());
+    await step(() => new Promise((resolve) => server.close(resolve)));
+    await step(() => db.incident.deleteMany({ where: { id: { in: incidents } } }));
+    await step(() => db.auditLog.deleteMany({ where: { OR: [{ actorId: { in: ids } }, { resourceType: 'USER', resourceId: { in: ids } }] } }));
+    await step(() => db.user.deleteMany({ where: { id: { in: ids } } }));
+    // Removes accounts still referenced by records created outside this test (e.g. a course assigned to all employees).
+    await step(async () => {
+      const remaining = await db.user.findMany({ where: { id: { in: ids } }, select: { id: true, email: true, employeeIdentifier: true } });
+      const report = await purgeFixtureUsers(db, remaining, { apply: true, audit: false });
+      if (report.kept.length) throw new Error(`Fixture accounts could not be removed: ${JSON.stringify(report.kept)}`);
+    });
     await db.$disconnect();
+    if (failures.length) throw new AggregateError(failures, 'User-management fixture teardown failed.');
   });
   const password = `Fixture-password-${randomUUID()}!`;
   const passwordHash = await hashPassword(password);

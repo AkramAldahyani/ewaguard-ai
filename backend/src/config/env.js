@@ -66,6 +66,19 @@ export function parseConfig(env = process.env) {
   const loginRateLimitWindowMinutes = positiveInteger(env.LOGIN_RATE_LIMIT_WINDOW_MINUTES ?? '15', 'LOGIN_RATE_LIMIT_WINDOW_MINUTES', 1, 60);
   const loginRateLimitMax = positiveInteger(env.LOGIN_RATE_LIMIT_MAX ?? '10', 'LOGIN_RATE_LIMIT_MAX', 1, 100);
   const trustedOrigins = [origin.origin];
+  // Explicit HTTPS tunnel origin for local development; never a wildcard.
+  if (env.DEV_FRONTEND_URL) {
+    let developmentOrigin;
+    try { developmentOrigin = new URL(env.DEV_FRONTEND_URL); } catch {
+      throw new Error('DEV_FRONTEND_URL must be an HTTPS origin.');
+    }
+    if (nodeEnv !== 'development' || developmentOrigin.protocol !== 'https:' ||
+        developmentOrigin.username || developmentOrigin.password || developmentOrigin.pathname !== '/' ||
+        developmentOrigin.search || developmentOrigin.hash || developmentOrigin.hostname.includes('*')) {
+      throw new Error('DEV_FRONTEND_URL requires development mode and an exact HTTPS origin without credentials or a path.');
+    }
+    trustedOrigins.push(developmentOrigin.origin);
+  }
   // Vite's same-origin proxy supports either loopback hostname during development.
   // Preserve the configured scheme/port; never expand production or remote origins.
   if (nodeEnv === 'development' && ['localhost', '127.0.0.1'].includes(origin.hostname)) {

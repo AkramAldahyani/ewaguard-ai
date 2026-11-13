@@ -16,6 +16,8 @@ export function createTrainingApi(admin = false, request = apiRequest) {
     employees: (query, signal) => get(`${root}/employees`, query, signal),
     assignments: (id, query, signal) => get(`${path(id)}/assignments`, query, signal),
     assign: (id, employeeId, signal) => post(`${path(id)}/assignments`, { employeeId }, signal),
+    assignMany: (id, selection, signal) => post(`${path(id)}/assignments/bulk`,
+      selection === 'ALL' ? { allEligible: true } : { employeeIds: [...selection] }, signal),
     quiz: (id, signal) => get(`${path(id)}/quiz`, {}, signal),
     saveQuiz: (id, body, edit, signal) => post(`${path(id)}/quiz${edit ? '/edit' : ''}`, body, signal),
     quizAction: (id, action, expectedUpdatedAt, signal) => {

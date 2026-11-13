@@ -1,5 +1,5 @@
 import { STATUSES } from '../incidents/management-policy.js';
-import { analysisOverview } from './analysis-analytics.js';
+import { analysisOverview, recentAnalyses } from './analysis-analytics.js';
 
 const severities = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const types = ['PHISHING', 'MALWARE', 'CREDENTIAL_COMPROMISE', 'DATA_EXPOSURE', 'SUSPICIOUS_ACTIVITY', 'OTHER'];
@@ -58,10 +58,16 @@ export function createSecurityAnalytics(database) {
         database.$queryRaw`SELECT to_char(date_trunc('day', "createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
           count(*)::int AS count FROM incidents WHERE "createdAt" >= ${range.start} AND "createdAt" < ${range.endExclusive}
           GROUP BY 1 ORDER BY 1`,
+        // Resolution time uses the recorded resolvedAt. It counts incidents resolved now and incidents closed after
+        // being resolved (closing keeps resolvedAt). False positives, and closures that followed a false-positive
+        // decision, are not resolutions. Reopening clears resolvedAt, so reopened incidents drop out until resolved again.
         database.$queryRaw`SELECT count(*)::int AS count,
-          avg(EXTRACT(EPOCH FROM ("resolvedAt" - "createdAt")))::double precision AS "averageSeconds"
-          FROM incidents WHERE "createdAt" >= ${range.start} AND "createdAt" < ${range.endExclusive}
-          AND status = 'RESOLVED' AND "resolvedAt" IS NOT NULL AND "resolvedAt" >= "createdAt"`,
+          avg(EXTRACT(EPOCH FROM (i."resolvedAt" - i."createdAt")))::double precision AS "averageSeconds"
+          FROM incidents i WHERE i."createdAt" >= ${range.start} AND i."createdAt" < ${range.endExclusive}
+          AND i."resolvedAt" IS NOT NULL AND i."resolvedAt" >= i."createdAt"
+          AND (i.status = 'RESOLVED' OR (i.status = 'CLOSED' AND (SELECT e.details->>'fromStatus' FROM incident_events e
+            WHERE e."incidentId" = i.id AND e.type = 'STATUS_CHANGED' AND e.details->>'toStatus' = 'CLOSED'
+            ORDER BY e."createdAt" DESC, e.id DESC LIMIT 1) = 'RESOLVED'))`,
         database.incident.findMany({ where, take: 8, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
           select: { id: true, number: true, severity: true, status: true, type: true,
             detectionSource: true, createdAt: true, assigneeId: true } }),
@@ -96,6 +102,14 @@ export function createSecurityAnalytics(database) {
           status: row.status, category: row.type, detectionSource: row.detectionSource,
           createdAt: row.createdAt, assigned: Boolean(row.assigneeId) })),
       };
+    },
+    // Recent analyses page for the same reporting window; `page` is validated separately from the period keys.
+    async recentAnalyses(query, now = new Date()) {
+      if (!query || typeof query !== 'object' || Array.isArray(query)) throw new SecurityAnalyticsError();
+      const { page = '1', ...period } = query;
+      if (typeof page !== 'string' || !/^[1-9]\d{0,4}$/.test(page)) throw new SecurityAnalyticsError();
+      const result = await recentAnalyses(database, securityPeriod(period, now), Number(page));
+      return { items: result.items, ...result.pagination };
     },
   };
 }

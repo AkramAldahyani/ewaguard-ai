@@ -17,7 +17,8 @@ test('employee assistance display across urgency levels and confidence states', 
   for (const [level, urgency, escalation] of [['LOW', 'ROUTINE', 'NONE'], ['MEDIUM', 'CAUTION', 'OPTIONAL'], ['HIGH', 'URGENT', 'RECOMMENDED'], ['CRITICAL', 'IMMEDIATE', 'URGENT']]) {
     await t.test(`${level} has readable urgency, escalation, immediate and avoid actions`, () => {
       const assistance = make(level, ['PROVIDER_UNAVAILABLE', 'INSUFFICIENT_EVIDENCE']); const html = render(assistance);
-      for (const phrase of ['What should I do now?', urgency, escalation, 'Immediate actions', 'Actions to avoid', 'Escalation recommendation', 'Assistance policy 1.0']) assert.ok(html.includes(phrase));
+      for (const phrase of ['What should I do now?', urgency, escalation, 'Immediate actions', 'Actions to avoid', 'Escalation recommendation', `Assistance policy ${assistance.version}`]) assert.ok(html.includes(phrase));
+      assert.equal(assistance.version, '1.1'); assert.doesNotMatch(html, /notifications (and automated remediation )?are not enabled/);
       assert.match(html, /evidence is incomplete/); assert.match(html, /checks were unavailable/);
       assert.match(html, /Independent verification/); assert.match(html, /separate incident receipt/);
       assert.doesNotMatch(html, /<button\b|<a\b|<input\b|Everything is safe|This is safe|>Create Incident</i);

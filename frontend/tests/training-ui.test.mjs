@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { randomUUID } from 'node:crypto';
 import { createElement } from 'react';
 import { JSDOM } from 'jsdom';
 import { createServer } from 'vite';
@@ -13,7 +14,9 @@ const time = '2026-10-10T00:00:00.000Z';
 const sections = [{ key: 'introduction', title: 'Introduction', body: 'Read this introduction.' }, { key: 'key-takeaways', title: 'Key takeaways', body: 'Remember the approved process.' }];
 const baseCourse = () => ({ id: courseId, title: 'Recognize suspicious requests', description: 'Practical training overview.', topic: 'PHISHING', estimatedMinutes: 6,
   status: 'DRAFT', version: 1, requiresQuiz: true, learningObjectives: ['Identify warning signs.'], content: { version: 1, sections },
-  createdAt: time, updatedAt: time, publishedAt: null, reviewedAt: null, createdBy: { firstName: 'Security', lastName: 'Trainer' }, reviewedBy: null });
+  createdAt: time, updatedAt: time, publishedAt: null, reviewedAt: null, createdBy: { firstName: 'Security', lastName: 'Trainer' }, reviewedBy: null,
+  // The course quiz is approved, so a reviewed draft can be published (BUG-008); published courses below carry a published quiz.
+  courseQuizStatus: 'APPROVED' });
 const reply = (body, status = 200) => Response.json(body, { status });
 
 test('training React interaction workflows with mocked authenticated APIs', async (t) => {
@@ -82,6 +85,64 @@ test('training React interaction workflows with mocked authenticated APIs', asyn
     assert.equal(document.getElementById('section-title-1').value, 'Key takeaways');
   });
 
+  await t.test('administrator selects several employees or assigns all active employees after confirmation', async () => {
+    const people = [employeeId, assignmentId].map((id, index) => ({ id, firstName: `Selectable${index + 1}`, lastName: 'Employee' }));
+    const bulk = [];
+    globalThis.fetch = async (path, options = {}) => {
+      if (path === `/api/admin/training/${courseId}`) return reply({ program: { ...baseCourse(), status: 'PUBLISHED', reviewedAt: time, publishedAt: time, courseQuizStatus: 'PUBLISHED' } });
+      if (path.startsWith('/api/admin/training/employees')) return reply({ items: people, page: 1, pageSize: 20, hasMore: false });
+      if (path === `/api/admin/training/${courseId}/assignments/bulk` && options.method === 'POST') {
+        const body = JSON.parse(options.body); bulk.push(body);
+        return reply(body.allEligible ? { eligible: 6, created: 4, alreadyAssigned: 2, revoked: 0 } : { eligible: 2, created: 2, alreadyAssigned: 0, revoked: 0 });
+      }
+      if (path.startsWith(`/api/admin/training/${courseId}/assignments`)) return reply({ items: [], page: 1, pageSize: 20, hasMore: false });
+      if (path.startsWith(`/api/admin/training/${courseId}/quiz`)) return reply({ quiz: null, requiresQuiz: true });
+      throw new Error(`Unexpected request: ${path}`);
+    };
+    render(createElement(MemoryRouter, { initialEntries: [`/admin/training/${courseId}?view=assignments`] }, createElement(Routes, null,
+      createElement(Route, { path: '/admin/training/:id', element: createElement(AdminTrainingDetailPage) }))));
+    const assignSelected = await screen.findByRole('button', { name: 'Assign selected (0)' });
+    assert.equal(assignSelected.disabled, true);
+    fireEvent.click(screen.getByLabelText('Select Selectable1 Employee'));
+    await screen.findByRole('button', { name: 'Assign selected (1)' });
+    fireEvent.click(screen.getByLabelText('Select all on this page'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Assign selected (2)' }));
+    await screen.findByText('2 new assignments created.');
+    assert.deepEqual(bulk[0], { employeeIds: [employeeId, assignmentId] });
+    await screen.findByRole('button', { name: 'Assign selected (0)' });
+    fireEvent.click(screen.getByRole('button', { name: 'Assign to all active employees' }));
+    assert.equal(bulk.length, 1, 'all-employee assignment waits for confirmation');
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Assign to everyone' }));
+    await screen.findByText('4 new assignments created, 2 already assigned.');
+    assert.deepEqual(bulk[1], { allEligible: true });
+  });
+
+  await t.test('eligible employee list is course-specific and drops employees as soon as they are assigned', async () => {
+    const assignedIds = new Set(); const employeeCalls = [];
+    const people = [employeeId, assignmentId].map((id, index) => ({ id, firstName: `Eligible${index + 1}`, lastName: 'Employee' }));
+    globalThis.fetch = async (path, options = {}) => {
+      if (path === `/api/admin/training/${courseId}`) return reply({ program: { ...baseCourse(), status: 'PUBLISHED', reviewedAt: time, publishedAt: time, courseQuizStatus: 'PUBLISHED' } });
+      if (path.startsWith('/api/admin/training/employees')) { employeeCalls.push(path);
+        return reply({ items: people.filter((person) => !assignedIds.has(person.id)), page: 1, pageSize: 20, hasMore: false }); }
+      if (path === `/api/admin/training/${courseId}/assignments` && options.method === 'POST') { assignedIds.add(JSON.parse(options.body).employeeId); return reply({ assignment: { id: randomUUID() }, alreadyAssigned: false }); }
+      if (path === `/api/admin/training/${courseId}/assignments/bulk` && options.method === 'POST') { for (const id of JSON.parse(options.body).employeeIds) assignedIds.add(id); return reply({ eligible: 1, created: 1, alreadyAssigned: 0, revoked: 0 }); }
+      if (path.startsWith(`/api/admin/training/${courseId}/assignments`)) return reply({ items: [], page: 1, pageSize: 20, hasMore: false });
+      throw new Error(`Unexpected request: ${path}`);
+    };
+    render(createElement(MemoryRouter, { initialEntries: [`/admin/training/${courseId}?view=assignments`] }, createElement(Routes, null,
+      createElement(Route, { path: '/admin/training/:id', element: createElement(AdminTrainingDetailPage) }))));
+    await screen.findByText('Eligible1 Employee');
+    assert.ok(employeeCalls[0].includes(`trainingId=${courseId}`));
+    fireEvent.click(screen.getByLabelText('Select Eligible2 Employee'));
+    fireEvent.click(screen.getAllByRole('button', { name: 'Assign course' })[0]);
+    await screen.findByText('Course assigned. Progress starts at Not Started.');
+    await waitFor(() => assert.equal(screen.queryByText('Eligible1 Employee'), null));
+    assert.ok(screen.getByText('Eligible2 Employee')); assert.ok(screen.getByRole('button', { name: 'Assign selected (1)' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Assign selected (1)' }));
+    await screen.findByText('All eligible employees have already been assigned to this course.');
+    assert.ok(employeeCalls.every((path) => path.includes(`trainingId=${courseId}`)));
+  });
+
   await t.test('administrator edits, reviews, publishes, assigns and archives a course', async () => {
     let course = baseCourse(); const actions = []; let assigned = false;
     globalThis.fetch = async (path, options = {}) => {
@@ -97,7 +158,7 @@ test('training React interaction workflows with mocked authenticated APIs', asyn
         course = { ...course, updatedAt: new Date(new Date(course.updatedAt).getTime() + 1000).toISOString(),
           ...(operation === 'edit' ? { ...body, version: course.version + 1, reviewedAt: null } : {}),
           ...(operation === 'review' ? { reviewedAt: time, reviewedBy: { firstName: 'Security', lastName: 'Reviewer' } } : {}),
-          ...(operation === 'publish' ? { status: 'PUBLISHED', publishedAt: time } : {}),
+          ...(operation === 'publish' ? { status: 'PUBLISHED', publishedAt: time, courseQuizStatus: 'PUBLISHED' } : {}),
           ...(operation === 'archive' ? { status: 'ARCHIVED' } : {}) };
         return reply({ program: course });
       }

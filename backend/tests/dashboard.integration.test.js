@@ -95,9 +95,9 @@ test('Phase 13A1 administrator dashboard uses real scoped PostgreSQL data', asyn
       aiSummary: 'PRIVATE_AI_TEXT', indicators: { secret: 'PRIVATE_INDICATOR' } } });
     ids.incidents.push(row.id); return row;
   };
+  await incident('LOW', 'RESOLVED'); await incident('HIGH', 'CLOSED');
   const high = await incident('HIGH', 'NEW');
   const critical = await incident('CRITICAL', 'UNDER_INVESTIGATION', admin.id);
-  await incident('LOW', 'RESOLVED'); await incident('HIGH', 'CLOSED');
   const expiry = new Date(Date.now() + 60_000);
   await db.notification.create({ data: { recipientId: admin.id, incidentId: critical.id, type: 'INCIDENT_ALERT',
     audience: 'IT_SECURITY_ADMIN', kind: 'INCIDENT_CREATED', severity: 'CRITICAL',
@@ -139,8 +139,9 @@ test('Phase 13A1 administrator dashboard uses real scoped PostgreSQL data', asyn
   await db.quiz.update({ where: { id: quiz.id }, data: { status: 'PUBLISHED',
     approvedById: admin.id, approvedAt: now, publishedAt: now } });
   const period = new Date(Date.UTC(2090, 0, 1));
+  // Open right now, so every active employee is an expected participant of this quiz.
   const monthly = await db.monthlyQuiz.create({ data: { quizId: quiz.id, period,
-    opensAt: period, closesAt: new Date(Date.UTC(2090, 1, 1)) } }); ids.monthly.push(monthly.id);
+    opensAt: new Date(now.getTime() - 3_600_000), closesAt: new Date(now.getTime() + 86_400_000) } }); ids.monthly.push(monthly.id);
   const monthlyFirst = await db.monthlyQuizAssignment.create({ data: { monthlyQuizId: monthly.id,
     employeeId: employee.id, assignedById: admin.id } });
   const monthlySecond = await db.monthlyQuizAssignment.create({ data: { monthlyQuizId: monthly.id,
@@ -174,10 +175,20 @@ test('Phase 13A1 administrator dashboard uses real scoped PostgreSQL data', asyn
     assert.equal(after.awareness.completedAssignments - before.awareness.completedAssignments, 1);
     assert.equal(after.awareness.inProgressAssignments - before.awareness.inProgressAssignments, 1);
     assert.equal(after.awareness.publishedMonthlyQuizzes - before.awareness.publishedMonthlyQuizzes, 1);
-    assert.equal(after.awareness.monthlyParticipations - before.awareness.monthlyParticipations, 2);
+    // Participation counts every expected employee, including those who never started: the new quiz expects all
+    // active employees, and the two new employees are also expected for any other quiz that is still open.
+    const otherOpenQuizzes = await db.monthlyQuiz.count({ where: { id: { notIn: ids.monthly }, opensAt: { lte: now },
+      closesAt: { gt: second.createdAt }, quiz: { status: { in: ['PUBLISHED', 'ARCHIVED'] } } } });
+    assert.equal(after.awareness.monthlyParticipations - before.awareness.monthlyParticipations,
+      after.employees.active + 2 * otherOpenQuizzes);
     assert.equal(after.awareness.monthlySubmitted - before.awareness.monthlySubmitted, 1);
+    assert.ok(after.awareness.monthlySubmitted < after.awareness.monthlyParticipations, 'employees who never started lower participation');
     assert.equal(after.awareness.certificatesIssued - before.awareness.certificatesIssued, 1);
-    assert.ok(response.data.recentIncidents.length <= 6);
+    // Only the three newest incidents are previewed, newest first; older records remain in the queue.
+    const newest = await db.incident.findMany({ take: 2, orderBy: [{ createdAt: 'desc' }, { id: 'desc' }], select: { id: true } });
+    assert.deepEqual(response.data.recentIncidents.map((row) => row.id), newest.map((row) => row.id));
+    assert.equal(response.data.recentIncidents[0].id, critical.id);
+    assert.ok(response.data.notifications.items.length <= 3);
     assert.ok(response.data.recentIncidents.some((row) => row.id === high.id && row.assigneeName === null && row.urgent));
     assert.ok(response.data.recentIncidents.some((row) => row.id === critical.id && row.assigneeName === 'Synthetic Admin' && row.urgent));
     assert.ok(response.data.pendingPosts.length <= 5);

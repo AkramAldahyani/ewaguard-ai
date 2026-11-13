@@ -7,7 +7,9 @@ const messages = Object.freeze({
   STATUS_CHANGED: ['Incident status changed', 'An incident status has changed.'],
   EMPLOYEE_UPDATE: ['Security team update', 'A security team update is available for your incident.'],
   INVESTIGATION_UPDATED: ['Investigation updated', 'An incident investigation has been updated.'],
+  EXPOSURE_REPORTED: ['Credential exposure reported', 'An employee confirmed entering credentials. The incident was raised to critical and needs urgent review.'],
 });
+const alerts = ['INCIDENT_CREATED', 'EXPOSURE_REPORTED'];
 const admin = 'IT_SECURITY_ADMIN';
 
 // Called only inside the incident transaction. No socket or external I/O here.
@@ -18,7 +20,7 @@ export async function persistIncidentNotifications(tx, incident, kind, eventKey)
     const [title, message] = messages[notificationKind];
     await tx.notification.createMany({ data: [{ recipientId, audience, incidentId: incident.id,
       eventKey, kind: notificationKind, severity: incident.severity,
-      type: notificationKind === 'INCIDENT_CREATED' ? 'INCIDENT_ALERT' : 'INCIDENT_UPDATE',
+      type: alerts.includes(notificationKind) ? 'INCIDENT_ALERT' : 'INCIDENT_UPDATE',
       title, message, expiresAt }], skipDuplicates: true });
   }
   if (kind === 'INCIDENT_ASSIGNED') {

@@ -5,6 +5,7 @@ import { PageHeader } from '../../components/PageHeader.jsx';
 import { Button, Card, Skeleton, StatePanel } from '../../components/ui/index.jsx';
 import { dashboardApi, dashboardError } from './dashboard-api.js';
 import { AdminDashboardContent as SocDashboardContent } from './AdminDashboardContent.jsx';
+import { useNotifications } from '../notifications/notification-context.js';
 
 const dateTime = (value) => {
   const date = new Date(value);
@@ -25,5 +26,17 @@ export function AdminDashboardPage() {
       .catch((error) => { if (!controller.signal.aborted) setState({ loading: false, data: null, error: dashboardError(error) }); });
     return () => controller.abort();
   }, [revision]);
+  // Live incident events refresh the loaded overview in place, reusing the incident queue's Socket.IO signal.
+  const notifications = useNotifications();
+  const [liveRevision, setLiveRevision] = useState(0);
+  useEffect(() => notifications?.subscribeIncidents?.(() => setLiveRevision((value) => value + 1)), [notifications]);
+  useEffect(() => {
+    if (!liveRevision) return undefined;
+    const controller = new AbortController();
+    dashboardApi.overview(controller.signal)
+      .then((data) => { if (!controller.signal.aborted) setState((current) => current.data && !current.loading ? { loading: false, data, error: '' } : current); })
+      .catch(() => {});
+    return () => controller.abort();
+  }, [liveRevision]);
   return <><PageHeader eyebrow="Security operations" title="Security Overview" description="Monitor security activity, incidents, and employee awareness across the organization." actions={<><Button as={Link} to="/admin/incidents"><ShieldAlert className="size-4" aria-hidden="true" />View Incident Queue</Button><Button variant="secondary" disabled={state.loading} onClick={() => setRevision((value) => value + 1)}><RefreshCw className="size-4" aria-hidden="true" />Refresh dashboard</Button></>} />{state.data && <div className="mb-5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500"><span>Updated {dateTime(state.data.generatedAt)}</span><span aria-hidden="true">·</span><span>Analysis reporting period: last {state.data.metrics.analyses?.period?.days ?? 30} days (UTC)</span></div>}{state.loading && <DashboardLoading />}{state.error && <Card className="p-5"><StatePanel icon={AlertCircle} tone="error" title="Dashboard unavailable" description={state.error} action={<Button variant="secondary" onClick={() => setRevision((value) => value + 1)}>Try again</Button>} /></Card>}{state.data && !state.loading && <SocDashboardContent data={state.data} />}</>;
 }

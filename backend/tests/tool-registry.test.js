@@ -157,3 +157,19 @@ test('model integration is explicitly opt-in and Phase 8A spending ceilings rema
   assert.equal(TOOL_LIMITS.modelRounds, 2); assert.equal(TOOL_LIMITS.modelInvocations, 4); assert.equal(TOOL_LIMITS.actionExecutions, 1);
   for (const tool of TOOL_REGISTRY.filter((entry) => entry.kind === 'ACTION')) assert.equal(tool.operationalLimits.humanApprovalRequired, true);
 });
+
+test('BUG-013 analysis results carry only fixed linked-incident fields', () => {
+  const risk = { analyzerType: 'EMAIL', score: 67, riskLevel: 'HIGH', confidence: 'MODERATE_CONFIDENCE', version: '1.1', reasonCodes: ['INSUFFICIENT_EVIDENCE'] };
+  const record = { id: randomUUID(), riskScore: 67, severity: 'HIGH', riskRuleVersion: '1.1', evidence: { risk } };
+  const incident = { number: 2920, createdAt: new Date('2026-11-10T10:00:00Z'), severity: 'CRITICAL', status: 'UNDER_INVESTIGATION',
+    description: 'SECRET_DESCRIPTION', assigneeId: randomUUID(), escalationMetadata: { reportedExposure: { type: 'CREDENTIALS_SUBMITTED' }, note: 'SECRET_NOTE' },
+    _count: { notifications: 2 } };
+  const linked = projectToolResult(toolDefinition('get_analysis_result'), 'EMAIL', record, incident).data.incident;
+  assert.deepEqual(linked, { recorded: true, reference: 'INC-2026-002920', severity: 'CRITICAL', status: 'UNDER_INVESTIGATION',
+    securityTeamAlerted: true, credentialExposureReported: true });
+  assert.equal(projectToolResult(toolDefinition('explain_risk'), 'EMAIL', record, { ...incident, _count: { notifications: 0 }, escalationMetadata: {} })
+    .data.incident.securityTeamAlerted, false);
+  assert.deepEqual(projectToolResult(toolDefinition('get_analysis_result'), 'EMAIL', record, null).data.incident, { recorded: false });
+  assert.equal('incident' in projectToolResult(toolDefinition('get_analysis_result'), 'EMAIL', record).data, false, 'omitted when not looked up');
+  assert.throws(() => projectToolResult(toolDefinition('get_analysis_result'), 'EMAIL', record, { ...incident, status: 'HACKED' }), { code: 'TOOL_RESULT_UNAVAILABLE' });
+});

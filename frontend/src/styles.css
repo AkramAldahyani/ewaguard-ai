@@ -143,12 +143,22 @@
   to { opacity: 1; transform: translateY(0); }
 }
 
-.security-tip-text {
-  opacity: 1;
-  transform: translateY(0);
-  transition: opacity 400ms ease, transform 400ms ease;
+/* Typewriter caret: solid while typing or erasing, softly blinking while the sentence is held. */
+.typewriter-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 2px;
+  vertical-align: -0.15em;
+  border-radius: 1px;
+  background: currentColor;
+  opacity: 0.75;
 }
-.security-tip-text-exit { opacity: 0; transform: translateY(-4px); }
+.typewriter-cursor-idle { animation: typewriter-blink 1.05s steps(1, end) infinite; }
+@keyframes typewriter-blink {
+  0%, 55% { opacity: 0.75; }
+  56%, 100% { opacity: 0; }
+}
 
 /* Assistant motion is brief and interaction-led, not continuous decoration. */
 .chat-welcome {
@@ -218,8 +228,9 @@
 .assistant-welcome h2 { max-width: 42rem; font-size: clamp(1.75rem, 2.7vw, 2.75rem); font-weight: 650; line-height: 1.18; letter-spacing: -0.045em; color: #0a2138; text-wrap: balance; }
 .assistant-welcome-subtitle { max-width: 35rem; margin-top: 1rem; color: #64748b; font-size: 0.9375rem; line-height: 1.7; text-wrap: balance; }
 .assistant-suggestions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 0.75rem; width: 100%; margin-top: 2rem; }
-.assistant-suggestion { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.75rem; padding: 1.15rem; text-align: left; border: 1px solid #e2e8f0; border-radius: 1rem; background: #fff; transition: background-color 160ms ease, border-color 160ms ease; }
+.assistant-suggestion { position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: 0.75rem; height: 100%; padding: 1.15rem; text-align: left; border: 1px solid #e2e8f0; border-radius: 1rem; background: #fff; transition: background-color 160ms ease, border-color 160ms ease; }
 .assistant-suggestion:hover { background: #f8fcff; border-color: #9dd8f2; }
+.assistant-suggestion:focus-visible { outline: 2px solid #087fba; outline-offset: 2px; }
 .assistant-suggestion-title { margin-top: 0.3rem; font-size: 0.8125rem; font-weight: 700; color: #20384d; }
 .assistant-suggestion-prompt { font-size: 0.8125rem; line-height: 1.6; color: #64748b; }
 .assistant-suggestion-arrow { position: absolute; top: 1.15rem; right: 1rem; color: #94a3b8; }

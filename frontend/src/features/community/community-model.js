@@ -1,6 +1,7 @@
+import { displayLabel } from '../../lib/labels.js';
 export const categories = ['PHISHING', 'SUSPICIOUS_EMAIL', 'SUSPICIOUS_LINK', 'SUSPICIOUS_FILE', 'SECURITY_TIP', 'SECURITY_WARNING', 'EDUCATIONAL_CONTENT'];
 export const statuses = ['PENDING_REVIEW', 'APPROVED', 'REJECTED', 'REMOVED'];
-export const label = (value) => value?.toLowerCase().replaceAll('_', ' ').replace(/^\w/u, (letter) => letter.toUpperCase()) ?? 'Unknown';
+export const label = (value) => displayLabel(value) || 'Unknown';
 export const dateTime = (value) => value ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'UTC' }).format(new Date(value)) + ' UTC' : '—';
 export function moderationError(error) {
   if (error?.status === 401) return 'Your administrator session has expired. Sign in and complete MFA again.';

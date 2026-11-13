@@ -4,7 +4,7 @@ import { AuthProvider } from './context/auth.jsx';
 import { ProtectedRoute, PublicOnlyRoute } from './components/auth/ProtectedRoute.jsx';
 import { AppShell } from './layouts/AppShell.jsx';
 import { HomePage } from './pages/HomePage.jsx';
-import { PlaceholderPage } from './pages/PlaceholderPage.jsx';
+import { NotFoundPage } from './pages/NotFoundPage.jsx';
 import { LoginPage } from './pages/LoginPage.jsx';
 import { UnauthorizedPage } from './pages/AccessPages.jsx';
 import { AdminDashboardPage } from './features/dashboard/AdminDashboardPage.jsx';
@@ -79,7 +79,7 @@ export function AppRoutes() {
             <Route path="admin/community" element={<AdminCommunityPage />} />
           </Route>
           <Route path="unauthorized" element={<UnauthorizedPage />} />
-          <Route path="*" element={<PlaceholderPage title="Page not found" description="The requested route is not part of the current application shell." />} />
+          <Route path="*" element={<NotFoundPage />} />
         </Route></Route>
       </Routes>
   );

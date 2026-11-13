@@ -1,6 +1,7 @@
 import { Card } from '../../components/ui/index.jsx';
+import { displayLabel } from '../../lib/labels.js';
 
-const label = (value) => String(value ?? '').toLowerCase().replaceAll('_', ' ').replace(/^\w/u, (letter) => letter.toUpperCase());
+const label = (value) => displayLabel(String(value ?? ''));
 const number = (value) => Number.isSafeInteger(value) && value >= 0 ? value.toLocaleString() : '—';
 
 export function CreationTrend({ days }) {

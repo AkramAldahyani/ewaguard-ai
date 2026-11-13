@@ -9,6 +9,7 @@ const summarySelect = { id: true, number: true, title: true, severity: true, ris
 const adminSelect = { ...summarySelect, reporterId: true, assigneeId: true,
   reporter: { select: identitySelect }, assignee: { select: identitySelect },
   department: { select: { id: true, name: true } } };
+const SEVERITIES = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const orderBy = [{ createdAt: 'desc' }, { id: 'desc' }];
 const missing = () => { throw new ManagementError(404, 'INCIDENT_NOT_FOUND', 'Incident not found.'); };
 const conflict = () => { throw new ManagementError(409, 'INCIDENT_CONFLICT', 'The incident changed. Refresh it before trying again.'); };
@@ -78,14 +79,16 @@ export function createIncidentManagement(database) {
       const paging = pagination(query);
       await find(user, admin, id);
       const rows = await database.incidentEvent.findMany({ where: { incidentId: id,
-        ...(admin ? {} : { type: { in: ['CREATED', 'STATUS_CHANGED'] } }) },
+        ...(admin ? {} : { type: { in: ['CREATED', 'STATUS_CHANGED', 'SEVERITY_CHANGED'] } }) },
       select: { id: true, type: true, createdAt: true, details: true,
         ...(admin ? { actorId: true, actor: { select: identitySelect } } : {}) }, ...pageArgs(paging) });
       // Never return arbitrary historical JSON, including internal resolution text.
       const items = rows.map(({ details, ...row }) => ({ ...row,
         ...(admin ? { actorKind: actorKind(row.actorId, details?.source) } : {}),
         details: Object.fromEntries(
-        ['status', 'fromStatus', 'toStatus'].filter((key) => STATUSES.includes(details?.[key])).map((key) => [key, details[key]])),
+        [...['status', 'fromStatus', 'toStatus'].filter((key) => STATUSES.includes(details?.[key])),
+          ...['fromSeverity', 'toSeverity'].filter((key) => SEVERITIES.includes(details?.[key]))].map((key) => [key, details[key]])),
+        ...(details?.exposure === 'CREDENTIALS_SUBMITTED' ? { exposure: 'CREDENTIALS_SUBMITTED' } : {}),
         ...(admin && row.type === 'ASSIGNED' ? { assignment: Object.fromEntries(['previousAssigneeId', 'assigneeId']
           .filter((key) => details?.[key] === null || (typeof details?.[key] === 'string' && /^[0-9a-f-]{36}$/i.test(details[key])))
           .map((key) => [key, details[key]])) } : {}),

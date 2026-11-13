@@ -82,6 +82,29 @@ test('development loopback aliases share CORS and CSRF allowlists without broade
   assert.equal(crossSite.status, 403);
 });
 
+test('development HTTPS tunnel is explicitly trusted while other origins remain blocked', async (t) => {
+  const tunnel = 'https://dev-machine.example-tailnet.ts.net';
+  const config = parseConfig(configEnv({ DEV_FRONTEND_URL: tunnel }));
+  assert.deepEqual(config.trustedOrigins, ['http://127.0.0.1:5173', tunnel, 'http://localhost:5173']);
+  for (const value of ['*', 'https://*.example.com', 'http://example.com', 'https://user:pass@example.com',
+    'https://example.com/path', 'https://example.com?q=1', 'https://example.com/#fragment']) {
+    assert.throws(() => parseConfig(configEnv({ DEV_FRONTEND_URL: value })));
+  }
+  assert.throws(() => parseConfig(configEnv({ NODE_ENV: 'production', FRONTEND_URL: 'https://example.com', DEV_FRONTEND_URL: tunnel })));
+  const server = createApp(config, { database: {} }).listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => new Promise(resolve => server.close(resolve)));
+  for (const origin of [tunnel, 'http://localhost:5173', `${tunnel}.attacker.example`]) {
+    const allowed = config.trustedOrigins.includes(origin);
+    const response = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/login`, {
+      method: 'POST', headers: { Origin: origin, 'Sec-Fetch-Site': 'same-origin', 'Content-Type': 'application/json' }, body: '{}',
+    });
+    assert.equal(response.status, allowed ? 401 : 403);
+    assert.equal(response.headers.get('access-control-allow-origin'), allowed ? origin : null);
+    assert.equal((await response.json()).error.code, allowed ? 'INVALID_CREDENTIALS' : 'UNTRUSTED_ORIGIN');
+  }
+});
+
 test('Prisma URL validation requires PostgreSQL and never reflects credentials', () => {
   const url = 'postgresql://USER:PASSWORD@localhost:5432/ewaguard';
   assert.equal(databaseUrl({ DATABASE_URL: url }), url);

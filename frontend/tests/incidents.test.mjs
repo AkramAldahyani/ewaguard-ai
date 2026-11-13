@@ -228,7 +228,7 @@ test('incident interfaces render actual components with safe role-specific state
         sha256: 'a'.repeat(64), sizeBytes: '12', assistance: buildIncidentAssistance({ analyzerType: 'FILE', riskResult: risk }) } }] };
     const assessment = projectIncidentDetail(row, true);
     const html = render(assessmentUi.IncidentAssessment, { assessment, admin: true });
-    for (const text of ['Limited Confidence', 'ClamAV returned', 'Detected', analysisId, 'Immediate actions', 'SHA-256', 'not a new scan']) assert.ok(html.includes(text), text);
+    for (const text of ['Confidence: Limited', 'ClamAV returned', 'Detected', analysisId, 'Immediate actions', 'SHA-256', 'not a new scan']) assert.ok(html.includes(text), text);
     const employee = render(assessmentUi.IncidentAssessment, { assessment, admin: false });
     assert.doesNotMatch(employee, /SHA-256|aaaaaaaa/);
   });

@@ -170,11 +170,17 @@ test('Phase 13C1 awareness aggregates use authorized PostgreSQL records and pres
     assert.deepEqual([courseQuizzes.submittedAttempts, courseQuizzes.uniqueParticipants,
       courseQuizzes.passedAttempts, courseQuizzes.failedAttempts, courseQuizzes.passRatePercent,
       courseQuizzes.averageScorePercent], [2, 1, 1, 1, 50, 50]);
+    // Participation is measured against every employee expected to take each quiz, not only those who started it.
+    const expected = await db.user.count({ where: { status: 'ACTIVE', deactivatedAt: null, role: { name: 'EMPLOYEE' } } });
+    assert.ok(expected >= 6, 'the six synthetic employees are all expected participants');
     assert.deepEqual([monthlyQuizzes.assignedAssignments, monthlyQuizzes.submittedAssignments,
-      monthlyQuizzes.averageBestScorePercent], [3, 3, 33.33]);
+      monthlyQuizzes.averageBestScorePercent], [expected * 2, 3, 33.33]);
     assert.deepEqual(monthlyQuizzes.trend.map((row) => [row.period, row.assigned, row.submitted,
       row.averageScorePercent, row.averageChangePoints]),
-    [['2091-01', 2, 2, 50, null], ['2091-02', 1, 1, 0, -50]]);
+    [['2091-01', expected, 2, 50, null], ['2091-02', expected, 1, 0, -50]]);
+    assert.deepEqual(monthlyQuizzes.trend.map((row) => row.participationRatePercent),
+      [Math.round(2 * 10000 / expected) / 100, Math.round(1 * 10000 / expected) / 100]);
+    assert.ok(monthlyQuizzes.trend.every((row) => row.participationRatePercent < 100), 'employees who never started lower participation');
     assert.deepEqual([certificates.totalIssued - certificatesBefore, certificates.issuedDuring], [1, 1]);
     assert.equal(departments.suppressed, true); assert.deepEqual(departments.rows, []);
     assert.deepEqual(response.data.filterOptions.departments, [{ id: largeDepartment.id, name: largeDepartment.name }]);
@@ -196,6 +202,8 @@ test('Phase 13C1 awareness aggregates use authorized PostgreSQL records and pres
     assert.equal(departmentResult.status, 200);
     assert.equal(departmentResult.data.training.assignments, 4);
     assert.equal(departmentResult.data.monthlyQuizzes.submittedAssignments, 3);
+    assert.equal(departmentResult.data.monthlyQuizzes.assignedAssignments, 10, 'five department employees expected in each of two months');
+    assert.deepEqual(departmentResult.data.monthlyQuizzes.trend.map((row) => row.participationRatePercent), [40, 20]);
     assert.equal(smallEmployee.departmentId, smallDepartment.id);
   });
   await t.test('empty period gives zero counts and null rates', async () => {

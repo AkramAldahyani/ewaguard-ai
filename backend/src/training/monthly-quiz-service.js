@@ -1,10 +1,15 @@
 import { expected, fail, fields, identifier, pageInput, searchText, topics } from './training-policy.js';
 import { adminQuiz, attemptSummary, employeeQuiz, quizQuestions, quizReview, validateQuizDraft } from './course-quiz-service.js';
+import { MONTHLY_ELIGIBLE_EMPLOYEE } from '../analytics/monthly-eligibility.js';
 
 const missing = () => fail('Monthly quiz not found.', 404, 'MONTHLY_QUIZ_NOT_FOUND');
 const conflict = (message) => fail(message, 409, 'MONTHLY_QUIZ_CONFLICT');
 const person = { id: true, firstName: true, lastName: true };
 const month = (date) => date.toISOString().slice(0, 7);
+const remaining = (record, attempts) => {
+  const passed = attempts.some((attempt) => attempt.status === 'SUBMITTED' && attempt.passed === true);
+  return { passed, attemptsRemaining: passed ? 0 : Math.max(0, record.quiz.maxAttempts - attempts.length) };
+};
 const periodDate = (value) => {
   if (typeof value !== 'string' || !/^(20\d\d|21\d\d)-(0[1-9]|1[0-2])$/.test(value)) fail('Use a valid month in YYYY-MM format.');
   return new Date(`${value}-01T00:00:00.000Z`);
@@ -57,6 +62,23 @@ async function saveQuestions(tx, quizId, content) {
     text: q.text, type: q.type, explanation: q.explanation, topic: q.topic, points: q.points,
     options: { create: q.options.map((o, index) => ({ ...o, position: index })) } } });
 }
+// Orders by distance from the current UTC calendar month (periods are stored as UTC month starts).
+// Equal distances prefer the later month; the id keeps the order stable across pages.
+const monthIndex = (date) => date.getUTCFullYear() * 12 + date.getUTCMonth();
+export function nearestMonthOrder(rows, now = new Date()) {
+  const current = monthIndex(now);
+  return [...rows].sort((a, b) => Math.abs(monthIndex(a.period) - current) - Math.abs(monthIndex(b.period) - current)
+    || b.period - a.period || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
+}
+// At most one quiz exists per month, so ranking the lightweight {id, period} candidates in memory stays small;
+// only the requested page is then loaded with its relations.
+async function nearestMonthPage(database, where, include, paging, now) {
+  const candidates = await database.monthlyQuiz.findMany({ where, select: { id: true, period: true } });
+  const ids = nearestMonthOrder(candidates, now).slice(paging.skip, paging.skip + paging.pageSize + 1).map((row) => row.id);
+  const rows = ids.length ? await database.monthlyQuiz.findMany({ where: { id: { in: ids } }, include }) : [];
+  const byId = new Map(rows.map((row) => [row.id, row]));
+  return ids.map((id) => byId.get(id)).filter(Boolean);
+}
 const attemptsFor = (record, userId) => record.assignments?.find((a) => a.employeeId === userId)?.attempts ?? [];
 const bestAttempt = (attempts) => attempts.filter((a) => a.status === 'SUBMITTED').reduce((best, a) =>
   !best || Number(a.scorePercent) > Number(best.scorePercent) ? a : best, null);
@@ -74,15 +96,18 @@ function submittedAnswers(body) {
 }
 export function createMonthlyQuizService(database) {
   return {
-    async adminList(query) {
+    async adminList(query, now = new Date()) {
       const paging = pageInput(query, ['status', 'period', 'search', 'sort']);
       if (query.status && !['DRAFT', 'APPROVED', 'PUBLISHED', 'ARCHIVED'].includes(query.status)) fail();
-      if (query.sort && !['period_desc', 'period_asc'].includes(query.sort)) fail();
+      if (query.sort && !['nearest', 'period_desc', 'period_asc'].includes(query.sort)) fail();
       const search = searchText(query.search);
-      const rows = await database.monthlyQuiz.findMany({ where: { ...(query.period ? { period: periodDate(query.period) } : {}),
-        quiz: { ...(query.status ? { status: query.status } : {}), ...(search ? { title: { contains: search, mode: 'insensitive' } } : {}) } },
-      include: { quiz: { include: { questions: { select: { topic: true } } } } },
-      orderBy: [{ period: query.sort === 'period_asc' ? 'asc' : 'desc' }, { id: 'asc' }], skip: paging.skip, take: paging.pageSize + 1 });
+      const where = { ...(query.period ? { period: periodDate(query.period) } : {}),
+        quiz: { ...(query.status ? { status: query.status } : {}), ...(search ? { title: { contains: search, mode: 'insensitive' } } : {}) } };
+      const include = { quiz: { include: { questions: { select: { topic: true } } } } };
+      // Nearest-to-current-month is the default; an explicit chronological sort overrides it.
+      const rows = !query.sort || query.sort === 'nearest' ? await nearestMonthPage(database, where, include, paging, now)
+        : await database.monthlyQuiz.findMany({ where, include,
+          orderBy: [{ period: query.sort === 'period_asc' ? 'asc' : 'desc' }, { id: 'asc' }], skip: paging.skip, take: paging.pageSize + 1 });
       return { items: rows.slice(0, paging.pageSize).map(meta), page: paging.page, pageSize: paging.pageSize, hasMore: rows.length > paging.pageSize };
     },
     async adminDetail(id) { return { monthlyQuiz: full(await loaded(database, id)) }; },
@@ -136,24 +161,31 @@ export function createMonthlyQuizService(database) {
       const where = { monthlyAssignment: { monthlyQuizId: record.id } };
       const rows = await database.quizAttempt.findMany({ where, include: { employee: { select: person } },
         orderBy: [{ startedAt: 'desc' }, { id: 'desc' }], skip: paging.skip, take: paging.pageSize + 1 });
-      const [startedEmployees, submittedEmployees, activeEmployeesNow] = await Promise.all([
+      const [startedEmployees, submittedEmployees, inProgressEmployees, activeEmployeesNow, expectedRows] = await Promise.all([
         database.monthlyQuizAssignment.count({ where: { monthlyQuizId: record.id } }),
         database.monthlyQuizAssignment.count({ where: { monthlyQuizId: record.id, attempts: { some: { status: 'SUBMITTED' } } } }),
+        // Employees with an attempt open right now (started, not yet submitted).
+        database.monthlyQuizAssignment.count({ where: { monthlyQuizId: record.id, attempts: { some: { status: 'IN_PROGRESS' } } } }),
         database.user.count({ where: { status: 'ACTIVE', deactivatedAt: null, role: { name: 'EMPLOYEE' } } }),
+        // Same population as the participation-rate denominator in awareness analytics and the dashboard.
+        database.$queryRaw`SELECT count(*)::int AS expected FROM monthly_quizzes mq JOIN users u ON ${MONTHLY_ELIGIBLE_EMPLOYEE}
+          JOIN roles r ON r.id = u."roleId" WHERE mq.id = ${record.id}::uuid AND r.name = 'EMPLOYEE'`,
       ]);
+      const expectedEmployees = expectedRows[0]?.expected ?? 0;
       return { items: rows.slice(0, paging.pageSize).map((a) => ({ ...attemptSummary(a), employee: a.employee })),
         page: paging.page, pageSize: paging.pageSize, hasMore: rows.length > paging.pageSize,
-        participation: { startedEmployees, submittedEmployees, activeEmployeesNow } };
+        participation: { expectedEmployees, startedEmployees, submittedEmployees, inProgressEmployees, activeEmployeesNow } };
     },
-    async employeeList(user, query) {
+    // Once an attempt is passed no further attempt can start, so nothing remains to offer the employee.
+    // (start() refuses a new attempt after a pass with the same rule.)
+    async employeeList(user, query, now = new Date()) {
       const paging = pageInput(query, ['period']);
-      const rows = await database.monthlyQuiz.findMany({ where: { ...(query.period ? { period: periodDate(query.period) } : {}),
+      const rows = await nearestMonthPage(database, { ...(query.period ? { period: periodDate(query.period) } : {}),
         OR: [{ quiz: { status: 'PUBLISHED' } }, { assignments: { some: { employeeId: user.id } } }] },
-      include: { quiz: { include: { questions: { select: { topic: true } } } },
-        assignments: { where: { employeeId: user.id }, include: { attempts: { orderBy: { attemptNumber: 'asc' } } } } },
-      orderBy: [{ period: 'desc' }, { id: 'asc' }], skip: paging.skip, take: paging.pageSize + 1 });
+      { quiz: { include: { questions: { select: { topic: true } } } },
+        assignments: { where: { employeeId: user.id }, include: { attempts: { orderBy: { attemptNumber: 'asc' } } } } }, paging, now);
       return { items: rows.slice(0, paging.pageSize).map((record) => { const attempts = attemptsFor(record, user.id);
-        return { ...meta(record), attemptCount: attempts.length, attemptsRemaining: Math.max(0, record.quiz.maxAttempts - attempts.length),
+        return { ...meta(record), attemptCount: attempts.length, ...remaining(record, attempts),
           bestScorePercent: bestAttempt(attempts)?.scorePercent ?? null }; }),
       page: paging.page, pageSize: paging.pageSize, hasMore: rows.length > paging.pageSize };
     },
@@ -163,7 +195,7 @@ export function createMonthlyQuizService(database) {
       if (!record || record.quiz.status !== 'PUBLISHED' && !record.assignments.length) missing();
       const open = availability(record) === 'OPEN'; const attempts = attemptsFor(record, user.id);
       return { ...meta(record), quiz: open ? employeeQuiz(record.quiz) : null,
-        attempts: attempts.map(attemptSummary), attemptsRemaining: Math.max(0, record.quiz.maxAttempts - attempts.length) };
+        attempts: attempts.map(attemptSummary), ...remaining(record, attempts) };
     },
     async history(user, query) {
       const paging = pageInput(query);

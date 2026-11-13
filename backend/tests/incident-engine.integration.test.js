@@ -73,7 +73,7 @@ test('Phase 10A incident engine: PostgreSQL transactions, HTTP and approved anal
       assert.equal(incident.evidence.length, 1); assert.equal(incident.events.length, 1);
       assert.equal(incident.events[0].actorId, null); assert.equal(incident.events[0].details.source, 'AUTOMATED_RISK_ENGINE');
       assert.equal(incident.evidence[0].snapshot.analysisId, row.id); assert.equal(incident.evidence[0].snapshot.evidenceCoverage.conflicting, true);
-      assert.equal(incident.evidence[0].snapshot.assistance.version, '1.0');
+      assert.equal(incident.evidence[0].snapshot.assistance.version, '1.1');
       assert.equal(incident.evidence[0].snapshot.assistance.riskLevel, level);
       assert.doesNotMatch(JSON.stringify(incident), /RAW_BODY_SENTINEL|SECRET_|user:|token=/);
       assert.equal((await escalate(row, type)).reference, response.reference);
@@ -84,6 +84,38 @@ test('Phase 10A incident engine: PostgreSQL transactions, HTTP and approved anal
       assert.doesNotMatch(JSON.stringify(audits), /RAW_BODY_SENTINEL|SECRET_/);
       await assert.rejects(escalate(row, type, other.id), { code: 'INCIDENT_SOURCE_NOT_FOUND' });
     }
+  });
+  await t.test('BUG-009 new incidents get an evidence-based type and the reporter department', async () => {
+    const department = await database.department.findFirst({ select: { id: true } });
+    assert.ok(department, 'the local database has at least one department');
+    const staff = await employee();
+    await database.user.update({ where: { id: staff.id }, data: { departmentId: department.id } });
+    const make = (type, reasonCodes) => database[`${type.toLowerCase()}Analysis`].create({ data: {
+      userId: staff.id, acknowledgementId: staff.acks[type].id, status: 'COMPLETED', analyzedAt: new Date(),
+      expiresAt: new Date(Date.now() + 86400000), severity: 'HIGH', riskScore: 60, riskRuleVersion: '1.0',
+      evidence: { risk: { analyzerType: type, riskLevel: 'HIGH', score: 60, version: '1.0', confidence: 'MODERATE_CONFIDENCE', reasonCodes,
+        evidenceCoverage: { availableSources: [], unavailableSources: [], conflicting: false } } },
+      ...(type === 'URL' ? { hostname: 'example.invalid', urlSha256: 'c'.repeat(64) } : {}),
+      ...(type === 'FILE' ? { sha256: 'd'.repeat(64), sizeBytes: 10n, extension: 'txt', detectedMime: 'text/plain' } : {}) } });
+    const cases = [['EMAIL', ['EMAIL_CREDENTIAL_REQUEST', 'EMAIL_REPLY_TO_MISMATCH'], 'PHISHING'], ['URL', ['URL_BRAND_PATTERN'], 'PHISHING'],
+      ['FILE', ['FILE_CLAMAV_DETECTION'], 'MALWARE'], ['URL', ['URL_REPUTATION_MALICIOUS'], 'SUSPICIOUS_ACTIVITY']];
+    const ids = [];
+    for (const [type, codes, expected] of cases) {
+      const row = await make(type, codes);
+      assert.equal((await escalate(row, type, staff.id)).created, true);
+      const incident = await database.incident.findUniqueOrThrow({ where: { sourceKey: `${type}:${row.id}` } });
+      assert.equal(incident.type, expected, `${type} ${codes}`); assert.equal(incident.departmentId, department.id);
+      ids.push(incident.id);
+    }
+    const management = createIncidentManagement(database);
+    const phishing = await management.list(admin, true, { departmentId: department.id, type: 'PHISHING', reporterId: staff.id });
+    assert.deepEqual(phishing.items.map((item) => item.id).sort(), [ids[0], ids[1]].sort());
+    assert.ok(phishing.items.every((item) => item.department?.id === department.id));
+    assert.deepEqual((await management.list(admin, true, { type: 'MALWARE', reporterId: staff.id })).items.map((item) => item.id), [ids[2]]);
+    // A reporter without a department still gets an incident, with no department recorded.
+    const loose = await fixture('HIGH');
+    await escalate(loose);
+    assert.equal((await database.incident.findUniqueOrThrow({ where: { sourceKey: `EMAIL:${loose.id}` } })).departmentId, null);
   });
   await t.test('concurrent duplicate calls create one record; different analyses get unique references', async () => {
     const row = await fixture('HIGH');

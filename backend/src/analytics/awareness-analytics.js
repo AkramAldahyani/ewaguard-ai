@@ -1,4 +1,5 @@
 import { awarenessFilters, AwarenessAnalyticsError } from './awareness-policy.js';
+import { MONTHLY_ELIGIBLE_EMPLOYEE } from './monthly-eligibility.js';
 
 const rate = (part, whole) => whole ? Math.round(part * 10000 / whole) / 100 : null;
 const two = (value) => value == null ? null : Math.round(Number(value) * 100) / 100;
@@ -74,26 +75,29 @@ export function createAwarenessAnalytics(database) {
           AND (${programId}::uuid IS NULL OR tr.id = ${programId}::uuid)
           AND (${departmentId}::uuid IS NULL OR u."departmentId" = ${departmentId}::uuid)
           GROUP BY tr.id, tr.title ORDER BY attempts DESC, tr.id LIMIT 21`,
+        // Denominator: every employee expected to take the quiz (see monthly-eligibility.js), whether or not
+        // they started it. Submissions count only for those expected employees, so submitted <= eligible.
         database.$queryRaw`WITH eligible AS (
-            SELECT ma.id, ma."monthlyQuizId" FROM monthly_quiz_assignments ma
-            JOIN users u ON u.id = ma."employeeId" JOIN roles r ON r.id = u."roleId"
-            JOIN monthly_quizzes mq ON mq.id = ma."monthlyQuizId" JOIN quizzes q ON q.id = mq."quizId"
+            SELECT mq.id AS "monthlyQuizId", u.id AS "employeeId" FROM monthly_quizzes mq
+            JOIN quizzes q ON q.id = mq."quizId" JOIN users u ON ${MONTHLY_ELIGIBLE_EMPLOYEE}
+            JOIN roles r ON r.id = u."roleId"
             WHERE r.name = 'EMPLOYEE' AND q.status IN ('PUBLISHED', 'ARCHIVED')
             AND mq.period >= ${startDay}::date AND mq.period < ${endDay}::date
             AND (${month}::date IS NULL OR mq.period = ${month}::date)
             AND (${departmentId}::uuid IS NULL OR u."departmentId" = ${departmentId}::uuid)
           ), best AS (
-            SELECT qa."monthlyAssignmentId", qa."scorePercent",
+            SELECT ma."monthlyQuizId", ma."employeeId", qa."scorePercent",
               row_number() OVER (PARTITION BY qa."monthlyAssignmentId"
                 ORDER BY qa."scorePercent" DESC, qa."submittedAt" ASC, qa."attemptNumber" ASC) AS rank
-            FROM quiz_attempts qa JOIN eligible e ON e.id = qa."monthlyAssignmentId"
+            FROM quiz_attempts qa JOIN monthly_quiz_assignments ma ON ma.id = qa."monthlyAssignmentId"
+            JOIN eligible e ON e."monthlyQuizId" = ma."monthlyQuizId" AND e."employeeId" = ma."employeeId"
             WHERE qa.status = 'SUBMITTED' AND qa."scorePercent" IS NOT NULL
           ) SELECT to_char(mq.period, 'YYYY-MM') AS period,
-            count(e.id)::int AS started, count(best."monthlyAssignmentId")::int AS submitted,
+            count(e."employeeId")::int AS eligible, count(best."employeeId")::int AS submitted,
             avg(best."scorePercent")::double precision AS "averageScore"
           FROM monthly_quizzes mq JOIN quizzes q ON q.id = mq."quizId"
           LEFT JOIN eligible e ON e."monthlyQuizId" = mq.id
-          LEFT JOIN best ON best."monthlyAssignmentId" = e.id AND best.rank = 1
+          LEFT JOIN best ON best."monthlyQuizId" = e."monthlyQuizId" AND best."employeeId" = e."employeeId" AND best.rank = 1
           WHERE q.status IN ('PUBLISHED', 'ARCHIVED')
           AND mq.period >= ${startDay}::date AND mq.period < ${endDay}::date
           AND (${month}::date IS NULL OR mq.period = ${month}::date)
@@ -126,24 +130,25 @@ export function createAwarenessAnalytics(database) {
           AND (${completionStatus}::text IS NULL OR coalesce(tp.status::text, 'NOT_STARTED') = ${completionStatus}::text)
           GROUP BY u."departmentId" LIMIT 101`,
         database.$queryRaw`WITH eligible AS (
-            SELECT ma.id, ma."monthlyQuizId", u."departmentId" FROM monthly_quiz_assignments ma
-            JOIN monthly_quizzes mq ON mq.id = ma."monthlyQuizId"
-            JOIN quizzes q ON q.id = mq."quizId" JOIN users u ON u.id = ma."employeeId"
+            SELECT mq.id AS "monthlyQuizId", u.id AS "employeeId", u."departmentId" FROM monthly_quizzes mq
+            JOIN quizzes q ON q.id = mq."quizId" JOIN users u ON ${MONTHLY_ELIGIBLE_EMPLOYEE}
             JOIN roles r ON r.id = u."roleId"
             WHERE r.name = 'EMPLOYEE' AND u."departmentId" IS NOT NULL
             AND q.status IN ('PUBLISHED', 'ARCHIVED')
             AND mq.period >= ${startDay}::date AND mq.period < ${endDay}::date
             AND (${month}::date IS NULL OR mq.period = ${month}::date)
           ), best AS (
-            SELECT qa."monthlyAssignmentId", qa."scorePercent",
+            SELECT ma."monthlyQuizId", ma."employeeId", qa."scorePercent",
               row_number() OVER (PARTITION BY qa."monthlyAssignmentId"
                 ORDER BY qa."scorePercent" DESC, qa."submittedAt" ASC, qa."attemptNumber" ASC) AS rank
-            FROM quiz_attempts qa JOIN eligible e ON e.id = qa."monthlyAssignmentId"
+            FROM quiz_attempts qa JOIN monthly_quiz_assignments ma ON ma.id = qa."monthlyAssignmentId"
+            JOIN eligible e ON e."monthlyQuizId" = ma."monthlyQuizId" AND e."employeeId" = ma."employeeId"
             WHERE qa.status = 'SUBMITTED' AND qa."scorePercent" IS NOT NULL
-          ) SELECT e."departmentId" AS id, count(e.id)::int AS started,
-            count(best."monthlyAssignmentId")::int AS submitted,
+          ) SELECT e."departmentId" AS id, count(e."employeeId")::int AS eligible,
+            count(best."employeeId")::int AS submitted,
             avg(best."scorePercent")::double precision AS "averageScore"
-          FROM eligible e LEFT JOIN best ON best."monthlyAssignmentId" = e.id AND best.rank = 1
+          FROM eligible e LEFT JOIN best ON best."monthlyQuizId" = e."monthlyQuizId"
+            AND best."employeeId" = e."employeeId" AND best.rank = 1
           GROUP BY e."departmentId" LIMIT 101`,
         database.department.findMany({ where: { active: true }, take: 101, orderBy: [{ name: 'asc' }, { id: 'asc' }],
           select: { id: true, name: true } }),
@@ -154,8 +159,8 @@ export function createAwarenessAnalytics(database) {
         const averageChangePoints = row.averageScore != null && previousRecordedScore != null
           ? two(row.averageScore - previousRecordedScore) : null;
         if (row.averageScore != null) previousRecordedScore = row.averageScore;
-        return { period: row.period, assigned: row.started, submitted: row.submitted,
-          participationRatePercent: rate(row.submitted, row.started),
+        return { period: row.period, assigned: row.eligible, submitted: row.submitted,
+          participationRatePercent: rate(row.submitted, row.eligible),
           averageScorePercent: two(row.averageScore), averageChangePoints };
       });
       const submitted = monthly.reduce((sum, row) => sum + row.submitted, 0);
@@ -173,9 +178,9 @@ export function createAwarenessAnalytics(database) {
             trainingAssignments: (tr?.assignments ?? 0) >= 5 ? tr.assignments : null,
             completedAssignments: (tr?.assignments ?? 0) >= 5 ? tr.completed : null,
             completionRatePercent: (tr?.assignments ?? 0) >= 5 ? rate(tr.completed, tr.assignments) : null,
-            monthlyAssigned: (mo?.started ?? 0) >= 5 ? mo.started : null,
-            monthlySubmitted: (mo?.started ?? 0) >= 5 ? mo.submitted : null,
-            monthlyParticipationRatePercent: (mo?.started ?? 0) >= 5 ? rate(mo.submitted, mo.started) : null,
+            monthlyAssigned: (mo?.eligible ?? 0) >= 5 ? mo.eligible : null,
+            monthlySubmitted: (mo?.eligible ?? 0) >= 5 ? mo.submitted : null,
+            monthlyParticipationRatePercent: (mo?.eligible ?? 0) >= 5 ? rate(mo.submitted, mo.eligible) : null,
             monthlyAverageScorePercent: (mo?.submitted ?? 0) >= 5 ? two(mo.averageScore) : null };
         }) : [];
       return {

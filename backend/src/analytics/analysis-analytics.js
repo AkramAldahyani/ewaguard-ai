@@ -1,3 +1,4 @@
+import { Prisma } from '../generated/prisma/client.ts';
 // Aggregate only operational columns. Never select submitted content or evidence.
 const levels = ['LOW', 'MEDIUM', 'HIGH', 'CRITICAL'];
 const types = ['EMAIL', 'URL', 'FILE', 'FILE_HASH'];
@@ -27,27 +28,51 @@ async function aggregateAnalyses(database, range) {
     const day = new Date(range.start.getTime() + index * 86400000).toISOString().slice(0, 10);
     return { day, count: sum(classified.filter((r) => r.day === day)) };
   });
-  const recent = await database.$queryRaw`
-    WITH analyses AS (
-      SELECT id, 'EMAIL' AS type, status, severity, "riskScore", "analyzedAt", "userId" FROM email_analyses
-      UNION ALL SELECT id, 'URL', status, severity, "riskScore", "analyzedAt", "userId" FROM url_analyses
-      UNION ALL SELECT id, CASE WHEN kind = 'HASH_LOOKUP' THEN 'FILE_HASH' ELSE 'FILE' END,
-        status, severity, "riskScore", "analyzedAt", "userId" FROM file_analyses
-    )
+  const recent = await recentPage(database, range, 1);
+  return { total: sum(classified), severity, byType, daily,
+    unclassified: sum(rows.filter((r) => r.status === 'COMPLETED' && !isClassified(r))),
+    failed: sum(rows.filter((r) => r.status === 'ERROR')),
+    recent: recent.items, recentPage: recent.pagination,
+  };
+}
+
+export const RECENT_ANALYSES_PAGE_SIZE = 10;
+
+// Paginated listing of completed, classified analyses (operational columns only), newest first with
+// type and id as stable tie-breakers. Out-of-range pages are clamped to the last available page.
+export async function recentAnalyses(database, range, page = 1) {
+  return database.$transaction((tx) => recentPage(tx, range, page), { isolationLevel: 'RepeatableRead' });
+}
+
+const completedAnalyses = (range) => Prisma.sql`
+  WITH analyses AS (
+    SELECT id, 'EMAIL' AS type, status, severity, "riskScore", "analyzedAt", "userId" FROM email_analyses
+    UNION ALL SELECT id, 'URL', status, severity, "riskScore", "analyzedAt", "userId" FROM url_analyses
+    UNION ALL SELECT id, CASE WHEN kind = 'HASH_LOOKUP' THEN 'FILE_HASH' ELSE 'FILE' END,
+      status, severity, "riskScore", "analyzedAt", "userId" FROM file_analyses
+  ), completed AS (
+    SELECT * FROM analyses WHERE "analyzedAt" >= ${range.start} AND "analyzedAt" < ${range.endExclusive}
+      AND status = 'COMPLETED' AND severity IS NOT NULL
+  )`;
+
+async function recentPage(database, range, requestedPage) {
+  const pageSize = RECENT_ANALYSES_PAGE_SIZE;
+  const [counted] = await database.$queryRaw`${completedAnalyses(range)} SELECT count(*)::int AS total FROM completed`;
+  const total = counted?.total ?? 0;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const page = Math.min(Math.max(1, requestedPage), totalPages);
+  const rows = await database.$queryRaw`${completedAnalyses(range)}
     SELECT a.id, a.type, a.status::text, a.severity::text, a."riskScore", a."analyzedAt", a."userId",
       CASE WHEN u.id IS NULL THEN NULL ELSE json_build_object(
         'id', u.id, 'employeeIdentifier', u."employeeIdentifier",
         'firstName', u."firstName", 'lastName', u."lastName") END AS "submittedBy",
       i.id AS "incidentId", i.number AS "incidentNumber", i."createdAt" AS "incidentCreatedAt"
-    FROM analyses a LEFT JOIN incidents i ON i."sourceKey" = (CASE WHEN a.type = 'FILE_HASH' THEN 'FILE' ELSE a.type END) || ':' || a.id::text
+    FROM completed a LEFT JOIN incidents i ON i."sourceKey" = (CASE WHEN a.type = 'FILE_HASH' THEN 'FILE' ELSE a.type END) || ':' || a.id::text
     LEFT JOIN users u ON u.id = a."userId"
-    WHERE a."analyzedAt" >= ${range.start} AND a."analyzedAt" < ${range.endExclusive}
-      AND a.status = 'COMPLETED' AND a.severity IS NOT NULL
-    ORDER BY a."analyzedAt" DESC, a.type, a.id DESC LIMIT 20`;
-  return { total: sum(classified), severity, byType, daily,
-    unclassified: sum(rows.filter((r) => r.status === 'COMPLETED' && !isClassified(r))),
-    failed: sum(rows.filter((r) => r.status === 'ERROR')),
-    recent: recent.map(({ incidentNumber, incidentCreatedAt, ...row }) => ({ ...row,
+    ORDER BY a."analyzedAt" DESC, a.type, a.id DESC LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`;
+  return {
+    items: rows.map(({ incidentNumber, incidentCreatedAt, ...row }) => ({ ...row,
       incidentReference: incidentNumber == null ? null : `INC-${incidentCreatedAt.getUTCFullYear()}-${String(incidentNumber).padStart(6, '0')}` })),
+    pagination: { page, pageSize, total, totalPages },
   };
 }

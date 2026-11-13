@@ -20,11 +20,11 @@ All metrics include **incidents created in the selected period**. Severity, stat
 | `metrics.openCurrent` | Current status NEW, UNDER_INVESTIGATION, or CONTAINED |
 | `metrics.resolvedCurrent`, `closedCurrent`, `falsePositiveCurrent` | Separate current terminal statuses; false positives are not called resolved |
 | `metrics.assignedCurrent`, `unassignedCurrent` | Whether `assigneeId` is currently present |
-| `metrics.resolution.eligibleCount` | Matching incidents currently RESOLVED with `resolvedAt >= createdAt` |
+| `metrics.resolution.eligibleCount` | Matching incidents with `resolvedAt >= createdAt` that are RESOLVED, or CLOSED after being RESOLVED |
 | `metrics.resolution.averageSeconds` | Mean `resolvedAt - createdAt` for eligible incidents; null if none |
 
 `distributions` contains zero-filled `severity`, `currentStatus`, `category`, and `detectionSource` arrays using the schema's enum values. `dailyCreated` has one entry per selected UTC day, including zero days. `recentCreated` contains at most eight matching incidents, newest first, with reference, severity, current status/category/source, creation timestamp, and assigned boolean. No incident titles, descriptions, evidence, notes, reporter identities, AI conversations, or individual employee rankings are returned.
 
-The resolution duration is deliberately limited to current `RESOLVED` records. `CLOSED` can follow either a resolution or a false-positive decision, so those records are excluded without guessing their lifecycle meaning. Reopened cases use the current valid resolution timestamp if resolved again. No historical status trend or comparison period is inferred. Existing indexes on incident creation date and severity/source with creation date support the bounded period queries; no migration is needed.
+The resolution duration counts incidents that are currently `RESOLVED` and incidents that were `RESOLVED` and then `CLOSED`; closing keeps the recorded `resolvedAt`. `CLOSED` can also follow a false-positive decision, so the latest `STATUS_CHANGED` event into `CLOSED` decides: only a closure whose `fromStatus` is `RESOLVED` counts. A `CLOSED` record without that history is excluded rather than guessed. False positives never count. Reopening clears `resolvedAt`, so reopened cases count again only after a new resolution. No historical status trend or comparison period is inferred. Existing indexes on incident creation date and severity/source with creation date support the bounded period queries; no migration is needed.
 
 Phase 13B2 will render the charts and controls. The existing administrator incident queue remains the investigation destination. Phase 13C awareness analytics is outside this API.

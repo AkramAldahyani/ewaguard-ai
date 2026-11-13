@@ -61,3 +61,22 @@ export function evaluateRisk({ analyzerType, evidence, evaluatedAt, confirmedCon
     ...(evaluatedAt ? { evaluatedAt } : {}),
   };
 }
+
+const escalationAnalyzers = ['EMAIL', 'URL'];
+// Applies an employee's explicit confirmation ("I entered my credentials") to a stored final risk snapshot.
+// Deterministic and monotonic: the same rule as CONFIRMED_CREDENTIAL_SUBMISSION above, so the level becomes
+// CRITICAL and the score never decreases. Only trusted application code may call this, after a separate
+// confirmation step; never derive the context from analyzed content, chat text or LLM output.
+export function escalateConfirmedRisk(snapshot, confirmedContext) {
+  if (!confirmedContext || typeof confirmedContext !== 'object' || Array.isArray(confirmedContext) ||
+      Object.keys(confirmedContext).join() !== 'corporateCredentialsSubmittedToPhishingSite' ||
+      confirmedContext.corporateCredentialsSubmittedToPhishingSite !== true) throw new TypeError('Invalid confirmed risk context.');
+  if (!snapshot || typeof snapshot !== 'object' || !escalationAnalyzers.includes(snapshot.analyzerType) ||
+      !Number.isInteger(snapshot.score) || snapshot.score < 0 || snapshot.score > P.maximum ||
+      snapshot.riskLevel !== riskLevelForScore(snapshot.score) || typeof snapshot.version !== 'string' ||
+      typeof snapshot.confidence !== 'string' || !Array.isArray(snapshot.reasonCodes) || snapshot.reasonCodes.length > P.limits.indicators ||
+      snapshot.reasonCodes.some((code) => typeof code !== 'string' || !Object.hasOwn(REASON_CODES, code))) throw new TypeError('Invalid stored risk snapshot.');
+  const score = Math.max(snapshot.score, P.thresholds.CRITICAL);
+  return { analyzerType: snapshot.analyzerType, score, riskLevel: riskLevelForScore(score), version: snapshot.version,
+    confidence: snapshot.confidence, reasonCodes: [...new Set([...snapshot.reasonCodes, 'CONFIRMED_CREDENTIAL_SUBMISSION'])].sort() };
+}

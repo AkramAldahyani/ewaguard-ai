@@ -40,7 +40,13 @@ export function createToolService({ database }) {
           select: { ...select, ...(analyzerType === 'FILE' ? { clamavStatus: true, yaraStatus: true } : {}) } });
         if (!record) throw new ToolError(404, 'TOOL_NOT_FOUND', 'Resource not found.');
         requireActiveSession(auth);
-        return projectToolResult(tool, analyzerType, record);
+        // The incident linked to this analysis, if one was recorded. Scoped to the same owner; only fixed
+        // fields are projected, never descriptions, notes or assignee details.
+        const incident = await tx.incident.findFirst({ where: { sourceKey: `${analyzerType}:${record.id}`, reporterId: user.id },
+          select: { number: true, createdAt: true, severity: true, status: true, escalationMetadata: true,
+            _count: { select: { notifications: { where: { audience: 'IT_SECURITY_ADMIN' } } } } } });
+        requireActiveSession(auth);
+        return projectToolResult(tool, analyzerType, record, incident);
       }, { maxWait: 1000, timeout: TOOL_LIMITS.transactionTimeoutMs });
     } catch (error) {
       if (error instanceof ToolError) throw error;

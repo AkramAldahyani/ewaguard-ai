@@ -2,6 +2,7 @@ import { Badge, Card } from '../../components/ui/index.jsx';
 import { IncidentAssistance } from '../../components/IncidentAssistance.jsx';
 import { IncidentTime } from './IncidentComponents.jsx';
 import { label } from './incident-flow.js';
+import { confidenceLabel } from '../../lib/labels.js';
 
 const unavailableText = {
   RISK_DETAIL_NOT_SAVED: 'Detailed risk information was not saved with this historical incident.',
@@ -16,9 +17,11 @@ function Missing({ value, fallback }) {
 }
 export function IncidentAssessment({ assessment, admin }) {
   const { risk, source, evidence, guidance } = assessment ?? {};
+  const exposure = assessment?.reportedExposure;
   return <>
+    {exposure?.type === 'CREDENTIALS_SUBMITTED' && <div role="status" className="rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm leading-6 text-danger-900"><p className="font-bold">Credential exposure reported by the employee</p><p className="mt-1">The employee confirmed entering work credentials{exposure.reportedAt ? <> on <IncidentTime value={exposure.reportedAt} /></> : ''}. The risk engine raised this incident to critical. The original analyzer risk is kept in the evidence record.</p></div>}
     <Card className="space-y-5 p-5 sm:p-6"><h2 className="text-lg font-bold">Risk explanations & source</h2>
-      {risk?.status === 'AVAILABLE' ? <><Badge tone={risk.confidence === 'LIMITED_CONFIDENCE' ? 'warning' : 'neutral'}>Confidence: {label(risk.confidence)}</Badge>
+      {risk?.status === 'AVAILABLE' ? <><Badge tone={risk.confidence === 'LIMITED_CONFIDENCE' ? 'warning' : 'neutral'}>Confidence: {confidenceLabel(risk.confidence)}</Badge>
         {risk.reasons.length ? <ul className="list-disc space-y-2 pl-5 text-sm leading-6 text-slate-700">{risk.reasons.map((reason) => <li key={reason.code}>{reason.explanation}</li>)}</ul> : <p className="text-sm text-slate-500">No supported risk reasons are available.</p>}
         {risk.reasonsStatus !== 'AVAILABLE' && <p className="text-sm text-warning-800">Some saved reasons are unavailable or unsupported; the explanation may be incomplete.</p>}</> : <Missing value={risk} fallback="Detailed risk information is unavailable." />}
       <dl className="grid gap-4 text-sm sm:grid-cols-2"><div><dt className="text-slate-500">Risk policy version</dt><dd className="font-semibold">{assessment?.riskPolicyVersion ?? 'Unavailable'}</dd></div><div><dt className="text-slate-500">Escalation policy version</dt><dd className="font-semibold">{assessment?.escalationPolicyVersion ?? 'Unavailable'}</dd></div></dl>

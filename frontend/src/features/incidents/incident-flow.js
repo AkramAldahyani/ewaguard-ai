@@ -1,9 +1,10 @@
+import { displayLabel } from '../../lib/labels.js';
 import { createIncidentApi } from './incident-api.js';
 
 export const statuses = ['NEW', 'UNDER_INVESTIGATION', 'CONTAINED', 'RESOLVED', 'FALSE_POSITIVE', 'CLOSED'];
 export const categories = ['PHISHING', 'MALWARE', 'CREDENTIAL_COMPROMISE', 'DATA_EXPOSURE', 'SUSPICIOUS_ACTIVITY', 'OTHER'];
 export const sources = ['EMAIL_ANALYSIS', 'URL_ANALYSIS', 'FILE_ANALYSIS', 'INCIDENT_ASSISTANCE', 'MANUAL_REPORT'];
-export const label = (value) => typeof value === 'string' ? value.replaceAll('_', ' ').toLowerCase().replace(/\b\w/g, (s) => s.toUpperCase()) : 'Unavailable';
+export const label = (value) => displayLabel(value, { titleCase: true }) || 'Unavailable';
 export const personName = (person) => person ? `${person.firstName ?? ''} ${person.lastName ?? ''}`.trim() || 'Security administrator' : 'Unassigned';
 export function incidentError(error) {
   if (error?.status === 401) return 'Your session or administrator MFA verification has expired. Sign in again.';

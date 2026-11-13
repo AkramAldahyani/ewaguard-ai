@@ -8,6 +8,7 @@ import {
 import { Badge, Button, Card, RiskBadge } from '../../components/ui/index.jsx';
 import { notificationItems } from '../notifications/notification-flow.js';
 import { useNotifications } from '../notifications/notification-context.js';
+import { displayLabel } from '../../lib/labels.js';
 
 const riskLevels = [
   { value: 'LOW', label: 'Low', color: '#16a34a', dot: 'bg-success-600' },
@@ -23,7 +24,7 @@ const dateTime = (value) => {
     ? new Intl.DateTimeFormat('en-GB', { dateStyle: 'medium', timeStyle: 'short' }).format(date)
     : 'Time unavailable';
 };
-const label = (value) => String(value ?? '').toLowerCase().replaceAll('_', ' ').replace(/^\w/u, (letter) => letter.toUpperCase());
+const label = (value) => displayLabel(String(value ?? ''));
 const count = (value) => Number.isSafeInteger(value) && value >= 0 ? value.toLocaleString() : '—';
 const percent = (part, total) => total > 0 ? Math.min(100, Math.round((part / total) * 100)) : 0;
 
@@ -83,16 +84,15 @@ function AnalysisOverview({ metrics }) {
   </Card>;
 }
 
-function incidentPriority(item) {
-  const severity = item.severity === 'CRITICAL' ? 4 : item.severity === 'HIGH' ? 3 : item.severity === 'MEDIUM' ? 2 : 1;
-  return (openStatuses.has(item.status) ? 10 : 0) + severity;
-}
+export const DASHBOARD_INCIDENT_LIMIT = 2;
+export const DASHBOARD_NOTIFICATION_LIMIT = 3;
+const newestFirst = (a, b) => (Date.parse(b.createdAt) || 0) - (Date.parse(a.createdAt) || 0) || String(b.id).localeCompare(String(a.id));
 
 function IncidentPreview({ items }) {
-  const prioritized = [...items].sort((a, b) => incidentPriority(b) - incidentPriority(a) || new Date(b.createdAt) - new Date(a.createdAt));
+  const recent = [...items].sort(newestFirst).slice(0, DASHBOARD_INCIDENT_LIMIT);
   return <Card className="h-full overflow-hidden">
-    <div className="border-b border-slate-200 px-5 py-4 sm:px-6"><SectionHeading title="Recent incidents" description="Actionable incidents are prioritized for faster triage." actions={<><TextLink to="/admin/analytics/incidents">Incident Statistics</TextLink><TextLink to="/admin/incidents">View Incident Queue</TextLink></>} /></div>
-    {prioritized.length === 0 ? <div className="p-8 text-center"><ShieldAlert className="mx-auto size-7 text-slate-400" aria-hidden="true" /><p className="mt-3 font-semibold text-slate-800">No incidents recorded</p><p className="mt-1 text-sm text-slate-500">New security incidents will appear here.</p></div> : <ul className="divide-y divide-slate-100">{prioritized.map((item) => <li key={item.id} className={`relative px-5 py-3.5 sm:px-6 ${item.severity === 'CRITICAL' && openStatuses.has(item.status) ? 'bg-danger-50/30' : ''}`}>
+    <div className="border-b border-slate-200 px-5 py-4 sm:px-6"><SectionHeading title="Recent incidents" description="The two most recently created incidents." actions={<><TextLink to="/admin/analytics/incidents">Incident Statistics</TextLink><TextLink to="/admin/incidents">View Incident Queue</TextLink></>} /></div>
+    {recent.length === 0 ? <div className="p-8 text-center"><ShieldAlert className="mx-auto size-7 text-slate-400" aria-hidden="true" /><p className="mt-3 font-semibold text-slate-800">No incidents recorded</p><p className="mt-1 text-sm text-slate-500">New security incidents will appear here.</p></div> : <ul className="divide-y divide-slate-100">{recent.map((item) => <li key={item.id} className={`relative px-5 py-3.5 sm:px-6 ${item.severity === 'CRITICAL' && openStatuses.has(item.status) ? 'bg-danger-50/30' : ''}`}>
       <div className="flex flex-wrap items-center justify-between gap-3"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Link to={`/admin/incidents/${encodeURIComponent(item.id)}`} className="break-all text-sm font-bold text-brand-800 underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-brand-600">{item.reference}</Link><RiskBadge level={item.severity} /><Badge tone={item.status === 'NEW' ? 'warning' : 'neutral'}>{label(item.status)}</Badge></div><div className="mt-2"><UserIdentity user={item.reporter} userId={item.reporterId} /></div><p className="mt-1.5 text-xs text-slate-500">Created {dateTime(item.createdAt)}</p></div><div className="shrink-0 text-right"><p className="text-xs font-semibold text-slate-700">{item.assigneeName ? 'Assigned' : 'Awaiting assignment'}</p><p className="mt-1 text-xs text-slate-500">{item.assigneeName ?? 'Unassigned'}</p></div></div>
     </li>)}</ul>}
   </Card>;
@@ -108,7 +108,7 @@ function LiveNotifications({ flow, snapshot }) {
   return <NotificationContents snapshot={current} onRead={(id) => flow.read(id)} />;
 }
 function NotificationContents({ snapshot, onRead }) {
-  const items = notificationItems(snapshot.items, 'IT_SECURITY_ADMIN').slice(0, 5);
+  const items = notificationItems(snapshot.items, 'IT_SECURITY_ADMIN').sort(newestFirst).slice(0, DASHBOARD_NOTIFICATION_LIMIT);
   return <Card className="h-full overflow-hidden">
     <div className="border-b border-slate-200 px-5 py-4 sm:px-6"><div className="flex items-center justify-between gap-3"><div><h2 className="text-lg font-bold text-slate-950">Security notifications</h2><p className="mt-1 text-sm text-slate-500">Live incident alerts and updates.</p></div><Badge tone={snapshot.unreadCount > 0 ? 'warning' : 'neutral'}>{count(snapshot.unreadCount)} unread</Badge></div></div>
     {items.length === 0 ? <div className="p-7 text-center"><Bell className="mx-auto size-7 text-slate-400" aria-hidden="true" /><p className="mt-3 font-semibold text-slate-800">No recent notifications</p><p className="mt-1 text-sm text-slate-500">Security alerts will appear here.</p></div> : <ul className="divide-y divide-slate-100">{items.map((item) => <li key={item.id} className={`px-5 py-3.5 sm:px-6 ${item.severity === 'CRITICAL' ? 'border-l-2 border-danger-600' : ''}`}>
@@ -131,7 +131,7 @@ function AwarenessOverview({ metrics }) {
   return <Card className="h-full p-5 sm:p-6">
     <SectionHeading title="Training & awareness" description="Organization-wide participation and completion at a glance." actions={<TextLink to="/admin/analytics/awareness">Awareness Analytics</TextLink>} />
     <dl className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">{summaries.map(([title, value, Icon]) => <div key={title} className="rounded-xl border border-slate-200 bg-slate-50/70 p-3.5"><div className="flex items-center justify-between gap-2"><dt className="text-xs font-semibold leading-4 text-slate-500">{title}</dt><Icon className="size-4 shrink-0 text-brand-700" aria-hidden="true" /></div><dd className="mt-2 text-2xl font-bold tabular-nums text-slate-950">{count(value)}</dd></div>)}</dl>
-    <div className="mt-6 grid gap-5 sm:grid-cols-2"><ProgressRow label="Training completion rate" value={completion} detail={`${count(metrics.completedAssignments)} completed · ${count(metrics.inProgressAssignments)} in progress`} tone="success" /><ProgressRow label="Monthly quiz participation" value={participation} detail={`${count(metrics.monthlySubmitted)} of ${count(metrics.monthlyParticipations)} assignments submitted · ${count(metrics.publishedMonthlyQuizzes)} published quizzes`} /></div>
+    <div className="mt-6 grid gap-5 sm:grid-cols-2"><ProgressRow label="Training completion rate" value={completion} detail={`${count(metrics.completedAssignments)} completed · ${count(metrics.inProgressAssignments)} in progress`} tone="success" /><ProgressRow label="Monthly quiz participation" value={participation} detail={`${count(metrics.monthlySubmitted)} of ${count(metrics.monthlyParticipations)} expected submissions received · ${count(metrics.publishedMonthlyQuizzes)} published quizzes`} /></div>
     <div className="mt-6 flex flex-wrap gap-2"><Button as={Link} to="/admin/training" variant="secondary" size="sm">Training Programs</Button><Button as={Link} to="/admin/monthly-quizzes" variant="secondary" size="sm">Monthly Quizzes</Button><Button as={Link} to="/admin/certificates" variant="secondary" size="sm">Certificates</Button></div>
   </Card>;
 }

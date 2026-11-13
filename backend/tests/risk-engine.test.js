@@ -174,3 +174,27 @@ test('risk modules have only local pure imports: no network, AI, secrets, proces
     assert.doesNotMatch(source, /\b(?:fetch|require|import\s*\(|process\.|execFile|readFile|OpenAI|Prisma|Date\.now)\b/);
   }
 });
+
+test('confirmed credential exposure raises a stored email/URL risk to CRITICAL deterministically', async () => {
+  const { escalateConfirmedRisk } = await import('../src/risk/risk-engine.js');
+  const confirmed = { corporateCredentialsSubmittedToPhishingSite: true };
+  const stored = (score, changes = {}) => ({ analyzerType: 'EMAIL', score, riskLevel: Number.isInteger(score) && score >= 0 && score <= 100 ? riskLevelForScore(score) : 'LOW', version: '1.1',
+    confidence: 'LIMITED_CONFIDENCE', reasonCodes: ['INSUFFICIENT_EVIDENCE'], ...changes });
+  for (const score of [0, 24, 25, 49, 50, 74]) {
+    const result = escalateConfirmedRisk(stored(score), confirmed);
+    assert.equal(result.score, P.thresholds.CRITICAL); assert.equal(result.riskLevel, 'CRITICAL');
+    assert.deepEqual(result.reasonCodes, ['CONFIRMED_CREDENTIAL_SUBMISSION', 'INSUFFICIENT_EVIDENCE']);
+  }
+  assert.equal(escalateConfirmedRisk(stored(92), confirmed).score, 92, 'never lowers a higher score');
+  assert.equal(escalateConfirmedRisk(stored(30, { analyzerType: 'URL' }), confirmed).analyzerType, 'URL');
+  const twice = escalateConfirmedRisk(escalateConfirmedRisk(stored(10), confirmed), confirmed);
+  assert.deepEqual(twice, escalateConfirmedRisk(stored(10), confirmed), 'idempotent');
+  for (const context of [undefined, {}, { corporateCredentialsSubmittedToPhishingSite: false }, { corporateCredentialsSubmittedToPhishingSite: 'true' },
+    { corporateCredentialsSubmittedToPhishingSite: true, severity: 'CRITICAL' }, [true]]) {
+    assert.throws(() => escalateConfirmedRisk(stored(30), context), TypeError);
+  }
+  for (const bad of [stored(30, { analyzerType: 'FILE' }), stored(30, { riskLevel: 'HIGH' }), stored(101), stored(-1), stored(3.5),
+    stored(30, { reasonCodes: ['MADE_UP_CODE'] }), stored(30, { reasonCodes: 'x' }), null]) {
+    assert.throws(() => escalateConfirmedRisk(bad, confirmed), TypeError);
+  }
+});

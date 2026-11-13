@@ -70,6 +70,35 @@ test('Phase 13B2 security analytics interface', async (t) => {
     assert.ok(within(recent).getByText('Submitting Employee'));
   });
 
+  await t.test('recent analyses paginate ten per page from the server, newest first, with numbered navigation', async () => {
+    const analysis = (n) => ({ ...data.analyses.recent[0], id: `analysis-${n}`, analyzedAt: new Date(Date.UTC(2091, 0, 3, 0, 60 - n)).toISOString() });
+    const calls = [];
+    const pageOf = (page) => ({ items: Array.from({ length: page === 3 ? 3 : 10 }, (_, i) => analysis((page - 1) * 10 + i + 1)), page, pageSize: 10, total: 23, totalPages: 3 });
+    globalThis.fetch = async (path) => { calls.push(path);
+      if (path.startsWith('/api/admin/analytics/security/analyses?')) return reply(pageOf(Number(new URL(path, 'http://x').searchParams.get('page'))));
+      const first = pageOf(1);
+      return reply({ ...data, analyses: { ...data.analyses, recent: first.items, recentPage: { page: 1, pageSize: 10, total: 23, totalPages: 3 } } }); };
+    mount(); await screen.findByText('Total completed analyses');
+    const table = () => screen.getByRole('table', { name: 'Recent analyses' });
+    const ids = () => within(table()).getAllByText(/^analysis-\d+$/).map((cell) => cell.textContent);
+    assert.equal(ids().length, 10); assert.equal(ids()[0], 'analysis-1');
+    const nav = screen.getByRole('navigation', { name: 'Recent analyses pages' });
+    assert.match(nav.textContent, /Page 1 of 3/); assert.match(nav.textContent, /Showing 1–10 of 23/);
+    assert.equal(within(nav).getByRole('button', { name: 'Previous' }).disabled, true);
+    fireEvent.click(within(nav).getByRole('button', { name: 'Next' }));
+    await waitFor(() => assert.equal(ids()[0], 'analysis-11'));
+    assert.ok(calls.includes('/api/admin/analytics/security/analyses?period=30d&page=2'));
+    fireEvent.click(within(screen.getByRole('navigation', { name: 'Recent analyses pages' })).getByRole('button', { name: 'Page 3' }));
+    await waitFor(() => assert.deepEqual(ids(), ['analysis-21', 'analysis-22', 'analysis-23']));
+    const last = screen.getByRole('navigation', { name: 'Recent analyses pages' });
+    assert.match(last.textContent, /Page 3 of 3/); assert.match(last.textContent, /Showing 21–23 of 23/);
+    assert.equal(within(last).getByRole('button', { name: 'Page 3' }).getAttribute('aria-current'), 'page');
+    assert.equal(within(last).getByRole('button', { name: 'Next' }).disabled, true);
+    fireEvent.click(within(last).getByRole('button', { name: 'Page 1' }));
+    await waitFor(() => assert.equal(ids()[0], 'analysis-1'));
+    assert.equal(calls.filter((path) => path.includes('/analyses?')).length, 2, 'page one is reused from the overview');
+  });
+
   await t.test('analysis totals, all risk levels, percentages, types and recent metadata are separate from incidents', async () => {
     globalThis.fetch = async () => reply(data);
     mount(); await screen.findByText('Total completed analyses');

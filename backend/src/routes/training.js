@@ -36,6 +36,7 @@ export function createTrainingRouter({ database, config, admin = false }) {
     router.get('/:id/quiz/attempts', handle((req) => quizzes.adminAttempts(req.params.id, req.query)));
     router.get('/:id/assignments', handle((req) => service.assignments(req.params.id, req.query)));
     post('/:id/assignments', (req) => service.assign(req.user, req.params.id, req.body));
+    post('/:id/assignments/bulk', (req) => service.assignMany(req.user, req.params.id, req.body));
     for (const operation of ['edit', 'review', 'publish', 'archive']) post(`/:id/${operation}`, (req) => service.change(req.user, req.params.id, operation, req.body));
   } else {
     router.get('/:id/quiz', handle((req) => { fields(req.query, []); return quizzes.employeeDetail(req.user, req.params.id); }));

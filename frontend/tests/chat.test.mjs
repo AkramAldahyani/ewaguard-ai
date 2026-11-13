@@ -107,15 +107,15 @@ test('Markdown preserves paragraph flow, nested actions, escaped evidence, citat
   assert.match(html, /href="https:\/\/www.cisa.gov\/secure-our-world" target="_blank" rel="noopener noreferrer"/);
 });
 
-test('successful source details collapse while withdrawn evidence remains visible', async t => {
+test('knowledge-base lookups hide retrieval diagnostics and only warn about withdrawn sources', async t => {
   const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: false }, appType: 'custom' });
   t.after(() => server.close());
   const { ChatReceipt } = await server.ssrLoadModule('/src/features/chat/ChatEvidence.jsx');
-  const render = status => renderToStaticMarkup(createElement(ChatReceipt, { request: { status: 'COMPLETED', verifiedResults: [
-    { key: 'pdpl', data: { kind: 'PDPL', status, matches: [] } },
+  const render = (status, kind = 'PDPL') => renderToStaticMarkup(createElement(ChatReceipt, { request: { status: 'COMPLETED', verifiedResults: [
+    { key: 'source', data: { kind, status, matches: [{ chunkId: 'c1', citationId: 'PDPL1', excerpt: 'Excerpt', source: { title: 'Law', version: 1 } }] } },
   ] } }));
-  assert.match(render('MATCHES'), /^<details /);
-  assert.match(render('MATCHES'), /View full source passages/);
-  assert.match(render('SOURCES_UNAVAILABLE'), /^<section /);
-  assert.match(render('SOURCES_UNAVAILABLE'), /withdrawn or are unavailable/);
+  for (const kind of ['PDPL', 'COMPANY_POLICY']) for (const status of ['MATCHES', 'NO_MATCHES', 'UNAVAILABLE']) assert.equal(render(status, kind), '');
+  const withdrawn = render('SOURCES_UNAVAILABLE');
+  assert.match(withdrawn, /withdrawn or replaced/);
+  assert.doesNotMatch(withdrawn, /View full source passages|retrieval status|Retrieve saved status|Backend record/);
 });

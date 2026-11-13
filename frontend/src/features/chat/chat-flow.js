@@ -45,6 +45,9 @@ export function chatError(error) {
   };
   return messages[error.code] ?? (error.status === 403 ? 'This operation is not available for your account.' : 'The request could not complete. Check saved status before starting another operation.');
 }
+// Rejections the server returns before it stores the message: the typed text can be returned to the composer
+// without risking a duplicate, and no recovery receipt is needed.
+const REJECTED_BEFORE_STORAGE = ['CHAT_SENSITIVE_INPUT', 'CHAT_INVALID_MESSAGE', 'CHAT_MESSAGE_TOO_LONG', 'CHAT_DAILY_LIMIT', 'CHAT_BUSY', 'AI_BUSY'];
 export const chatBusy = (state) => !['idle', 'error'].includes(state.status);
 const empty = () => ({ conversations: [], nextConversation: null, listLoading: false, listError: '', privacy: null, acknowledgedVersion: null,
   active: null, messages: [], requests: [], nextMessage: null, draft: '', status: 'idle', error: '', review: null, pendingMessage: null });
@@ -147,7 +150,12 @@ export function createChatFlow(api = chatApi, uuid = () => crypto.randomUUID()) 
         set({ messages: merge(state.messages, payload.messages, 'id').sort((a, b) => a.sequence - b.sequence), pendingMessage: null, status: 'idle' });
         receipt(requestId, { ...payload, status: 'COMPLETED' }); void flow.list();
       } catch (error) {
-        if (current(token)) { receipt(requestId, { status: 'UNCONFIRMED' }); set({ pendingMessage: null }); }
+        if (current(token)) {
+          const rejected = REJECTED_BEFORE_STORAGE.includes(error.code);
+          if (!rejected) receipt(requestId, { status: 'UNCONFIRMED' });
+          // Keep the employee's text so they can edit it instead of retyping. Never restore private analysis input.
+          set({ pendingMessage: null, ...(rejected && !analysisInput && !state.draft ? { draft: content } : {}) });
+        }
         fail(error, token);
       }
     },

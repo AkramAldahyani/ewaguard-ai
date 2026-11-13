@@ -11,7 +11,18 @@ const state = (value, allowed) => allowed.includes(value) ? value : 'UNAVAILABLE
 
 // Never spread database JSON into a model-facing result. All text is from local
 // versioned policy, never from filenames, URLs, emails, scanner or provider text.
-export function projectToolResult(tool, analyzerType, record) {
+const incidentStatuses = ['NEW', 'UNDER_INVESTIGATION', 'CONTAINED', 'RESOLVED', 'FALSE_POSITIVE', 'CLOSED'];
+// `incident` is undefined when the caller did not look one up (incident creation itself), null when none exists.
+function linkedIncident(row) {
+  if (!row) return { recorded: false };
+  if (!Number.isInteger(row.number) || !(row.createdAt instanceof Date) || !Object.hasOwn(ASSISTANCE_POLICY.levels, row.severity) ||
+      !incidentStatuses.includes(row.status)) invalid();
+  return { recorded: true, reference: `INC-${row.createdAt.getUTCFullYear()}-${String(row.number).padStart(6, '0')}`,
+    severity: row.severity, status: row.status, securityTeamAlerted: (row._count?.notifications ?? 0) > 0,
+    credentialExposureReported: Boolean(row.escalationMetadata?.reportedExposure) };
+}
+
+export function projectToolResult(tool, analyzerType, record, incident) {
   const stored = record.evidence?.risk;
   if (!stored || stored.analyzerType !== analyzerType || !Number.isInteger(record.riskScore) ||
     record.riskScore < 0 || record.riskScore > 100 || !Object.hasOwn(ASSISTANCE_POLICY.levels, record.severity) ||
@@ -25,6 +36,7 @@ export function projectToolResult(tool, analyzerType, record) {
   const risk = { analyzerType, score: record.riskScore, riskLevel: record.severity, version: record.riskRuleVersion,
     confidence: stored.confidence, reasonCodes };
   const data = { analyzerType, analysisId: record.id, risk, reasons: reasonCodes.map((code) => ({ code, description: REASON_CODES[code] })) };
+  if (incident !== undefined) data.incident = linkedIncident(incident);
   if (tool.name !== 'explain_risk') {
     data.assistance = buildIncidentAssistance({ analyzerType, riskResult: risk });
   }

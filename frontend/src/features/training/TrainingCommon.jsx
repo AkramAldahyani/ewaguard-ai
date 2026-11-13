@@ -1,5 +1,5 @@
 import { Link } from 'react-router';
-import { AlertCircle, BookOpenCheck, Clock, GraduationCap, Layers, Lightbulb, ListChecks, Mail, ShieldCheck, TriangleAlert } from 'lucide-react';
+import { AlertCircle, BookOpenCheck, Clock, GraduationCap, Layers, Lightbulb, ListChecks, Mail, Rocket, ShieldCheck, TriangleAlert } from 'lucide-react';
 import { Badge, Button, Card, LoadingPanel, StatePanel } from '../../components/ui/index.jsx';
 import { label } from './training-model.js';
 import { lessonBlocks } from './lesson-blocks.js';
@@ -7,6 +7,18 @@ import { lessonBlocks } from './lesson-blocks.js';
 export function TrainingBadge({ status }) {
   const tone = status === 'COMPLETED' || status === 'PUBLISHED' ? 'success' : status === 'ARCHIVED' ? 'neutral' : status === 'IN_PROGRESS' ? 'brand' : 'warning';
   return <Badge tone={tone}>{label(status)}</Badge>;
+}
+// Lifecycle actions sit directly under the page heading so review, publication and archiving are easy to find.
+export function PublicationControls({ title = 'Publication controls', headingLevel = 2, status, description, footnote, children, className = '' }) {
+  const Heading = `h${headingLevel}`;
+  return <Card className={`mb-5 border-brand-100 bg-gradient-to-b from-brand-50/50 to-white p-4 sm:p-5 ${className}`} aria-label={title}>
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <div className="flex min-w-0 items-start gap-3"><span className="grid size-10 shrink-0 place-items-center rounded-xl bg-white text-brand-700 ring-1 ring-brand-100" aria-hidden="true"><Rocket className="size-5" /></span>
+        <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><Heading className="font-bold text-slate-950">{title}</Heading>{status && <TrainingBadge status={status} />}</div><p className="mt-1 max-w-2xl text-sm leading-6 text-slate-600">{description}</p></div></div>
+      <div className="flex shrink-0 flex-wrap gap-2 lg:justify-end">{children}</div>
+    </div>
+    {footnote && <p className="mt-3 border-t border-brand-100/70 pt-3 text-xs text-slate-500">{footnote}</p>}
+  </Card>;
 }
 export function TrainingFeedback({ loading, error, retry, empty, emptyTitle = 'No training records found', emptyDescription = 'There are no matching training records yet.' }) {
   if (loading) return <LoadingPanel label="Loading training…" />;

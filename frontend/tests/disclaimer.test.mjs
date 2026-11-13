@@ -61,9 +61,10 @@ test('chat renders the current OpenAI privacy notice and an unchecked acknowledg
   t.after(() => server.close());
   const { ChatPrivacy } = await server.ssrLoadModule('/src/features/chat/AssistantPage.jsx');
   const html = renderToStaticMarkup(createElement(ChatPrivacy, { notice: PRIVACY_NOTICE, acknowledged: false, onChange() {} }));
-  // Wording follows the versioned notice in backend/src/ai/chat-policy.js.
-  assert.match(html, /sent to OpenAI to generate responses/);
-  assert.match(html, /OpenAI does not use API data to train models by default/);
+  // Wording follows the versioned notice in backend/src/ai/chat-policy.js; the technical
+  // provider paragraph is intentionally not shown, while the AI-provider acknowledgement remains.
+  assert.doesNotMatch(html, /sent to OpenAI to generate responses|OpenAI does not use API data/);
+  assert.match(html, /processed by the AI provider/);
   assert.match(html, /do not submit confidential, restricted, credential-related, or otherwise sensitive information/);
   assert.match(html, /whitespace-pre-line/);
   assert.doesNotMatch(html, /type="checkbox"[^>]*checked/);

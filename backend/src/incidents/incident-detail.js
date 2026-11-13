@@ -1,6 +1,6 @@
 import { REASON_CODES } from '../risk/reason-codes.js';
 import { RISK_POLICY } from '../risk/risk-policy.js';
-import { ASSISTANCE_POLICY as P, INCIDENT_ASSISTANCE_VERSION } from '../assistance/assistance-policy.js';
+import { ASSISTANCE_POLICY as P, SUPPORTED_ASSISTANCE_VERSIONS } from '../assistance/assistance-policy.js';
 
 const sources = ['EMAIL', 'URL', 'FILE'];
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -21,7 +21,7 @@ const providerStates = ['AVAILABLE', 'NOT_CONFIGURED', 'NOT_FOUND', 'RATE_LIMITE
 // guidance at read time or return arbitrary strings from stored JSON.
 export function projectStoredGuidance(value, risk) {
   if (!value) return unavailable('GUIDANCE_NOT_SAVED');
-  if (!risk || value.version !== INCIDENT_ASSISTANCE_VERSION || value.riskVersion !== risk.version ||
+  if (!risk || !SUPPORTED_ASSISTANCE_VERSIONS.includes(value.version) || value.riskVersion !== risk.version ||
       value.analyzerType !== risk.analyzerType || value.riskLevel !== risk.riskLevel) return unavailable('GUIDANCE_UNSUPPORTED_OR_INCONSISTENT');
   const actions = Object.values(P.actions);
   const texts = (items, allowed = actions) => {
@@ -29,6 +29,11 @@ export function projectStoredGuidance(value, risk) {
     return [...items];
   };
   const text = (item, allowed) => { if (!allowed.includes(item)) throw new Error('Unsupported guidance'); return item; };
+  // Known outdated vocabulary is replaced by the current text for the same key; anything else must match exactly.
+  const current = (item, texts, legacy) => {
+    const key = Object.keys(legacy).find((name) => legacy[name] === item);
+    return key ? texts[key] : text(item, Object.values(texts));
+  };
   const conditional = (section, policy) => section === null ? null : {
     applicability: text(section?.applicability, ['CONDITIONAL', 'REPORTED_CONTEXT']),
     summary: text(section?.summary, [policy.conditionalSummary, policy.reportedSummary]), actions: texts(section?.actions),
@@ -42,11 +47,11 @@ export function projectStoredGuidance(value, risk) {
       summary: text(value.summary, summaries), confidenceNotes: texts(value.confidenceNotes, [...Object.values(P.reasonActions).map((entry) => entry.note).filter(Boolean), P.unknownReasonText]),
       immediateActions: texts(value.immediateActions), avoidActions: texts(value.avoidActions), followUpActions: texts(value.followUpActions),
       escalationRecommendation: { level: text(value.escalationRecommendation?.level, Object.keys(P.escalation)),
-        description: text(value.escalationRecommendation?.description, Object.values(P.escalation)) },
+        description: current(value.escalationRecommendation?.description, P.escalation, P.legacyTexts.escalation) },
       credentialGuidance: conditional(value.credentialGuidance, P.credentials),
       deviceContainmentGuidance: conditional(value.deviceContainmentGuidance, P.containment),
       evidencePreservationGuidance: texts(value.evidencePreservationGuidance, P.analyzers[risk.analyzerType].preservation),
-      disclaimer: text(value.disclaimer, [P.disclaimer]),
+      disclaimer: value.disclaimer === P.legacyTexts.disclaimer ? P.disclaimer : text(value.disclaimer, [P.disclaimer]),
     };
     return { status: 'AVAILABLE', provenance: 'SAVED_INCIDENT_ASSISTANCE', assistance };
   } catch { return unavailable('GUIDANCE_UNSUPPORTED_OR_INCONSISTENT'); }
@@ -111,5 +116,9 @@ export function projectIncidentDetail(row, admin) {
   output.evidence = ['indicatorCodes', 'scannerStatuses', 'providerStatuses', 'evidenceCoverage', 'checks'].some((key) => Object.hasOwn(snapshot, key))
     ? evidence(snapshot, type, admin) : unavailable('EVIDENCE_NOT_SAVED');
   output.guidance = projectStoredGuidance(snapshot.assistance, risk);
+  const exposure = snapshot.reportedExposure;
+  if (exposure?.type === 'CREDENTIALS_SUBMITTED' && exposure.source === 'EMPLOYEE_CONFIRMATION') {
+    output.reportedExposure = { type: exposure.type, source: exposure.source, reportedAt: date(exposure.reportedAt) };
+  }
   return output;
 }

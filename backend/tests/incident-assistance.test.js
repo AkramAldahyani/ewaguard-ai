@@ -36,7 +36,7 @@ test('policy and source risk versions included; archived risk snapshots reproduc
   const riskResult = evaluateRisk({ analyzerType: 'EMAIL', evidence: { indicators: [{ id: 'CREDENTIAL_REQUEST' }] } });
   const result = buildIncidentAssistance({ analyzerType: 'EMAIL', riskResult });
   assert.equal(result.version, INCIDENT_ASSISTANCE_VERSION); assert.equal(result.riskVersion, riskResult.version);
-  assert.deepEqual(result, buildIncidentAssistance({ analyzerType: 'EMAIL', riskResult: riskSnapshot(riskResult), version: '1.0' }));
+  assert.deepEqual(result, buildIncidentAssistance({ analyzerType: 'EMAIL', riskResult: riskSnapshot(riskResult), version: INCIDENT_ASSISTANCE_VERSION }));
 });
 
 test('credential requests warn against providing credentials and never infer exposure', () => {
@@ -170,5 +170,18 @@ test('assistance modules have no network, AI, database, file, execution or risk-
     for (const match of source.matchAll(/from\s+['"]([^'"]+)['"]/g)) assert.ok(['./assistance-policy.js', '../risk/reason-codes.js'].includes(match[1]));
     assert.doesNotMatch(source, /\b(?:fetch|require|execFile|readFile|OpenAI|Prisma|evaluateRisk|createIncident|Date|setTimeout)\s*\(|\bprocess\.(?:env|exit|cwd)/);
     assert.doesNotMatch(source, /import\s*\(/);
+  }
+});
+
+test('BUG-009 incident type is derived deterministically from stored reason codes', async () => {
+  const { incidentTypeFor, INCIDENT_TYPE_RULES } = await import('../src/incidents/escalation-policy.js');
+  const { REASON_CODES } = await import('../src/risk/reason-codes.js');
+  for (const codes of Object.values(INCIDENT_TYPE_RULES)) for (const code of codes) assert.ok(Object.hasOwn(REASON_CODES, code), code);
+  assert.equal(incidentTypeFor(['EMAIL_CREDENTIAL_REQUEST', 'EMAIL_REPLY_TO_MISMATCH', 'INSUFFICIENT_EVIDENCE']), 'PHISHING');
+  assert.equal(incidentTypeFor(['URL_ACCOUNT_PATH', 'URL_REPUTATION_MALICIOUS']), 'PHISHING');
+  assert.equal(incidentTypeFor(['FILE_CLAMAV_DETECTION', 'FILE_ACTIVE_CONTENT']), 'MALWARE');
+  assert.equal(incidentTypeFor(['CONFIRMED_CREDENTIAL_SUBMISSION', 'EMAIL_CREDENTIAL_REQUEST']), 'CREDENTIAL_COMPROMISE');
+  for (const codes of [['URL_REPUTATION_MALICIOUS'], ['FILE_ACTIVE_CONTENT'], ['INSUFFICIENT_EVIDENCE'], [], undefined, 'EMAIL_CREDENTIAL_REQUEST']) {
+    assert.equal(incidentTypeFor(codes), 'SUSPICIOUS_ACTIVITY', JSON.stringify(codes));
   }
 });

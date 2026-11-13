@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { NavLink, Outlet, useLocation } from 'react-router';
 import {
   Activity, Award, BarChart3, BookOpenCheck, Bot, CalendarDays, FileSearch, GraduationCap, Home, KeyRound,
-  Link2, LogOut, Menu, MessageSquareText, Search, ShieldAlert, Upload, UserRound, X,
+  Link2, LogOut, Menu, MessageSquareText, ShieldAlert, Upload, UserRound, X,
 } from 'lucide-react';
 import { BrandLogo } from '../components/BrandLogo.jsx';
 import { IconButton, Tooltip } from '../components/ui/index.jsx';
@@ -178,7 +178,8 @@ function Shell() {
   useEffect(() => {
     const page = [...navSections, ...adminSections].flatMap((section) => section.items).find((item) => item.to === pathname)?.label;
     const incidentPage = pathname.startsWith('/admin/analytics/incidents') ? 'Incident Statistics' : pathname.startsWith('/admin/analytics/security') ? 'Security analytics' : pathname.startsWith('/admin/analytics/awareness') ? 'Awareness analytics' : pathname.startsWith('/admin/incidents') ? 'Incident Queue' : pathname.startsWith('/incidents/') ? 'Incident details' : pathname.startsWith('/admin/training') ? 'Training management' : pathname.startsWith('/admin/monthly-quizzes') ? 'Monthly quiz management' : pathname.startsWith('/admin/certificates') ? 'Certificate management' : pathname.startsWith('/admin/community') ? 'Community moderation' : pathname.startsWith('/certificates/') ? 'Certificate details' : pathname.startsWith('/monthly-quiz/') ? 'Monthly quiz' : pathname.startsWith('/training/') ? 'Training course' : null;
-    document.title = `${page ?? incidentPage ?? (pathname === '/admin' ? 'Administrator dashboard' : 'Workspace')} | EWAGuard AI`;
+    const other = { '/admin': 'Administrator dashboard', '/unauthorized': 'Access restricted', '/design-system/chat': 'Chat design' }[pathname];
+    document.title = `${page ?? incidentPage ?? other ?? 'Page not found'} | EWAGuard AI`;
     if (previousPath.current !== pathname) {
       if (mobileDialogRef.current.open) mobileDialogRef.current.close();
       mainRef.current?.focus();
@@ -205,11 +206,10 @@ function Shell() {
         <header className="portal-header sticky top-0 z-30 flex h-[4.75rem] items-center gap-3 border-b border-slate-200/80 bg-white/90 px-4 shadow-[0_1px_0_rgb(15_23_42/0.02)] backdrop-blur-xl sm:px-6 lg:px-8">
           <IconButton label="Open navigation" aria-expanded={mobileOpen} aria-controls="mobile-navigation" onClick={() => setMobileOpen(true)} className="shrink-0 lg:hidden"><Menu className="size-5" /></IconButton>
           <div className="min-w-0">
-            <p className="truncate text-sm font-bold text-slate-900">EWAGuard AI Security Portal</p>
+            <p className="truncate text-sm font-bold text-slate-900"><span className="sm:hidden">EWAGuard AI</span><span className="hidden sm:inline">EWAGuard AI Security Portal</span></p>
             <p className="hidden text-xs text-slate-500 sm:block">Electricity &amp; Water Authority</p>
           </div>
           <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2.5">
-            <span className="hidden sm:inline-flex"><Tooltip label="Search will be available in a later phase"><IconButton label="Search unavailable" disabled><Search className="size-[1.1rem]" /></IconButton></Tooltip></span>
             <NotificationBell />
             <span className="mx-1 hidden h-8 w-px bg-slate-200 sm:block" />
             <NavLink aria-label="Your profile" to="/profile" className="flex items-center gap-3 rounded-xl p-1.5 pr-2 transition-colors hover:bg-slate-100">

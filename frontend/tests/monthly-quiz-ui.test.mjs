@@ -86,7 +86,7 @@ test('Phase 11C2 monthly quiz React workflows with mocked APIs', async (t) => {
     let record = adminRecord(), reportPage = 1; const operations = [];
     globalThis.fetch = async (path, options = {}) => { if (path === `/api/admin/monthly-quizzes/${id}` && !options.method) return reply({ monthlyQuiz: record });
       if (/\/(approve|publish|archive)$/.test(path)) { const operation = path.split('/').at(-1); assert.equal(JSON.parse(options.body).expectedUpdatedAt, record.quiz.updatedAt); operations.push(operation); record = { ...record, status: operation === 'approve' ? 'APPROVED' : operation === 'publish' ? 'PUBLISHED' : 'ARCHIVED', quiz: { ...record.quiz, status: operation === 'approve' ? 'APPROVED' : operation === 'publish' ? 'PUBLISHED' : 'ARCHIVED' } }; return reply({ monthlyQuiz: record }); }
-      if (path.includes('/report?')) { reportPage = Number(new URL(path, 'http://localhost').searchParams.get('page')); return reply({ items: [{ ...summary('SUBMITTED'), id: `${attemptId}-${reportPage}`, employee: { firstName: 'Test', lastName: 'Employee' } }], page: reportPage, pageSize: 20, hasMore: reportPage === 1, participation: { startedEmployees: 1, submittedEmployees: 1, activeEmployeesNow: 0 } }); }
+      if (path.includes('/report?')) { reportPage = Number(new URL(path, 'http://localhost').searchParams.get('page')); return reply({ items: [{ ...summary('SUBMITTED'), id: `${attemptId}-${reportPage}`, employee: { firstName: 'Test', lastName: 'Employee' } }], page: reportPage, pageSize: 20, hasMore: reportPage === 1, participation: { expectedEmployees: 7, startedEmployees: 2, submittedEmployees: 1, inProgressEmployees: 1, activeEmployeesNow: 7 } }); }
       throw new Error(path); };
     route(`/admin/monthly-quizzes/${id}`, AdminMonthlyDetailPage);
     await screen.findByRole('button', { name: 'Review and approve' });
@@ -98,6 +98,8 @@ test('Phase 11C2 monthly quiz React workflows with mocked APIs', async (t) => {
     await waitFor(() => assert.deepEqual(operations, ['approve', 'publish']));
     fireEvent.click(screen.getByRole('button', { name: 'Participation report' }));
     await screen.findByText('Test Employee');
+    // BUG-005: the active-employee count is labelled as expected employees, not "in progress".
+    assert.ok(screen.getByText('7 expected employees · 2 started · 1 submitted · 1 in progress'));
     fireEvent.click(screen.getByRole('button', { name: 'Next' })); await waitFor(() => assert.equal(reportPage, 2));
     fireEvent.click(screen.getByRole('button', { name: 'Archive quiz' }));
     fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Archive quiz' }));
@@ -133,6 +135,27 @@ test('Phase 11C2 monthly quiz React workflows with mocked APIs', async (t) => {
     await screen.findByRole('link', { name: 'View assessment' });
     await screen.findByText(/\+12 percentage points/);
     assert.match(document.body.textContent, /7\/8/);
+  });
+
+  await t.test('employee month picker filters immediately, shows a filtered empty state and clears', async () => {
+    const calls = [];
+    globalThis.fetch = async (path) => { calls.push(path);
+      if (path.startsWith('/api/monthly-quizzes/history')) return reply({ items: [], page: 1, pageSize: 20, hasMore: false });
+      return reply({ items: path.includes('period=') ? [] : [{ ...employeeRecord(), attemptCount: 0, bestScorePercent: null }], page: 1, pageSize: 20, hasMore: false }); };
+    route('/monthly-quiz', EmployeeMonthlyListPage);
+    await screen.findByRole('link', { name: 'View assessment' });
+    const trigger = screen.getByRole('button', { name: /Quiz month All months/ });
+    assert.equal(trigger.getAttribute('aria-expanded'), 'false');
+    fireEvent.click(trigger);
+    const dialog = screen.getByRole('dialog', { name: 'Choose quiz month' });
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Next year, 2027' }));
+    fireEvent.click(within(dialog).getByRole('button', { name: /^March 2027/ }));
+    await waitFor(() => assert.ok(calls.some((path) => path.startsWith('/api/monthly-quizzes?') && path.includes('period=2027-03') && path.includes('page=1'))));
+    await screen.findByText('No monthly quiz for March 2027');
+    assert.equal(screen.queryByRole('dialog'), null);
+    fireEvent.click(screen.getByRole('button', { name: 'Clear quiz month filter' }));
+    await screen.findByRole('link', { name: 'View assessment' });
+    assert.ok(screen.getByRole('button', { name: /Quiz month All months/ }));
   });
 
   await t.test('employee starts, navigates, reviews and submits without pre-submission answer disclosure', async () => {
@@ -204,5 +227,22 @@ test('Phase 11C2 monthly quiz React workflows with mocked APIs', async (t) => {
     cleanup(); state = 'denied'; route(`/monthly-quiz/${id}`, EmployeeMonthlyDetailPage);
     await screen.findByText('Monthly quizzes could not be loaded');
     assert.doesNotMatch(document.body.textContent, /Which action|PRIVATE_RECORD/);
+  });
+
+  await t.test('BUG-018 a passed quiz shows Passed instead of remaining attempts or start instructions', async () => {
+    const passedAttempt = { id: attemptId, attemptNumber: 1, status: 'SUBMITTED', startedAt: time, submittedAt: time, scorePercent: 100,
+      earnedPoints: 1, possiblePoints: 1, passed: true };
+    globalThis.fetch = async (path) => {
+      if (path.startsWith('/api/monthly-quizzes/history')) return reply({ items: [], page: 1, pageSize: 20, hasMore: false });
+      if (path.startsWith('/api/monthly-quizzes?')) return reply({ items: [{ ...employeeRecord('OPEN', [passedAttempt]), passed: true, attemptsRemaining: 0, bestScorePercent: 100 }], page: 1, pageSize: 20, hasMore: false });
+      return reply({ ...employeeRecord('OPEN', [passedAttempt]), passed: true, attemptsRemaining: 0 }); };
+    route(`/monthly-quiz/${id}`, EmployeeMonthlyDetailPage);
+    await screen.findByText('Quiz passed');
+    assert.equal(screen.queryByText('Before you begin'), null);
+    assert.equal(screen.queryByRole('button', { name: 'Start attempt' }), null);
+    assert.doesNotMatch(document.body.textContent, /attempts? remaining/);
+    cleanup(); route('/monthly-quiz', EmployeeMonthlyListPage);
+    await screen.findByText('October awareness');
+    assert.match(document.body.textContent, /Passed · Best 100%/); assert.doesNotMatch(document.body.textContent, /attempts? remaining/);
   });
 });

@@ -1,13 +1,18 @@
 import { Lightbulb } from 'lucide-react';
 import { useEffect, useState } from 'react';
 import { shuffleSecurityTips } from '../../data/security-tips.js';
+import { typewriterStep } from './typewriter.js';
 
-const ROTATION_INTERVAL_MS = 10000;
-const TRANSITION_DURATION_MS = 400;
+const STATIC_ROTATION_MS = 10000;
 
-function createInitialRotation() {
+function nextRotation(current) {
+  const queue = current.remainingTips.length ? current.remainingTips : shuffleSecurityTips(Math.random, current.activeTip.id);
+  return { activeTip: queue[0], remainingTips: queue.slice(1) };
+}
+
+function createInitialState() {
   const shuffled = shuffleSecurityTips();
-  return { activeTip: shuffled[0], remainingTips: shuffled.slice(1) };
+  return { activeTip: shuffled[0], remainingTips: shuffled.slice(1), phase: 'typing', length: 0 };
 }
 
 function useReducedMotion() {
@@ -25,53 +30,36 @@ function useReducedMotion() {
   return reducedMotion;
 }
 
-export function SecurityTips() {
-  const [{ activeTip }, setRotation] = useState(createInitialRotation);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [isPageVisible, setIsPageVisible] = useState(() => (
-    typeof document === 'undefined' || document.visibilityState !== 'hidden'
-  ));
-  const reducedMotion = useReducedMotion();
-
+function usePageVisible() {
+  const [visible, setVisible] = useState(() => typeof document === 'undefined' || document.visibilityState !== 'hidden');
   useEffect(() => {
-    const handleVisibilityChange = () => {
-      const visible = document.visibilityState !== 'hidden';
-      setIsPageVisible(visible);
-      if (!visible) setIsTransitioning(false);
-    };
-
+    const handleVisibilityChange = () => setVisible(document.visibilityState !== 'hidden');
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
   }, []);
+  return visible;
+}
+
+export function SecurityTips() {
+  const [state, setState] = useState(createInitialState);
+  const isPageVisible = usePageVisible();
+  const reducedMotion = useReducedMotion();
+  const { activeTip, phase, length } = state;
 
   useEffect(() => {
     if (!isPageVisible) return undefined;
+    // Reduced motion: whole tips rotate without per-character animation.
+    if (reducedMotion) {
+      const timer = window.setTimeout(() => setState((current) => ({ ...current, ...nextRotation(current) })), STATIC_ROTATION_MS);
+      return () => window.clearTimeout(timer);
+    }
+    const { delay, next, advance } = typewriterStep({ phase, length }, activeTip.text);
+    const timer = window.setTimeout(() => setState((current) => ({ ...current, ...(advance ? nextRotation(current) : {}), ...next })), delay);
+    return () => window.clearTimeout(timer);
+  }, [activeTip, phase, length, isPageVisible, reducedMotion]);
 
-    let transitionTimer;
-    const showNextTip = () => {
-      setRotation((current) => {
-        let nextTips = current.remainingTips;
-        if (nextTips.length === 0) nextTips = shuffleSecurityTips(Math.random, current.activeTip.id);
-        return { activeTip: nextTips[0], remainingTips: nextTips.slice(1) };
-      });
-      setIsTransitioning(false);
-    };
-
-    const rotationTimer = window.setTimeout(() => {
-      if (reducedMotion) {
-        showNextTip();
-        return;
-      }
-
-      setIsTransitioning(true);
-      transitionTimer = window.setTimeout(showNextTip, TRANSITION_DURATION_MS);
-    }, ROTATION_INTERVAL_MS);
-
-    return () => {
-      window.clearTimeout(rotationTimer);
-      window.clearTimeout(transitionTimer);
-    };
-  }, [activeTip.id, isPageVisible, reducedMotion]);
+  const visibleText = reducedMotion ? activeTip.text : activeTip.text.slice(0, length);
+  const idle = (phase === 'typing' && length >= activeTip.text.length) || (phase === 'erasing' && length === 0);
 
   return (
     <section className="security-tip mt-4 max-w-xl" aria-labelledby="security-tip-label">
@@ -82,11 +70,18 @@ export function SecurityTips() {
         <div className="min-w-0 flex-1">
           <p id="security-tip-label" className="text-xs font-bold uppercase tracking-[0.16em] text-cyan-200">Security tip</p>
           <p
-            className={`security-tip-text mt-1 min-h-[5.25rem] text-base font-medium leading-7 text-slate-100 sm:min-h-14 sm:text-lg ${isTransitioning ? 'security-tip-text-exit' : ''}`}
+            className="security-tip-text mt-1 grid min-h-[5.25rem] text-base font-medium leading-7 text-slate-100 sm:min-h-14 sm:text-lg"
             data-tip-id={activeTip.id}
             data-tip-category={activeTip.category}
+            data-typewriter={reducedMotion ? 'static' : phase}
           >
-            {activeTip.text}
+            {/* The invisible full sentence reserves the final height so typing never shifts the layout. */}
+            <span className="invisible col-start-1 row-start-1" aria-hidden="true">{activeTip.text}</span>
+            <span className="col-start-1 row-start-1" aria-hidden="true">
+              {visibleText}
+              {!reducedMotion && <span className={`typewriter-cursor${idle ? ' typewriter-cursor-idle' : ''}`} />}
+            </span>
+            <span className="sr-only">{activeTip.text}</span>
           </p>
         </div>
       </div>

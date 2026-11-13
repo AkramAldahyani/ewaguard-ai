@@ -16,8 +16,8 @@ Metric definitions:
 | `awareness.activeAssignments` | Non-revoked assignments to published programs held by active employees |
 | `awareness.completedAssignments`, `inProgressAssignments` | Those active assignments with matching saved progress status |
 | `awareness.publishedMonthlyQuizzes` | Monthly quizzes whose quiz lifecycle is `PUBLISHED` |
-| `awareness.monthlyParticipations` | Non-revoked active-employee assignments to published or archived monthly quizzes; each employee-month counts once |
-| `awareness.monthlySubmitted` | Those monthly assignments with at least one submitted attempt |
+| `awareness.monthlyParticipations` | Expected employee-quiz pairs: for every published or archived monthly quiz that has opened, each employee whose account existed before it closed and was active when it opened. Employees who never started still count |
+| `awareness.monthlySubmitted` | Those expected employee-quiz pairs with at least one submitted attempt |
 | `awareness.certificatesIssued` | Certificates without a revocation timestamp |
 | `community.pendingPosts` | Posts currently `PENDING_REVIEW` |
 

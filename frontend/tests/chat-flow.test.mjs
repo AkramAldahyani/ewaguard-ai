@@ -81,9 +81,25 @@ for (const [code, expected] of [['AI_BUDGET_EXHAUSTED', /spending limit/], ['CHA
   test(`${code} produces safe recovery guidance without retrying`, async () => {
     const { flow, calls } = await ready({ send: async () => { throw { code, message: 'INTERNAL_SECRET' }; } });
     flow.edit('Hello'); await flow.send(); assert.match(flow.getSnapshot().error, expected); assert.doesNotMatch(flow.getSnapshot().error, /INTERNAL_SECRET/);
-    assert.equal(count(calls, 'send'), 1); assert.equal(flow.getSnapshot().requests[0].status, 'UNCONFIRMED');
+    assert.equal(count(calls, 'send'), 1);
+    // Rejected before storage: nothing to recover, and the typed text returns to the composer (BUG-014).
+    if (code === 'CHAT_DAILY_LIMIT') { assert.deepEqual(flow.getSnapshot().requests, []); assert.equal(flow.getSnapshot().draft, 'Hello'); }
+    else { assert.equal(flow.getSnapshot().requests[0].status, 'UNCONFIRMED'); assert.equal(flow.getSnapshot().draft, ''); }
   });
 }
+test('BUG-014 a message rejected by the sensitive-input filter keeps the draft and adds no receipt', async () => {
+  const { flow, calls } = await ready({ send: async () => { throw { status: 400, code: 'CHAT_SENSITIVE_INPUT' }; } });
+  flow.edit('My verification code is 482913'); await flow.send();
+  const state = flow.getSnapshot();
+  assert.equal(count(calls, 'send'), 1); assert.equal(state.draft, 'My verification code is 482913');
+  assert.match(state.error, /Remove passwords, MFA codes/); assert.deepEqual(state.requests, []); assert.equal(state.pendingMessage, null);
+  flow.edit('What is an MFA code?'); assert.equal(flow.getSnapshot().error, '', 'editing the draft clears the notice');
+});
+test('BUG-014 private analysis input is never restored into the composer after a rejection', async () => {
+  const { flow } = await ready({ send: async () => { throw { status: 400, code: 'CHAT_SENSITIVE_INPUT' }; } });
+  await flow.send({ toolName: 'analyze_url', parameters: { url: 'https://synthetic.invalid/' } });
+  assert.equal(flow.getSnapshot().draft, '');
+});
 for (const toolName of ['analyze_email', 'analyze_url']) {
   test(`${toolName} private input travels separately and creates a pending approval without execution`, async () => {
     const { flow, calls } = await ready({ send: async () => ({ messages: [], pendingConfirmation: { ...approval(), toolName }, toolMetadata: { approvalId: 'a1' } }) });
@@ -212,4 +228,19 @@ test('operational components render real evidence, escaped text, nonclickable UR
   const unavailable = render(evidence.ChatReceipt, { request: { requestId: 'r', approval: approval('COMPLETED'), verifiedResults: [{ ...result, key: 'r' }], explanation: { status: 'UNAVAILABLE' } } });
   assert.match(unavailable, /completed analysis and deterministic guidance remain/); assert.match(unavailable, /70/);
   assert.doesNotMatch(html + unsafe + unavailable, /Security incident created|PDPL Article|OPENAI_API_KEY/);
+});
+test('BUG-014 composer shows the notice above the input; BUG-013 chat evidence shows the linked incident', async (t) => {
+  const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: false }, appType: 'custom' }); t.after(() => server.close());
+  const { ChatComposer } = await server.ssrLoadModule('/src/features/chat/ChatComposer.jsx');
+  const { ChatEvidence } = await server.ssrLoadModule('/src/features/chat/ChatEvidence.jsx');
+  const composer = renderToStaticMarkup(createElement(ChatComposer, { value: 'kept draft', onChange() {}, onSend() {},
+    notice: createElement('div', { id: 'chat-error', role: 'alert' }, 'Remove passwords') }));
+  assert.ok(composer.indexOf('role="alert"') < composer.indexOf('<textarea'), 'notice renders above the input');
+  assert.match(composer, /aria-describedby="chat-error chat-privacy/); assert.match(composer, />kept draft</);
+  assert.doesNotMatch(renderToStaticMarkup(createElement(ChatComposer, { value: '', onChange() {}, onSend() {} })), /chat-error/);
+  const data = (incident) => ({ data: { analyzerType: 'EMAIL', analysisId: 'a1', risk: { riskLevel: 'HIGH', score: 67, version: '1.1', confidence: 'MODERATE_CONFIDENCE' }, reasons: [], incident } });
+  const linked = renderToStaticMarkup(createElement(ChatEvidence, { result: data({ recorded: true, reference: 'INC-2026-002920', severity: 'CRITICAL', status: 'UNDER_INVESTIGATION', securityTeamAlerted: true, credentialExposureReported: true }) }));
+  assert.match(linked, /Linked incident <strong>INC-2026-002920<\/strong> · CRITICAL · UNDER INVESTIGATION · Security team alerted · Credential exposure reported/);
+  assert.match(renderToStaticMarkup(createElement(ChatEvidence, { result: data({ recorded: false }) })), /No incident is recorded for this analysis/);
+  assert.doesNotMatch(renderToStaticMarkup(createElement(ChatEvidence, { result: data({ recorded: true, reference: '<script>x</script>' }) })), /script|Linked incident/);
 });

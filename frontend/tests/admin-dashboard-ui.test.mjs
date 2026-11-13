@@ -86,6 +86,30 @@ test('Phase 13A2 administrator dashboard interface', async (t) => {
     assert.ok(reads.includes(notificationId));
   });
 
+  await t.test('previews only the two newest incidents and three newest notifications, refreshing on live incident events', async () => {
+    const at = (minute) => `2026-10-11T10:${String(minute).padStart(2, '0')}:00.000Z`;
+    const uuid = (n) => `123e4567-e89b-42d3-a456-4266141743${String(n).padStart(2, '0')}`;
+    const incidents = [3, 9, 1, 7, 5].map((minute) => ({ id: uuid(minute), reference: `INC-2026-0000${String(minute).padStart(2, '0')}`,
+      status: 'NEW', severity: 'MEDIUM', urgent: false, assigneeName: null, createdAt: at(minute) }));
+    const notes = [2, 8, 4, 6, 1, 9].map((minute) => ({ ...notification, id: uuid(40 + minute), title: `Alert minute ${minute}`, createdAt: at(minute) }));
+    let fetches = 0, notify;
+    const snapshot = { items: notes, unreadCount: 6, loading: false, error: '' };
+    const flow = { subscribe: () => () => {}, getSnapshot: () => snapshot, read() {},
+      subscribeIncidents: (fn) => { notify = fn; return () => { notify = null; }; } };
+    globalThis.fetch = async () => { fetches++; return reply({ ...overview, recentIncidents: fetches > 1 ? [...incidents, { ...incidents[0], id: uuid(30), reference: 'INC-2026-000099', createdAt: at(30) }] : incidents }); };
+    mount(flow); await screen.findByText('Alert minute 9');
+    const incidentList = screen.getByRole('heading', { name: 'Recent incidents' }).closest('section').querySelector('ul');
+    assert.deepEqual([...incidentList.querySelectorAll('li a')].map((link) => link.textContent), ['INC-2026-000009', 'INC-2026-000007']);
+    const noteList = screen.getByRole('heading', { name: 'Security notifications' }).closest('section').querySelector('ul');
+    assert.deepEqual([...noteList.children].map((item) => item.querySelector('p').textContent), ['Alert minute 9', 'Alert minute 8', 'Alert minute 6']);
+    assert.ok(screen.getAllByRole('link', { name: /View Incident Queue/ }).length >= 1);
+    notify();
+    await screen.findByText('INC-2026-000099');
+    assert.equal(fetches, 2);
+    const refreshed = screen.getByRole('heading', { name: 'Recent incidents' }).closest('section').querySelector('ul');
+    assert.deepEqual([...refreshed.querySelectorAll('li a')].map((link) => link.textContent), ['INC-2026-000099', 'INC-2026-000009']);
+  });
+
   await t.test('empty records show zero counts and clear list states', async () => {
     const zero = Object.fromEntries(Object.entries(metrics).filter(([group]) => group !== 'analyses').map(([group, values]) => [group,
       Object.fromEntries(Object.keys(values).map((key) => [key, 0]))]));

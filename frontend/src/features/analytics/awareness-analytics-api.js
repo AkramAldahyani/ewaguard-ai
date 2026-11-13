@@ -27,6 +27,23 @@ export function validateAwarenessFilters(filters, now = new Date()) {
   return '';
 }
 
+// First and last calendar month (YYYY-MM) a monthly quiz period may start in for the chosen window; null
+// while custom dates are incomplete or invalid.
+export function awarenessMonthBounds(filters, now = new Date()) {
+  let from; let through;
+  if (filters.period === 'custom') {
+    from = utcDay(filters.start); through = utcDay(filters.end);
+    if (!from || !through || through < from) return null;
+  } else {
+    through = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+    from = new Date(through.getTime() - (Number.parseInt(filters.period, 10) - 1) * dayMs);
+  }
+  // A month qualifies only when its first day falls inside the window, so round `from` up to a month start.
+  const first = from.getUTCDate() === 1 ? from : new Date(Date.UTC(from.getUTCFullYear(), from.getUTCMonth() + 1, 1));
+  if (first > through) return null;
+  return { min: first.toISOString().slice(0, 7), max: through.toISOString().slice(0, 7) };
+}
+
 export const awarenessAnalyticsApi = {
   overview(filters, signal) {
     const query = new URLSearchParams({ period: filters.period });
@@ -36,10 +53,8 @@ export const awarenessAnalyticsApi = {
     }
     return apiRequest(`/api/admin/analytics/awareness?${query}`, { signal, cache: 'no-store' });
   },
-  programs(search, signal) {
-    const query = new URLSearchParams({ sort: 'title_asc', pageSize: '50' });
-    if (search.trim()) query.set('search', search.trim());
-    return apiRequest(`/api/admin/training?${query}`, { signal, cache: 'no-store' });
+  programs(signal) {
+    return apiRequest(`/api/admin/training?${new URLSearchParams({ sort: 'title_asc', pageSize: '50' })}`, { signal, cache: 'no-store' });
   },
 };
 

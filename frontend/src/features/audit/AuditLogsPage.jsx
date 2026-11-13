@@ -64,7 +64,8 @@ export function AuditLogsPage() {
     {state.loading && <p role="status">Loading audit logs…</p>}
     {state.error && <Card className="p-5"><p role="alert">{state.error}</p><Button className="mt-3" variant="secondary" onClick={() => setRevision((n) => n + 1)}>Try again</Button></Card>}
     {state.data && <Card className="overflow-hidden">
-      <div className="overflow-x-auto"><table className="w-full text-left text-sm">
+      {/* relative: screen-reader-only labels are absolutely positioned and must stay inside this scroll area on narrow screens */}
+      <div className="relative overflow-x-auto"><table className="w-full text-left text-sm">
         <caption className="sr-only">Audit logs</caption>
         <thead className="bg-slate-50"><tr>{['Log / timestamp', 'Actor / User ID', 'Action / outcome', 'Related resource'].map((title) => <th scope="col" key={title} className="px-5 py-3">{title}</th>)}</tr></thead>
         <tbody>{state.data.items.map((row) => <tr key={row.id} className="border-t border-slate-100 align-top">

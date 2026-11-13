@@ -68,10 +68,23 @@ test('privacy detection blocks common credentials and token URLs while allowing 
   for (const text of ['What is phishing?', 'How do passwords and MFA work?', 'Explain password security.']) assert.equal(containsSecret(text), false);
 });
 
+test('ordinary questions pass input screening; disclosed credentials and one-time codes do not', () => {
+  for (const text of ['What is the status of my incident INC-2026-002920?', 'I think my password is stolen, what should I do?',
+    'My password is weak. How do I make a better one?', "My password isn't working after the reset.", 'Our team has 120000 customers, is that personal data?',
+    'I received an OTP is that normal?', 'The OTP is not arriving on my phone.', 'Is my secret is safe with a password manager?',
+    'Incident INC-2026-000123 and INC-2027-1234567 were closed.', 'I entered my password on a fake page.'])
+    assert.equal(containsSecret(text), false, text);
+  for (const text of ['my password is Summer2024!', 'password is hunter2', 'the password is now Winter25', 'my password is just monkey',
+    'password: weak', 'pwd=stolen', 'My verification code is 482913', 'The code I got was 482913', '482913 is the code from the SMS',
+    'I received a text message with 482913', '482913', 'otp is 482913', 'my secret is tr0ub4dor', "password isn't hunter2 anymore",
+    'reference 482913 token'])
+    assert.equal(containsSecret(text), true, text);
+});
+
 test('generated security education is not a credential assignment; actual secrets still fail', () => {
   for (const text of ['A strong password is long, unique, and hard to guess.', 'MFA helps if a password is stolen.']) {
     assert.equal(containsResponseSecret(text), false);
-    assert.equal(containsSecret(text), true); // Strict input screening is unchanged.
+    assert.equal(containsSecret(text), false); // Describing a credential is not disclosing one.
   }
   for (const text of ['password is SyntheticSecret', 'password: long', 'password is longSecret', 'MFA code: 123456', 'api_key=synthetic', 'A password is strong. Bearer secret-token'])
     assert.equal(containsResponseSecret(text), true);

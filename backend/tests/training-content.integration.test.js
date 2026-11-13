@@ -183,10 +183,16 @@ test('training content provisioning and employee lifecycle', async (t) => {
       assert.equal((await request(`${adminPath()}/review`, { actor: employee, body: { expectedUpdatedAt: draft.updatedAt } })).status, 403);
       assert.equal((await request(`${adminPath()}/review`, { body: { expectedUpdatedAt: draft.updatedAt } })).status, 200);
       const reviewed = (await request(adminPath())).data.program;
-      assert.equal((await request(`${adminPath()}/publish`, { body: { expectedUpdatedAt: reviewed.updatedAt } })).status, 200);
+      // BUG-008: the quiz must be approved before the course is published, and published before assignment.
+      assert.equal(reviewed.courseQuizStatus, 'DRAFT');
+      assert.equal((await request(`${adminPath()}/publish`, { body: { expectedUpdatedAt: reviewed.updatedAt } })).status, 409);
       const quiz = (await request(`${adminPath()}/quiz`)).data.quiz;
       const approved = await request(`${adminPath()}/quiz/approve`, { body: { expectedUpdatedAt: quiz.updatedAt } });
+      assert.equal(approved.status, 200);
+      assert.equal((await request(`${adminPath()}/publish`, { body: { expectedUpdatedAt: reviewed.updatedAt } })).status, 200);
+      assert.equal((await request(`${adminPath()}/assignments`, { body: { employeeId: employee.id } })).status, 409);
       assert.equal((await request(`${adminPath()}/quiz/publish`, { body: { expectedUpdatedAt: approved.data.quiz.updatedAt } })).status, 200);
+      assert.equal((await request(adminPath())).data.program.courseQuizStatus, 'PUBLISHED');
       assert.equal((await request(`${adminPath()}/assignments`, { body: { employeeId: employee.id } })).status, 200);
     });
 

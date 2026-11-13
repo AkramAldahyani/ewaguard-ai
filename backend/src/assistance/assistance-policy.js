@@ -1,4 +1,6 @@
-export const INCIDENT_ASSISTANCE_VERSION = '1.0';
+export const INCIDENT_ASSISTANCE_VERSION = '1.1';
+// Saved guidance from earlier versions remains readable; see legacyTexts below.
+export const SUPPORTED_ASSISTANCE_VERSIONS = Object.freeze(['1.0', INCIDENT_ASSISTANCE_VERSION]);
 
 function freeze(value) {
   for (const child of Object.values(value)) if (child && typeof child === 'object') freeze(child);
@@ -32,8 +34,8 @@ export const ASSISTANCE_POLICY = freeze({
   escalation: {
     NONE: 'Independent verification is the next step. Use the approved IT/security channel if new concerns arise.',
     OPTIONAL: 'Contact IT/security if the source cannot be verified or uncertainty remains.',
-    RECOMMENDED: 'Contact IT/security through the approved reporting channel. Administrator notifications are not enabled.',
-    URGENT: 'Contact IT/security urgently through the approved reporting channel. Administrator notifications are not enabled.',
+    RECOMMENDED: 'Contact IT/security through the approved reporting channel. When an incident is recorded, the security team is alerted automatically; the incident receipt shows its reference.',
+    URGENT: 'Contact IT/security urgently through the approved reporting channel. When an incident is recorded, the security team is alerted automatically; the incident receipt shows its reference.',
   },
   actions: {
     NORMAL_CAUTION: 'Continue with normal caution.',
@@ -124,5 +126,14 @@ export const ASSISTANCE_POLICY = freeze({
     summary: 'Reported suspected execution or compromise requires immediate attention even when the analyzer risk is lower. Stop interaction and follow company containment procedures.' },
   urgencyOrder: ['ROUTINE', 'CAUTION', 'URGENT', 'IMMEDIATE'],
   unknownReasonText: 'Some risk reasons are not covered by this guidance policy. Verify independently or contact IT/security.',
-  disclaimer: 'Guidance only. Check the separate incident receipt for recording status. Administrator notifications and automated remediation are not enabled. Use your organization\'s approved reporting channel and follow its procedures. Never submit passwords, MFA codes, or restricted evidence.',
+  disclaimer: 'Guidance only. Check the separate incident receipt for recording status; the security team is alerted automatically when an incident is recorded. No automated remediation is performed. Use your organization\'s approved reporting channel and follow its procedures. Never submit passwords, MFA codes, or restricted evidence.',
+  // Version 1.0 wording said administrator notifications were not enabled, which became false once incident
+  // alerts shipped. Saved 1.0 guidance is shown with the corrected text for the same key instead.
+  legacyTexts: {
+    escalation: {
+      RECOMMENDED: 'Contact IT/security through the approved reporting channel. Administrator notifications are not enabled.',
+      URGENT: 'Contact IT/security urgently through the approved reporting channel. Administrator notifications are not enabled.',
+    },
+    disclaimer: 'Guidance only. Check the separate incident receipt for recording status. Administrator notifications and automated remediation are not enabled. Use your organization\'s approved reporting channel and follow its procedures. Never submit passwords, MFA codes, or restricted evidence.',
+  },
 });

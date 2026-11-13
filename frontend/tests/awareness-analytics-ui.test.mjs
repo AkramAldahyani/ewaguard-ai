@@ -9,6 +9,7 @@ import { validateAwarenessFilters } from '../src/features/analytics/awareness-an
 
 const programId = '123e4567-e89b-42d3-a456-426614174201';
 const departmentId = '123e4567-e89b-42d3-a456-426614174202';
+const otherProgramId = '123e4567-e89b-42d3-a456-426614174203';
 const data = {
   generatedAt: '2091-02-28T12:00:00Z', range: { period: 'custom', start: '2091-01-01', end: '2091-02-28', days: 59, timezone: 'UTC' },
   filterOptions: { departments: [{ id: departmentId, name: 'Operations' }], departmentsTruncated: false },
@@ -56,11 +57,12 @@ test('Phase 13C2 administrator awareness interface', async (t) => {
     await screen.findByRole('heading', { name: 'Monthly quiz trend' });
     assert.equal(calls[0][0], '/api/admin/analytics/awareness?period=90d');
     assert.equal(calls[0][1].credentials, 'include');
-    const cards = screen.getByRole('region', { name: 'Awareness metrics' });
-    for (const [title, value] of [['Training assignments', '10'], ['Completion rate', '60%'], ['Completed during period', '7'],
-      ['Course quiz attempts', '9'], ['Course mean score', '78.5%'], ['Monthly participation', '8 / 12'],
-      ['Monthly mean best score', '72.5%'], ['Certificates issued', '5']])
-      assert.equal(within(within(cards).getByText(title).closest('section')).getByText(value).textContent, value);
+    const groups = { 'Training metrics': [['Training assignments', '10'], ['Completion rate', '60%'], ['Completed during period', '7'], ['Certificates issued', '5']],
+      'Assessment metrics': [['Course quiz attempts', '9'], ['Course mean score', '78.5%'], ['Monthly participation', '8 / 12'], ['Monthly mean best score', '72.5%']] };
+    for (const [name, rows] of Object.entries(groups)) {
+      const group = within(screen.getByRole('group', { name }));
+      for (const [title, value] of rows) assert.equal(within(group.getByText(title).closest('section')).getByText(value).textContent, value);
+    }
     assert.ok(screen.getByRole('list', { name: 'Training assignment status' }));
     assert.ok(screen.getByRole('list', { name: 'Completion by training program' }));
     assert.ok(screen.getByRole('img', { name: /Average score trend for 2 scored months/ }));
@@ -72,29 +74,40 @@ test('Phase 13C2 administrator awareness interface', async (t) => {
     assert.match(dom.window.document.body.textContent, /2091-01-01 through 2091-02-28|current/);
   });
 
-  await t.test('filters use backend parameters, program search and reset', async () => {
+  await t.test('filters offer exactly four controls, list programs on load, bound the quiz month and reset', async () => {
     const calls = [];
-    globalThis.fetch = async (path) => { calls.push(path); return path.startsWith('/api/admin/training?') ? reply({ items: [{ id: programId, title: 'Phishing basics' }], hasMore: false }) : reply(data); };
+    globalThis.fetch = async (path) => { calls.push(path); return path.startsWith('/api/admin/training?') ? reply({ items: [{ id: programId, title: 'Phishing basics' }, { id: otherProgramId, title: 'Safe browsing' }], hasMore: false }) : reply(data); };
     mount(); await screen.findByRole('heading', { name: 'Monthly quiz trend' });
-    fireEvent.change(screen.getByLabelText('Find a training program'), { target: { value: 'phishing' } });
-    fireEvent.click(screen.getByRole('button', { name: 'Search programs' }));
-    await waitFor(() => assert.ok(calls.some((path) => path.includes('/api/admin/training?sort=title_asc&pageSize=50&search=phishing'))));
+    await waitFor(() => assert.ok(calls.includes('/api/admin/training?sort=title_asc&pageSize=50')));
+    await screen.findByRole('option', { name: 'Safe browsing' });
+    assert.equal(screen.queryByLabelText('Department'), null);
+    assert.equal(screen.queryByLabelText(/Find a training program/), null);
+    assert.equal(screen.queryByRole('button', { name: 'Search programs' }), null);
+    const form = screen.getByRole('button', { name: 'Apply filters' }).closest('form');
+    assert.equal(form.querySelectorAll('select, input').length, 3, 'period, program and status selects only');
+    assert.ok(screen.getByRole('button', { name: /Monthly quiz period/ }), 'the fourth control is the month picker');
     fireEvent.change(screen.getByLabelText('Reporting period'), { target: { value: 'custom' } });
     fireEvent.change(screen.getByLabelText('Start date (UTC)'), { target: { value: '2091-01-01' } });
     fireEvent.change(screen.getByLabelText('End date (UTC)'), { target: { value: '2091-02-28' } });
     fireEvent.change(screen.getByLabelText('Training program'), { target: { value: programId } });
-    fireEvent.change(screen.getByLabelText('Department'), { target: { value: departmentId } });
     fireEvent.change(screen.getByLabelText('Training completion status'), { target: { value: 'COMPLETED' } });
-    fireEvent.change(screen.getByLabelText('Monthly quiz period'), { target: { value: '2091-02' } });
+    fireEvent.click(screen.getByRole('button', { name: /Monthly quiz period/ }));
+    const dialog = screen.getByRole('dialog', { name: 'Choose monthly quiz period' });
+    assert.ok(within(dialog).getByRole('group', { name: 'Months in 2091' }), 'the picker opens on the reporting window');
+    assert.equal(within(dialog).getByRole('button', { name: /^March 2091/ }).disabled, true, 'months outside the window are unavailable');
+    fireEvent.click(within(dialog).getByRole('button', { name: /^February 2091/ }));
     fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
-    await waitFor(() => assert.ok(calls.some((path) => path.includes(`period=custom&start=2091-01-01&end=2091-02-28&programId=${programId}&departmentId=${departmentId}&completionStatus=COMPLETED&monthlyPeriod=2091-02`))));
+    await waitFor(() => assert.ok(calls.some((path) => path.includes(`period=custom&start=2091-01-01&end=2091-02-28&programId=${programId}&completionStatus=COMPLETED&monthlyPeriod=2091-02`))));
+    await screen.findByRole('heading', { name: 'Monthly quiz trend' });
+    const summary = screen.getByText(/Reporting window/).closest('[role="status"]').textContent;
+    for (const chip of ['Phishing basics', 'Completed', 'February 2091']) assert.match(summary, new RegExp(chip));
     fireEvent.click(screen.getByRole('button', { name: 'Reset filters' }));
     await waitFor(() => assert.equal(calls.filter((path) => path === '/api/admin/analytics/awareness?period=90d').length, 2));
   });
 
   await t.test('invalid date inputs do not fetch, and stale results cannot overwrite newer filters', async () => {
     const late = deferred(), calls = [];
-    globalThis.fetch = (path) => { calls.push(path); return calls.length === 1 ? late.promise : Promise.resolve(reply({ ...data, training: { ...data.training, assignments: 21 } })); };
+    globalThis.fetch = (path) => { if (path.startsWith('/api/admin/training?')) return Promise.resolve(reply({ items: [], hasMore: false })); calls.push(path); return calls.length === 1 ? late.promise : Promise.resolve(reply({ ...data, training: { ...data.training, assignments: 21 } })); };
     mount();
     fireEvent.change(screen.getByLabelText('Reporting period'), { target: { value: 'custom' } });
     fireEvent.click(screen.getByRole('button', { name: 'Apply filters' }));
@@ -110,7 +123,7 @@ test('Phase 13C2 administrator awareness interface', async (t) => {
     await waitFor(() => assert.ok(calls.includes('/api/admin/analytics/awareness?period=30d')));
     await screen.findByRole('heading', { name: 'Monthly quiz trend' });
     late.resolve(reply(data));
-    await waitFor(() => assert.equal(within(screen.getByRole('region', { name: 'Awareness metrics' })).getByText('21').textContent, '21'));
+    await waitFor(() => assert.equal(within(screen.getByRole('group', { name: 'Training metrics' })).getByText('21').textContent, '21'));
   });
 
   await t.test('empty, suppression, errors, retry and authorization failures clear private content', async () => {

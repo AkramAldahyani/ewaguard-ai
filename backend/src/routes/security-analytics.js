@@ -12,12 +12,14 @@ export function createSecurityAnalyticsRouter({ database, config }) {
     createTrustedOrigin(config.trustedOrigins));
   router.use(rateLimit({ windowMs: 60_000, limit: 30, keyGenerator: (req) => req.user.id,
     message: { error: { code: 'SECURITY_ANALYTICS_RATE_LIMIT', message: 'Too many analytics requests. Try again shortly.' } } }));
-  router.get('/security', async (req, res, next) => {
-    try { return res.json(await service.overview(req.query)); }
+  const respond = (load) => async (req, res, next) => {
+    try { return res.json(await load(req.query)); }
     catch (error) {
       if (error instanceof SecurityAnalyticsError) return res.status(error.status).json({ error: { code: error.code, message: error.message } });
       return next(error);
     }
-  });
+  };
+  router.get('/security', respond((query) => service.overview(query)));
+  router.get('/security/analyses', respond((query) => service.recentAnalyses(query)));
   return router;
 }
