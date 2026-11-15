@@ -28,7 +28,7 @@ export async function authenticateCredentials(database, email, password) {
     where: { email: email.trim().toLowerCase() },
     include: { role: true, department: true },
   });
-  const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? await dummyHash);
+  const passwordMatches = await bcrypt.compare(password, user?.passwordHash ?? (await dummyHash));
   if (!user || !passwordMatches || user.status !== 'ACTIVE' || user.deactivatedAt || user.deletedAt) return null;
   return { user: toSafeUser(user), credentialHash: user.passwordHash, sessionVersion: user.sessionVersion };
 }
@@ -37,7 +37,8 @@ export async function findActiveUser(database, id, mfaProof, sessionVersion) {
   const user = await database.user.findUnique({ where: { id }, select: safeUserSelect });
   if (!user || user.status !== 'ACTIVE' || user.deactivatedAt || user.deletedAt) return null;
   if (sessionVersion !== undefined && user.sessionVersion !== sessionVersion) return null;
-  if (user.role.name === 'IT_SECURITY_ADMIN' && (!user.mfaEnabledAt || mfaProof !== user.mfaEnabledAt.toISOString())) return null;
+  if (user.role.name === 'IT_SECURITY_ADMIN' && (!user.mfaEnabledAt || mfaProof !== user.mfaEnabledAt.toISOString()))
+    return null;
   return toSafeUser(user);
 }
 

@@ -11,64 +11,613 @@ const api = createTrainingApi(true);
 const field = 'block text-sm font-semibold text-slate-700';
 const control = 'mt-2';
 export function QuizQuestionEditor({ question, index, count, disabled, update, move, remove }) {
-  const changeOption = (optionIndex, patch) => update({ ...question, options: question.options.map((option, i) => i === optionIndex ? { ...option, ...patch } : option) });
-  return <Card className="p-5 sm:p-6"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="font-bold text-slate-900">Question {index + 1}</h3><div className="flex flex-wrap gap-1"><Button size="sm" variant="ghost" disabled={disabled || index === 0} onClick={() => move(-1)} aria-label={`Move question ${index + 1} up`}>↑ Up</Button><Button size="sm" variant="ghost" disabled={disabled || index === count - 1} onClick={() => move(1)} aria-label={`Move question ${index + 1} down`}>↓ Down</Button><Button size="sm" variant="ghost" disabled={disabled || count === 1} onClick={remove} aria-label={`Remove question ${index + 1}`}>Remove</Button></div></div>
-    <div className="mt-5 grid gap-4 sm:grid-cols-2"><label className={field} htmlFor={`quiz-type-${index}`}>Question type<Select id={`quiz-type-${index}`} className={control} value={question.type} disabled={disabled} onChange={(event) => update({ ...question, type: event.target.value, options: event.target.value === 'TRUE_FALSE' ? [{ text: 'True', isCorrect: true }, { text: 'False', isCorrect: false }] : question.options })}><option value="MULTIPLE_CHOICE">Multiple choice</option><option value="TRUE_FALSE">True / false</option></Select></label><label className={field} htmlFor={`quiz-points-${index}`}>Points<Input id={`quiz-points-${index}`} className={control} type="number" min="1" max="20" value={question.points} disabled={disabled} onChange={(event) => update({ ...question, points: event.target.value })} /></label></div>
-    <label className={`${field} mt-4`} htmlFor={`quiz-question-${index}`}>Question text<Textarea id={`quiz-question-${index}`} className={control} maxLength={2000} value={question.text} disabled={disabled} onChange={(event) => update({ ...question, text: event.target.value })} /></label>
-    <fieldset className="mt-5"><legend className="text-sm font-semibold text-slate-700">Answer options — select exactly one correct answer</legend><div className="mt-3 space-y-3">{question.options.map((option, optionIndex) => <div key={optionIndex} className="flex items-end gap-2"><label className="flex min-w-0 flex-1 flex-col text-xs font-semibold text-slate-600" htmlFor={`quiz-option-${index}-${optionIndex}`}>Option {optionIndex + 1}<Input id={`quiz-option-${index}-${optionIndex}`} className="mt-1" maxLength={1000} value={option.text} disabled={disabled || question.type === 'TRUE_FALSE'} onChange={(event) => changeOption(optionIndex, { text: event.target.value })} /></label><label className="flex items-center gap-2 pb-3 text-xs font-semibold"><input type="radio" name={`correct-${index}`} checked={option.isCorrect} disabled={disabled} onChange={() => update({ ...question, options: question.options.map((o, i) => ({ ...o, isCorrect: i === optionIndex })) })} />Correct</label>{question.type === 'MULTIPLE_CHOICE' && <Button variant="ghost" disabled={disabled || question.options.length <= 2} onClick={() => update({ ...question, options: question.options.filter((_, i) => i !== optionIndex).map((o, i) => ({ ...o, isCorrect: i === 0 && option.isCorrect ? true : o.isCorrect })) })} aria-label={`Remove option ${optionIndex + 1} from question ${index + 1}`}>Remove</Button>}</div>)}</div>{question.type === 'MULTIPLE_CHOICE' && <Button className="mt-3" variant="secondary" disabled={disabled || question.options.length >= 6} onClick={() => update({ ...question, options: [...question.options, { text: '', isCorrect: false }] })}>Add option</Button>}</fieldset>
-    <label className={`${field} mt-5`} htmlFor={`quiz-explanation-${index}`}>Correct-answer explanation<Textarea id={`quiz-explanation-${index}`} className={control} maxLength={2000} value={question.explanation} disabled={disabled} onChange={(event) => update({ ...question, explanation: event.target.value })} /></label>
-  </Card>;
+  const changeOption = (optionIndex, patch) =>
+    update({
+      ...question,
+      options: question.options.map((option, i) => (i === optionIndex ? { ...option, ...patch } : option)),
+    });
+  return (
+    <Card className="p-5 sm:p-6">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="font-bold text-slate-900">Question {index + 1}</h3>
+        <div className="flex flex-wrap gap-1">
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={disabled || index === 0}
+            onClick={() => move(-1)}
+            aria-label={`Move question ${index + 1} up`}
+          >
+            ↑ Up
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={disabled || index === count - 1}
+            onClick={() => move(1)}
+            aria-label={`Move question ${index + 1} down`}
+          >
+            ↓ Down
+          </Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            disabled={disabled || count === 1}
+            onClick={remove}
+            aria-label={`Remove question ${index + 1}`}
+          >
+            Remove
+          </Button>
+        </div>
+      </div>
+      <div className="mt-5 grid gap-4 sm:grid-cols-2">
+        <label className={field} htmlFor={`quiz-type-${index}`}>
+          Question type
+          <Select
+            id={`quiz-type-${index}`}
+            className={control}
+            value={question.type}
+            disabled={disabled}
+            onChange={(event) =>
+              update({
+                ...question,
+                type: event.target.value,
+                options:
+                  event.target.value === 'TRUE_FALSE'
+                    ? [
+                        { text: 'True', isCorrect: true },
+                        { text: 'False', isCorrect: false },
+                      ]
+                    : question.options,
+              })
+            }
+          >
+            <option value="MULTIPLE_CHOICE">Multiple choice</option>
+            <option value="TRUE_FALSE">True / false</option>
+          </Select>
+        </label>
+        <label className={field} htmlFor={`quiz-points-${index}`}>
+          Points
+          <Input
+            id={`quiz-points-${index}`}
+            className={control}
+            type="number"
+            min="1"
+            max="20"
+            value={question.points}
+            disabled={disabled}
+            onChange={(event) => update({ ...question, points: event.target.value })}
+          />
+        </label>
+      </div>
+      <label className={`${field} mt-4`} htmlFor={`quiz-question-${index}`}>
+        Question text
+        <Textarea
+          id={`quiz-question-${index}`}
+          className={control}
+          maxLength={2000}
+          value={question.text}
+          disabled={disabled}
+          onChange={(event) => update({ ...question, text: event.target.value })}
+        />
+      </label>
+      <fieldset className="mt-5">
+        <legend className="text-sm font-semibold text-slate-700">
+          Answer options — select exactly one correct answer
+        </legend>
+        <div className="mt-3 space-y-3">
+          {question.options.map((option, optionIndex) => (
+            <div key={optionIndex} className="flex items-end gap-2">
+              <label
+                className="flex min-w-0 flex-1 flex-col text-xs font-semibold text-slate-600"
+                htmlFor={`quiz-option-${index}-${optionIndex}`}
+              >
+                Option {optionIndex + 1}
+                <Input
+                  id={`quiz-option-${index}-${optionIndex}`}
+                  className="mt-1"
+                  maxLength={1000}
+                  value={option.text}
+                  disabled={disabled || question.type === 'TRUE_FALSE'}
+                  onChange={(event) => changeOption(optionIndex, { text: event.target.value })}
+                />
+              </label>
+              <label className="flex items-center gap-2 pb-3 text-xs font-semibold">
+                <input
+                  type="radio"
+                  name={`correct-${index}`}
+                  checked={option.isCorrect}
+                  disabled={disabled}
+                  onChange={() =>
+                    update({
+                      ...question,
+                      options: question.options.map((o, i) => ({ ...o, isCorrect: i === optionIndex })),
+                    })
+                  }
+                />
+                Correct
+              </label>
+              {question.type === 'MULTIPLE_CHOICE' && (
+                <Button
+                  variant="ghost"
+                  disabled={disabled || question.options.length <= 2}
+                  onClick={() =>
+                    update({
+                      ...question,
+                      options: question.options
+                        .filter((_, i) => i !== optionIndex)
+                        .map((o, i) => ({ ...o, isCorrect: i === 0 && option.isCorrect ? true : o.isCorrect })),
+                    })
+                  }
+                  aria-label={`Remove option ${optionIndex + 1} from question ${index + 1}`}
+                >
+                  Remove
+                </Button>
+              )}
+            </div>
+          ))}
+        </div>
+        {question.type === 'MULTIPLE_CHOICE' && (
+          <Button
+            className="mt-3"
+            variant="secondary"
+            disabled={disabled || question.options.length >= 6}
+            onClick={() => update({ ...question, options: [...question.options, { text: '', isCorrect: false }] })}
+          >
+            Add option
+          </Button>
+        )}
+      </fieldset>
+      <label className={`${field} mt-5`} htmlFor={`quiz-explanation-${index}`}>
+        Correct-answer explanation
+        <Textarea
+          id={`quiz-explanation-${index}`}
+          className={control}
+          maxLength={2000}
+          value={question.explanation}
+          disabled={disabled}
+          onChange={(event) => update({ ...question, explanation: event.target.value })}
+        />
+      </label>
+    </Card>
+  );
 }
 export function QuizPreview({ draft, showKeys }) {
-  return <div className="space-y-4"><Card className="border-brand-200 bg-brand-50 p-5"><h3 className="text-lg font-bold">{draft.title || 'Untitled quiz'}</h3><p className="mt-1 text-sm">Pass at {draft.passingPercent}% · Up to {countLabel(draft.maxAttempts, 'attempt')} · {countLabel(draft.questions.length, 'question')}</p><p className="mt-2 text-xs">Administrator preview only. Answers are never sent to employees before submission.</p></Card>{draft.questions.map((q, index) => <Card key={index} className="p-5"><h4 className="font-bold">{index + 1}. {q.text || 'Untitled question'} <span className="text-xs font-normal text-slate-500">({countLabel(q.points, 'point')})</span></h4><ol className="mt-3 space-y-2">{q.options.map((o, i) => <li key={i} className={`rounded-lg border p-3 text-sm ${showKeys && o.isCorrect ? 'border-success-300 bg-success-50' : 'border-slate-200'}`}>{o.text || `Option ${i + 1}`}{showKeys && o.isCorrect ? ' — Correct' : ''}</li>)}</ol>{showKeys && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">Explanation: {q.explanation}</p>}</Card>)}</div>;
+  return (
+    <div className="space-y-4">
+      <Card className="border-brand-200 bg-brand-50 p-5">
+        <h3 className="text-lg font-bold">{draft.title || 'Untitled quiz'}</h3>
+        <p className="mt-1 text-sm">
+          Pass at {draft.passingPercent}% · Up to {countLabel(draft.maxAttempts, 'attempt')} ·{' '}
+          {countLabel(draft.questions.length, 'question')}
+        </p>
+        <p className="mt-2 text-xs">
+          Administrator preview only. Answers are never sent to employees before submission.
+        </p>
+      </Card>
+      {draft.questions.map((q, index) => (
+        <Card key={index} className="p-5">
+          <h4 className="font-bold">
+            {index + 1}. {q.text || 'Untitled question'}{' '}
+            <span className="text-xs font-normal text-slate-500">({countLabel(q.points, 'point')})</span>
+          </h4>
+          <ol className="mt-3 space-y-2">
+            {q.options.map((o, i) => (
+              <li
+                key={i}
+                className={`rounded-lg border p-3 text-sm ${showKeys && o.isCorrect ? 'border-success-300 bg-success-50' : 'border-slate-200'}`}
+              >
+                {o.text || `Option ${i + 1}`}
+                {showKeys && o.isCorrect ? ' — Correct' : ''}
+              </li>
+            ))}
+          </ol>
+          {showKeys && <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">Explanation: {q.explanation}</p>}
+        </Card>
+      ))}
+    </div>
+  );
 }
 export function AdminQuizPanel({ program, onStatusChange }) {
-  const [quiz, setQuiz] = useState(null), [draft, setDraft] = useState(blankQuiz), [latest, setLatest] = useState(null);
-  const [loading, setLoading] = useState(true), [error, setError] = useState(''), [notice, setNotice] = useState('');
-  const [busy, setBusy] = useState(false), [stale, setStale] = useState(false), [view, setView] = useState('editor');
-  const [confirm, setConfirm] = useState(null), [page, setPage] = useState(1), [report, setReport] = useState(null);
-  const [reportError, setReportError] = useState(''), [reportLoading, setReportLoading] = useState(false), [reportRevision, setReportRevision] = useState(0);
+  const [quiz, setQuiz] = useState(null),
+    [draft, setDraft] = useState(blankQuiz),
+    [latest, setLatest] = useState(null);
+  const [loading, setLoading] = useState(true),
+    [error, setError] = useState(''),
+    [notice, setNotice] = useState('');
+  const [busy, setBusy] = useState(false),
+    [stale, setStale] = useState(false),
+    [view, setView] = useState('editor');
+  const [confirm, setConfirm] = useState(null),
+    [page, setPage] = useState(1),
+    [report, setReport] = useState(null);
+  const [reportError, setReportError] = useState(''),
+    [reportLoading, setReportLoading] = useState(false),
+    [reportRevision, setReportRevision] = useState(0);
   const busyRef = useRef(false);
   // Lets the course page enable publication and assignment as soon as the quiz is approved or published here.
-  useEffect(() => { if (!loading) onStatusChange?.(quiz?.status ?? null); }, [quiz?.status, loading, onStatusChange]);
-  const load = useCallback(async (discard = true, signal) => { setLoading(true); setError(''); try { const response = await api.quiz(program.id, signal); if (signal?.aborted) return;
-    setQuiz(response.quiz); if (discard) { setDraft(quizDraftFromServer(response.quiz)); setStale(false); setLatest(null); } else setLatest(response.quiz);
-  } catch (failure) { if (failure.name !== 'AbortError') { setError(trainingError(failure)); if ([401, 403, 404].includes(failure.status)) { setQuiz(null); setDraft(blankQuiz()); setLatest(null); } } }
-    finally { if (!signal?.aborted) setLoading(false); } }, [program.id]);
-  useEffect(() => { const controller = new AbortController(); void Promise.resolve().then(() => { if (!controller.signal.aborted) void load(true, controller.signal); }); return () => controller.abort(); }, [load]);
-  useEffect(() => { if (view !== 'attempts' || !quiz) return undefined; const controller = new AbortController(); void Promise.resolve().then(() => { if (!controller.signal.aborted) setReportLoading(true); });
-    api.quizAttempts(program.id, { page, pageSize: 20 }, controller.signal).then((result) => { setReport(result); setReportError(''); }).catch((failure) => { if (failure.name !== 'AbortError') { setReportError(trainingError(failure)); if ([401, 403].includes(failure.status)) { setReport(null); setQuiz(null); setDraft(blankQuiz()); setError(trainingError(failure)); } } }).finally(() => { if (!controller.signal.aborted) setReportLoading(false); });
-    return () => controller.abort(); }, [view, quiz, program.id, page, reportRevision]);
-  const changeQuestion = (index, question) => setDraft((current) => ({ ...current, questions: current.questions.map((q, i) => i === index ? question : q) }));
-  const moveQuestion = (index, offset) => setDraft((current) => { const questions = [...current.questions]; [questions[index], questions[index + offset]] = [questions[index + offset], questions[index]]; return { ...current, questions }; });
-  async function save(event) { event.preventDefault(); if (busyRef.current || stale) return; const problem = validateQuizDraft(draft); if (problem) { setError(problem); return; }
-    busyRef.current = true; setBusy(true); setError(''); setNotice(''); try { const body = { ...quizBody(draft), ...(quiz ? { expectedUpdatedAt: quiz.updatedAt } : {}) };
-      const response = await api.saveQuiz(program.id, body, Boolean(quiz)); setQuiz(response.quiz); setDraft(quizDraftFromServer(response.quiz)); setNotice('Quiz draft saved. Review it before publication.');
-    } catch (failure) { if (failure.status === 409 && failure.code === 'TRAINING_STALE') { setStale(true); setNotice('Another administrator changed this quiz. Your unsaved questions remain here.'); await load(false); }
-      else { setError(trainingError(failure)); if ([401, 403].includes(failure.status)) { setQuiz(null); setDraft(blankQuiz()); } } }
-    finally { busyRef.current = false; setBusy(false); } }
-  async function action(actionName) { if (!quiz || busyRef.current || stale) return; busyRef.current = true; setBusy(true); setError(''); try {
-    const response = await api.quizAction(program.id, actionName, quiz.updatedAt); setQuiz(response.quiz); setDraft(quizDraftFromServer(response.quiz)); setNotice(actionName === 'approve' ? 'Quiz reviewed and approved. Publish it when the course is published.' : 'Quiz published. Assigned employees can take it after completing the reading.');
-  } catch (failure) { if (failure.status === 409 && failure.code === 'TRAINING_STALE') { setStale(true); setNotice('Another administrator changed this quiz. Review the latest version.'); await load(false); }
-    else { setError(trainingError(failure)); if ([401, 403].includes(failure.status)) { setQuiz(null); setDraft(blankQuiz()); } } }
-    finally { busyRef.current = false; setBusy(false); } }
-  const editable = !quiz || quiz.status === 'DRAFT'; const locked = busy || stale || program.status === 'ARCHIVED';
+  useEffect(() => {
+    if (!loading) onStatusChange?.(quiz?.status ?? null);
+  }, [quiz?.status, loading, onStatusChange]);
+  const load = useCallback(
+    async (discard = true, signal) => {
+      setLoading(true);
+      setError('');
+      try {
+        const response = await api.quiz(program.id, signal);
+        if (signal?.aborted) return;
+        setQuiz(response.quiz);
+        if (discard) {
+          setDraft(quizDraftFromServer(response.quiz));
+          setStale(false);
+          setLatest(null);
+        } else setLatest(response.quiz);
+      } catch (failure) {
+        if (failure.name !== 'AbortError') {
+          setError(trainingError(failure));
+          if ([401, 403, 404].includes(failure.status)) {
+            setQuiz(null);
+            setDraft(blankQuiz());
+            setLatest(null);
+          }
+        }
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [program.id],
+  );
+  useEffect(() => {
+    const controller = new AbortController();
+    void Promise.resolve().then(() => {
+      if (!controller.signal.aborted) void load(true, controller.signal);
+    });
+    return () => controller.abort();
+  }, [load]);
+  useEffect(() => {
+    if (view !== 'attempts' || !quiz) return undefined;
+    const controller = new AbortController();
+    void Promise.resolve().then(() => {
+      if (!controller.signal.aborted) setReportLoading(true);
+    });
+    api
+      .quizAttempts(program.id, { page, pageSize: 20 }, controller.signal)
+      .then((result) => {
+        setReport(result);
+        setReportError('');
+      })
+      .catch((failure) => {
+        if (failure.name !== 'AbortError') {
+          setReportError(trainingError(failure));
+          if ([401, 403].includes(failure.status)) {
+            setReport(null);
+            setQuiz(null);
+            setDraft(blankQuiz());
+            setError(trainingError(failure));
+          }
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setReportLoading(false);
+      });
+    return () => controller.abort();
+  }, [view, quiz, program.id, page, reportRevision]);
+  const changeQuestion = (index, question) =>
+    setDraft((current) => ({ ...current, questions: current.questions.map((q, i) => (i === index ? question : q)) }));
+  const moveQuestion = (index, offset) =>
+    setDraft((current) => {
+      const questions = [...current.questions];
+      [questions[index], questions[index + offset]] = [questions[index + offset], questions[index]];
+      return { ...current, questions };
+    });
+  async function save(event) {
+    event.preventDefault();
+    if (busyRef.current || stale) return;
+    const problem = validateQuizDraft(draft);
+    if (problem) {
+      setError(problem);
+      return;
+    }
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const body = { ...quizBody(draft), ...(quiz ? { expectedUpdatedAt: quiz.updatedAt } : {}) };
+      const response = await api.saveQuiz(program.id, body, Boolean(quiz));
+      setQuiz(response.quiz);
+      setDraft(quizDraftFromServer(response.quiz));
+      setNotice('Quiz draft saved. Review it before publication.');
+    } catch (failure) {
+      if (failure.status === 409 && failure.code === 'TRAINING_STALE') {
+        setStale(true);
+        setNotice('Another administrator changed this quiz. Your unsaved questions remain here.');
+        await load(false);
+      } else {
+        setError(trainingError(failure));
+        if ([401, 403].includes(failure.status)) {
+          setQuiz(null);
+          setDraft(blankQuiz());
+        }
+      }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+  async function action(actionName) {
+    if (!quiz || busyRef.current || stale) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const response = await api.quizAction(program.id, actionName, quiz.updatedAt);
+      setQuiz(response.quiz);
+      setDraft(quizDraftFromServer(response.quiz));
+      setNotice(
+        actionName === 'approve'
+          ? 'Quiz reviewed and approved. Publish it when the course is published.'
+          : 'Quiz published. Assigned employees can take it after completing the reading.',
+      );
+    } catch (failure) {
+      if (failure.status === 409 && failure.code === 'TRAINING_STALE') {
+        setStale(true);
+        setNotice('Another administrator changed this quiz. Review the latest version.');
+        await load(false);
+      } else {
+        setError(trainingError(failure));
+        if ([401, 403].includes(failure.status)) {
+          setQuiz(null);
+          setDraft(blankQuiz());
+        }
+      }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+  const editable = !quiz || quiz.status === 'DRAFT';
+  const locked = busy || stale || program.status === 'ARCHIVED';
   const dirty = quiz && JSON.stringify(draft) !== JSON.stringify(quizDraftFromServer(quiz));
-  if (!program.requiresQuiz) return <Card className="p-6"><h2 className="font-bold">No assessment required</h2><p className="mt-2 text-sm text-slate-600">This course completes after its reading sections.</p></Card>;
-  return <div className="space-y-5"><TrainingFeedback loading={loading && !quiz} error={error && !quiz ? error : ''} retry={() => load(true)} />
-    {!loading && (!error || quiz) && <><Card className="p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><h2 className="text-xl font-bold">Course assessment</h2><p className="mt-1 text-sm text-slate-600">Human-authored questions are reviewed explicitly before employees can see them.</p></div><TrainingBadge status={quiz?.status ?? 'DRAFT'} /></div>{quiz && <p className="mt-3 text-xs text-slate-500">Version {quiz.version} · Updated {formatDate(quiz.updatedAt)}</p>}<div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Quiz workspace views"><Button variant={view === 'editor' ? 'primary' : 'secondary'} onClick={() => setView('editor')}>{editable ? 'Edit questions' : 'Quiz details'}</Button><Button variant={view === 'preview' ? 'primary' : 'secondary'} onClick={() => setView('preview')}>Preview quiz</Button>{quiz && <Button variant={view === 'attempts' ? 'primary' : 'secondary'} onClick={() => setView('attempts')}>Employee attempts</Button>}</div></Card>
-      {quiz && program.status !== 'ARCHIVED' && <PublicationControls className="mb-0" headingLevel={3} status={quiz.status} description="Save all changes and preview the answer key before approval."
-        footnote={quiz.status === 'APPROVED' && program.status !== 'PUBLISHED' ? 'Publish the training program first.' : null}>
-        {quiz.status === 'DRAFT' && <Button variant="secondary" disabled={locked || dirty} onClick={() => setConfirm('approve')}>Review and approve quiz</Button>}{quiz.status === 'APPROVED' && <Button disabled={locked || program.status !== 'PUBLISHED'} onClick={() => setConfirm('publish')}>Publish quiz</Button>}
-      </PublicationControls>}
-      {notice && <p role="status" className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900">{notice}</p>}{error && <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-800">{error}</p>}
-      {stale && <Card className="border-warning-300 bg-warning-50 p-5"><p role="alert" className="text-sm font-semibold text-warning-900">Your local quiz draft is preserved. The server version changed; it cannot be overwritten.</p><Button className="mt-3" variant="secondary" onClick={() => { setQuiz(latest); setDraft(quizDraftFromServer(latest)); setStale(false); setLatest(null); setNotice('Latest quiz loaded.'); }}>Discard local quiz draft and load latest</Button></Card>}
-      {view === 'editor' && (editable ? <form className="space-y-5" onSubmit={save} noValidate><Card className="p-5 sm:p-6"><div className="grid gap-4 sm:grid-cols-3"><label className={`${field} sm:col-span-3`} htmlFor="quiz-title">Quiz title<Input id="quiz-title" className={control} maxLength={200} value={draft.title} disabled={locked} onChange={(event) => setDraft({ ...draft, title: event.target.value })} /></label><label className={field} htmlFor="quiz-threshold">Passing threshold (%)<Input id="quiz-threshold" className={control} type="number" min="1" max="100" value={draft.passingPercent} disabled={locked} onChange={(event) => setDraft({ ...draft, passingPercent: event.target.value })} /></label><label className={field} htmlFor="quiz-attempt-limit">Maximum attempts<Input id="quiz-attempt-limit" className={control} type="number" min="1" max="10" value={draft.maxAttempts} disabled={locked} onChange={(event) => setDraft({ ...draft, maxAttempts: event.target.value })} /></label></div></Card>
-        {draft.questions.map((question, index) => <QuizQuestionEditor key={index} question={question} index={index} count={draft.questions.length} disabled={locked} update={(updated) => changeQuestion(index, updated)} move={(offset) => moveQuestion(index, offset)} remove={() => setDraft((current) => ({ ...current, questions: current.questions.filter((_, i) => i !== index) }))} />)}<div className="flex flex-wrap items-center gap-3"><Button variant="secondary" disabled={locked || draft.questions.length >= 30} onClick={() => setDraft((current) => ({ ...current, questions: [...current.questions, blankQuestion()] }))}>Add question</Button><Button type="submit" disabled={locked}>{busy ? 'Saving…' : quiz ? 'Save quiz draft' : 'Create quiz draft'}</Button>{dirty && <span className="text-xs text-slate-600">Unsaved changes</span>}</div></form> : <QuizPreview draft={quizDraftFromServer(quiz)} showKeys />)}
-      {view === 'preview' && <QuizPreview draft={draft} showKeys />}
-      {view === 'attempts' && <Card className="p-5 sm:p-6"><div className="flex flex-wrap justify-between gap-3"><h3 className="text-lg font-bold">Employee attempt report</h3><Button variant="secondary" onClick={() => setReportRevision((value) => value + 1)}>Refresh report</Button></div><TrainingFeedback loading={reportLoading} error={reportError} retry={() => setReportRevision((value) => value + 1)} empty={report?.items.length === 0} emptyTitle="No attempts recorded" />{report?.items.length > 0 && <><div className="mt-4 space-y-3">{report.items.map((a) => <article key={a.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-4 text-sm"><div><p className="font-semibold">{a.employee.firstName} {a.employee.lastName}</p><p className="text-xs text-slate-500">Attempt {a.attemptNumber} · {formatDate(a.submittedAt ?? a.startedAt)}</p></div><div className="text-right"><strong>{a.status === 'SUBMITTED' ? `${a.scorePercent}%` : 'In progress'}</strong><p className="text-xs text-slate-600">{a.status === 'SUBMITTED' ? a.passed ? 'Passed' : 'Not passed' : 'No score yet'}</p></div></article>)}</div><TrainingPager result={report} onChange={setPage} /></>}</Card>}
-
-    </>}
-    <ConfirmDialog open={Boolean(confirm)} onClose={() => setConfirm(null)} onConfirm={() => { const actionName = confirm; setConfirm(null); void action(actionName); }} title={confirm === 'approve' ? 'Approve this quiz?' : 'Publish this quiz?'} description={confirm === 'approve' ? 'This records explicit review and locks the current questions and answers.' : 'The assessment becomes available to assigned employees after they complete course reading.'} confirmLabel={confirm === 'approve' ? 'Approve quiz' : 'Publish quiz'} />
-  </div>;
+  if (!program.requiresQuiz)
+    return (
+      <Card className="p-6">
+        <h2 className="font-bold">No assessment required</h2>
+        <p className="mt-2 text-sm text-slate-600">This course completes after its reading sections.</p>
+      </Card>
+    );
+  return (
+    <div className="space-y-5">
+      <TrainingFeedback loading={loading && !quiz} error={error && !quiz ? error : ''} retry={() => load(true)} />
+      {!loading && (!error || quiz) && (
+        <>
+          <Card className="p-5 sm:p-6">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-bold">Course assessment</h2>
+                <p className="mt-1 text-sm text-slate-600">
+                  Human-authored questions are reviewed explicitly before employees can see them.
+                </p>
+              </div>
+              <TrainingBadge status={quiz?.status ?? 'DRAFT'} />
+            </div>
+            {quiz && (
+              <p className="mt-3 text-xs text-slate-500">
+                Version {quiz.version} · Updated {formatDate(quiz.updatedAt)}
+              </p>
+            )}
+            <div className="mt-5 flex flex-wrap gap-2" role="group" aria-label="Quiz workspace views">
+              <Button variant={view === 'editor' ? 'primary' : 'secondary'} onClick={() => setView('editor')}>
+                {editable ? 'Edit questions' : 'Quiz details'}
+              </Button>
+              <Button variant={view === 'preview' ? 'primary' : 'secondary'} onClick={() => setView('preview')}>
+                Preview quiz
+              </Button>
+              {quiz && (
+                <Button variant={view === 'attempts' ? 'primary' : 'secondary'} onClick={() => setView('attempts')}>
+                  Employee attempts
+                </Button>
+              )}
+            </div>
+          </Card>
+          {quiz && program.status !== 'ARCHIVED' && (
+            <PublicationControls
+              className="mb-0"
+              headingLevel={3}
+              status={quiz.status}
+              description="Save all changes and preview the answer key before approval."
+              footnote={
+                quiz.status === 'APPROVED' && program.status !== 'PUBLISHED'
+                  ? 'Publish the training program first.'
+                  : null
+              }
+            >
+              {quiz.status === 'DRAFT' && (
+                <Button variant="secondary" disabled={locked || dirty} onClick={() => setConfirm('approve')}>
+                  Review and approve quiz
+                </Button>
+              )}
+              {quiz.status === 'APPROVED' && (
+                <Button disabled={locked || program.status !== 'PUBLISHED'} onClick={() => setConfirm('publish')}>
+                  Publish quiz
+                </Button>
+              )}
+            </PublicationControls>
+          )}
+          {notice && (
+            <p role="status" className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900">
+              {notice}
+            </p>
+          )}
+          {error && (
+            <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-800">
+              {error}
+            </p>
+          )}
+          {stale && (
+            <Card className="border-warning-300 bg-warning-50 p-5">
+              <p role="alert" className="text-sm font-semibold text-warning-900">
+                Your local quiz draft is preserved. The server version changed; it cannot be overwritten.
+              </p>
+              <Button
+                className="mt-3"
+                variant="secondary"
+                onClick={() => {
+                  setQuiz(latest);
+                  setDraft(quizDraftFromServer(latest));
+                  setStale(false);
+                  setLatest(null);
+                  setNotice('Latest quiz loaded.');
+                }}
+              >
+                Discard local quiz draft and load latest
+              </Button>
+            </Card>
+          )}
+          {view === 'editor' &&
+            (editable ? (
+              <form className="space-y-5" onSubmit={save} noValidate>
+                <Card className="p-5 sm:p-6">
+                  <div className="grid gap-4 sm:grid-cols-3">
+                    <label className={`${field} sm:col-span-3`} htmlFor="quiz-title">
+                      Quiz title
+                      <Input
+                        id="quiz-title"
+                        className={control}
+                        maxLength={200}
+                        value={draft.title}
+                        disabled={locked}
+                        onChange={(event) => setDraft({ ...draft, title: event.target.value })}
+                      />
+                    </label>
+                    <label className={field} htmlFor="quiz-threshold">
+                      Passing threshold (%)
+                      <Input
+                        id="quiz-threshold"
+                        className={control}
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={draft.passingPercent}
+                        disabled={locked}
+                        onChange={(event) => setDraft({ ...draft, passingPercent: event.target.value })}
+                      />
+                    </label>
+                    <label className={field} htmlFor="quiz-attempt-limit">
+                      Maximum attempts
+                      <Input
+                        id="quiz-attempt-limit"
+                        className={control}
+                        type="number"
+                        min="1"
+                        max="10"
+                        value={draft.maxAttempts}
+                        disabled={locked}
+                        onChange={(event) => setDraft({ ...draft, maxAttempts: event.target.value })}
+                      />
+                    </label>
+                  </div>
+                </Card>
+                {draft.questions.map((question, index) => (
+                  <QuizQuestionEditor
+                    key={index}
+                    question={question}
+                    index={index}
+                    count={draft.questions.length}
+                    disabled={locked}
+                    update={(updated) => changeQuestion(index, updated)}
+                    move={(offset) => moveQuestion(index, offset)}
+                    remove={() =>
+                      setDraft((current) => ({
+                        ...current,
+                        questions: current.questions.filter((_, i) => i !== index),
+                      }))
+                    }
+                  />
+                ))}
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    variant="secondary"
+                    disabled={locked || draft.questions.length >= 30}
+                    onClick={() =>
+                      setDraft((current) => ({ ...current, questions: [...current.questions, blankQuestion()] }))
+                    }
+                  >
+                    Add question
+                  </Button>
+                  <Button type="submit" disabled={locked}>
+                    {busy ? 'Saving…' : quiz ? 'Save quiz draft' : 'Create quiz draft'}
+                  </Button>
+                  {dirty && <span className="text-xs text-slate-600">Unsaved changes</span>}
+                </div>
+              </form>
+            ) : (
+              <QuizPreview draft={quizDraftFromServer(quiz)} showKeys />
+            ))}
+          {view === 'preview' && <QuizPreview draft={draft} showKeys />}
+          {view === 'attempts' && (
+            <Card className="p-5 sm:p-6">
+              <div className="flex flex-wrap justify-between gap-3">
+                <h3 className="text-lg font-bold">Employee attempt report</h3>
+                <Button variant="secondary" onClick={() => setReportRevision((value) => value + 1)}>
+                  Refresh report
+                </Button>
+              </div>
+              <TrainingFeedback
+                loading={reportLoading}
+                error={reportError}
+                retry={() => setReportRevision((value) => value + 1)}
+                empty={report?.items.length === 0}
+                emptyTitle="No attempts recorded"
+              />
+              {report?.items.length > 0 && (
+                <>
+                  <div className="mt-4 space-y-3">
+                    {report.items.map((a) => (
+                      <article
+                        key={a.id}
+                        className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-4 text-sm"
+                      >
+                        <div>
+                          <p className="font-semibold">
+                            {a.employee.firstName} {a.employee.lastName}
+                          </p>
+                          <p className="text-xs text-slate-500">
+                            Attempt {a.attemptNumber} · {formatDate(a.submittedAt ?? a.startedAt)}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <strong>{a.status === 'SUBMITTED' ? `${a.scorePercent}%` : 'In progress'}</strong>
+                          <p className="text-xs text-slate-600">
+                            {a.status === 'SUBMITTED' ? (a.passed ? 'Passed' : 'Not passed') : 'No score yet'}
+                          </p>
+                        </div>
+                      </article>
+                    ))}
+                  </div>
+                  <TrainingPager result={report} onChange={setPage} />
+                </>
+              )}
+            </Card>
+          )}
+        </>
+      )}
+      <ConfirmDialog
+        open={Boolean(confirm)}
+        onClose={() => setConfirm(null)}
+        onConfirm={() => {
+          const actionName = confirm;
+          setConfirm(null);
+          void action(actionName);
+        }}
+        title={confirm === 'approve' ? 'Approve this quiz?' : 'Publish this quiz?'}
+        description={
+          confirm === 'approve'
+            ? 'This records explicit review and locks the current questions and answers.'
+            : 'The assessment becomes available to assigned employees after they complete course reading.'
+        }
+        confirmLabel={confirm === 'approve' ? 'Approve quiz' : 'Publish quiz'}
+      />
+    </div>
+  );
 }

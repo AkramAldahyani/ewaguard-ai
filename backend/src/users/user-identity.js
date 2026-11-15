@@ -1,6 +1,9 @@
 // Explicit projection for authorized investigation views; never select credentials.
 export const identitySelect = {
-  id: true, employeeIdentifier: true, firstName: true, lastName: true,
+  id: true,
+  employeeIdentifier: true,
+  firstName: true,
+  lastName: true,
   department: { select: { id: true, name: true } },
   role: { select: { name: true } },
 };

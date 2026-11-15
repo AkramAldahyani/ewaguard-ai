@@ -9,7 +9,12 @@ if (!virusTotalApiKey) {
   const provider = createThreatIntelligence({ apiKey: virusTotalApiKey });
   const report = await provider.lookupUrl('https://example.com/');
   const secretExposure = JSON.stringify(report).includes(virusTotalApiKey);
-  console.info(JSON.stringify({ providerReachable: ['AVAILABLE', 'NO_REPORT', 'UNAUTHORIZED', 'RATE_LIMITED'].includes(report.status),
-    normalizedResponseReceived: report.status === 'AVAILABLE', noSecretExposure: !secretExposure }));
+  console.info(
+    JSON.stringify({
+      providerReachable: ['AVAILABLE', 'NO_REPORT', 'UNAUTHORIZED', 'RATE_LIMITED'].includes(report.status),
+      normalizedResponseReceived: report.status === 'AVAILABLE',
+      noSecretExposure: !secretExposure,
+    }),
+  );
   if (report.status !== 'AVAILABLE' || secretExposure) process.exitCode = 1;
 }

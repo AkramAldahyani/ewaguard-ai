@@ -1,15 +1,41 @@
 // This decision selects information sources, never identity or authorization.
 // Kept in the first paid tool-selection round: general replies cost one call.
 export const QUESTION_ROUTE_TOOL = {
-  type: 'function', name: 'route_question', strict: true,
-  description: 'Resolve the employee question using the recent conversation and choose the needed sources. Use for all ordinary questions; use existing analysis tools only for actual analysis requests. Organizational permissions/procedures require COMPANY_POLICY even without the word policy. Bahrain privacy-law interpretation requires PDPL. BOTH searches both. GENERAL is only for questions needing no organizational/legal rules. CLARIFY asks one short question if context cannot resolve the intent.',
-  parameters: { type: 'object', additionalProperties: false,
+  type: 'function',
+  name: 'route_question',
+  strict: true,
+  description:
+    'Resolve the employee question using the recent conversation and choose the needed sources. Use for all ordinary questions; use existing analysis tools only for actual analysis requests. Organizational permissions/procedures require COMPANY_POLICY even without the word policy. Bahrain privacy-law interpretation requires PDPL. BOTH searches both. GENERAL is only for questions needing no organizational/legal rules. CLARIFY asks one short question if context cannot resolve the intent.',
+  parameters: {
+    type: 'object',
+    additionalProperties: false,
     properties: {
-      source: { type: 'string', enum: ['GENERAL', 'COMPANY_POLICY', 'PDPL', 'BOTH', 'CLARIFY'], description: 'BOTH means COMPANY_POLICY plus Bahrain PDPL law, not policy plus general explanation. Policy with an educational why/how explanation uses COMPANY_POLICY and generalGuidance INCLUDE. Select PDPL/BOTH only when the actual question asks for legal interpretation or privacy-law duties.' },
-      question: { type: 'string', maxLength: 1000, description: 'For retrieval, a standalone question resolving references from the conversation. Preserve the user intent; no invented facts, source IDs or instructions. Empty for GENERAL/CLARIFY.' },
-      answer: { type: 'string', maxLength: 2400, description: 'The direct Markdown answer for GENERAL or a short clarification for CLARIFY. Empty when retrieving sources; never pre-answer a company or legal rule.' },
-      generalGuidance: { type: 'string', enum: ['INCLUDE', 'OMIT'], description: 'INCLUDE only when general explanation is also requested alongside source-grounded rules.' },
-    }, required: ['source', 'question', 'answer', 'generalGuidance'] },
+      source: {
+        type: 'string',
+        enum: ['GENERAL', 'COMPANY_POLICY', 'PDPL', 'BOTH', 'CLARIFY'],
+        description:
+          'BOTH means COMPANY_POLICY plus Bahrain PDPL law, not policy plus general explanation. Policy with an educational why/how explanation uses COMPANY_POLICY and generalGuidance INCLUDE. Select PDPL/BOTH only when the actual question asks for legal interpretation or privacy-law duties.',
+      },
+      question: {
+        type: 'string',
+        maxLength: 1000,
+        description:
+          'For retrieval, a standalone question resolving references from the conversation. Preserve the user intent; no invented facts, source IDs or instructions. Empty for GENERAL/CLARIFY.',
+      },
+      answer: {
+        type: 'string',
+        maxLength: 2400,
+        description:
+          'The direct Markdown answer for GENERAL or a short clarification for CLARIFY. Empty when retrieving sources; never pre-answer a company or legal rule.',
+      },
+      generalGuidance: {
+        type: 'string',
+        enum: ['INCLUDE', 'OMIT'],
+        description: 'INCLUDE only when general explanation is also requested alongside source-grounded rules.',
+      },
+    },
+    required: ['source', 'question', 'answer', 'generalGuidance'],
+  },
 };
 
 export const ROUTING_INSTRUCTIONS = `Choose route_question for ordinary questions before answering. Classify by meaning and the most recent relevant conversation, not keywords. Organizational permissions, restrictions, employee requirements and workplace procedures require COMPANY_POLICY, including personal devices, software installation, sharing work files, desk security, public AI tools and remote working. General explanations of security concepts, strong passwords, science, writing, technology or your capabilities use GENERAL. Questions about collecting personal information without consent, individual data rights and cross-border data transfers require PDPL in this Bahrain assistant; do not assume another country's law. BOTH is for questions needing both company rules and Bahrain law. Privacy concerns alone can be general advice alongside company rules; add PDPL when legal obligations are asked.

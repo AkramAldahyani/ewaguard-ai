@@ -1,5 +1,11 @@
 export const TYPEWRITER_TIMING = Object.freeze({
-  typeMs: 42, punctuationPauseMs: 180, eraseMs: 20, gapMs: 450, minHoldMs: 3200, maxHoldMs: 7000, holdPerWordMs: 330,
+  typeMs: 42,
+  punctuationPauseMs: 180,
+  eraseMs: 20,
+  gapMs: 450,
+  minHoldMs: 3200,
+  maxHoldMs: 7000,
+  holdPerWordMs: 330,
 });
 
 // Reading time scales with sentence length so short tips do not linger and long tips stay readable.

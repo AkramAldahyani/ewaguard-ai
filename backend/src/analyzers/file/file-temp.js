@@ -9,8 +9,13 @@ export function createFileTempStore(root = FILE_TEMP_ROOT, io = fs) {
   const prepare = async () => {
     await io.mkdir(absoluteRoot, { recursive: true, mode: 0o700 });
     const stat = await io.lstat(absoluteRoot);
-    const compare = (value) => process.platform === 'win32' ? value.toLowerCase() : value;
-    if (!stat.isDirectory() || stat.isSymbolicLink() || compare(path.resolve(await io.realpath(absoluteRoot))) !== compare(absoluteRoot)) throw new Error('Invalid temporary directory');
+    const compare = (value) => (process.platform === 'win32' ? value.toLowerCase() : value);
+    if (
+      !stat.isDirectory() ||
+      stat.isSymbolicLink() ||
+      compare(path.resolve(await io.realpath(absoluteRoot))) !== compare(absoluteRoot)
+    )
+      throw new Error('Invalid temporary directory');
     if (process.platform !== 'win32') {
       if (stat.uid !== process.getuid()) throw new Error('Invalid temporary directory owner');
       await io.chmod(absoluteRoot, 0o700);
@@ -18,12 +23,15 @@ export function createFileTempStore(root = FILE_TEMP_ROOT, io = fs) {
   };
   const remove = async (directory) => {
     // Only direct UUID children of this verified application root are removable.
-    if (path.dirname(directory) !== absoluteRoot || !UUID.test(path.basename(directory))) throw new Error('Invalid cleanup target');
+    if (path.dirname(directory) !== absoluteRoot || !UUID.test(path.basename(directory)))
+      throw new Error('Invalid cleanup target');
     try {
       const stat = await io.lstat(directory);
       if (stat.isSymbolicLink() || !stat.isDirectory()) throw new Error('Invalid cleanup target');
       await io.rm(directory, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-    } catch (error) { if (error.code !== 'ENOENT') throw error; }
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
   };
   return {
     withFile: async (buffer, operation) => {
@@ -35,8 +43,9 @@ export function createFileTempStore(root = FILE_TEMP_ROOT, io = fs) {
         await io.writeFile(filename, buffer, { flag: 'wx', mode: 0o600 });
         return await operation({ filename, directory });
       } finally {
-        try { await remove(directory); }
-        catch {
+        try {
+          await remove(directory);
+        } catch {
           console.error(JSON.stringify({ level: 'ERROR', event: 'file_temp_cleanup_failed' }));
           // Cleanup failure deliberately supersedes scan errors: no result may
           // be persisted while a temporary copy might still remain.
@@ -54,7 +63,10 @@ export function createFileTempStore(root = FILE_TEMP_ROOT, io = fs) {
           if ((await io.lstat(directory)).mtimeMs < now - 24 * 60 * 60_000) await remove(directory);
         }
         return true;
-      } catch { console.error(JSON.stringify({ level: 'ERROR', event: 'file_stale_cleanup_failed' })); return false; }
+      } catch {
+        console.error(JSON.stringify({ level: 'ERROR', event: 'file_stale_cleanup_failed' }));
+        return false;
+      }
     },
   };
 }

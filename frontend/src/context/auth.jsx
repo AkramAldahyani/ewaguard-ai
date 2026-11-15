@@ -22,10 +22,24 @@ export function AuthProvider({ children }) {
     const controller = new AbortController();
     let active = true;
     apiRequest('/api/auth/me', { signal: controller.signal })
-      .then((payload) => { if (active) { configureConsentSession(payload.user.id, payload.session); setUser(payload.user); setExpiresAt(payload.session.expiresAt); setSessionId(payload.session.id); } })
-      .catch((error) => { if (active && error.name !== 'AbortError') clearSession(false); })
-      .finally(() => { if (active) setLoading(false); });
-    return () => { active = false; controller.abort(); };
+      .then((payload) => {
+        if (active) {
+          configureConsentSession(payload.user.id, payload.session);
+          setUser(payload.user);
+          setExpiresAt(payload.session.expiresAt);
+          setSessionId(payload.session.id);
+        }
+      })
+      .catch((error) => {
+        if (active && error.name !== 'AbortError') clearSession(false);
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+      controller.abort();
+    };
   }, [clearSession]);
 
   useEffect(() => {
@@ -41,18 +55,25 @@ export function AuthProvider({ children }) {
     return () => window.clearTimeout(timer);
   }, [expiresAt, clearSession]);
 
-  const login = useCallback(async (email, password) => {
-    const payload = await apiRequest('/api/auth/login', {
-      method: 'POST', body: JSON.stringify({ email, password }),
-    });
-    if (payload.mfaRequired) { clearSession(false); return payload; }
-    configureConsentSession(payload.user.id, payload.session);
-    setUser(payload.user);
-    setExpiresAt(payload.session.expiresAt);
-    setSessionId(payload.session.id);
-    setSessionExpired(false);
-    return payload.user;
-  }, [clearSession]);
+  const login = useCallback(
+    async (email, password) => {
+      const payload = await apiRequest('/api/auth/login', {
+        method: 'POST',
+        body: JSON.stringify({ email, password }),
+      });
+      if (payload.mfaRequired) {
+        clearSession(false);
+        return payload;
+      }
+      configureConsentSession(payload.user.id, payload.session);
+      setUser(payload.user);
+      setExpiresAt(payload.session.expiresAt);
+      setSessionId(payload.session.id);
+      setSessionExpired(false);
+      return payload.user;
+    },
+    [clearSession],
+  );
 
   const verifyMfa = useCallback(async (code) => {
     const payload = await apiRequest('/api/auth/mfa/verify', { method: 'POST', body: JSON.stringify({ code }) });
@@ -66,11 +87,16 @@ export function AuthProvider({ children }) {
 
   const logout = useCallback(async () => {
     window.dispatchEvent(new CustomEvent('ewaguard:signing-out'));
-    try { await apiRequest('/api/auth/logout', { method: 'POST' }); }
-    finally { clearSession(false); }
+    try {
+      await apiRequest('/api/auth/logout', { method: 'POST' });
+    } finally {
+      clearSession(false);
+    }
   }, [clearSession]);
 
-  const value = useMemo(() => ({ user, sessionId, loading, sessionExpired, login, logout, verifyMfa }),
-    [user, sessionId, loading, sessionExpired, login, logout, verifyMfa]);
+  const value = useMemo(
+    () => ({ user, sessionId, loading, sessionExpired, login, logout, verifyMfa }),
+    [user, sessionId, loading, sessionExpired, login, logout, verifyMfa],
+  );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

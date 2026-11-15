@@ -8,7 +8,8 @@
 
 export const responsibleAiCourse = {
   title: 'Responsible AI',
-  description: 'Use AI wisely. Protect information. Learn what AI assistants can and cannot do, how to protect information when using AI, why AI answers must be checked, how attackers use AI in scams, and how to use EWAGuard AI within its limits.',
+  description:
+    'Use AI wisely. Protect information. Learn what AI assistants can and cannot do, how to protect information when using AI, why AI answers must be checked, how attackers use AI in scams, and how to use EWAGuard AI within its limits.',
   topic: 'OTHER',
   learningObjectives: [
     'Explain what AI assistants can and cannot reliably do.',
@@ -19,8 +20,13 @@ export const responsibleAiCourse = {
   ],
   estimatedMinutes: 9,
   requiresQuiz: true,
-  content: { version: 1, sections: [
-    { key: 'what-is-ai', title: 'Lesson 1: What is AI and how can it help?', body: `AI assistants are computer programs trained on very large amounts of text. They predict useful-sounding answers to your questions. They can be fast and helpful, but they do not truly understand your situation, and they can be wrong.
+  content: {
+    version: 1,
+    sections: [
+      {
+        key: 'what-is-ai',
+        title: 'Lesson 1: What is AI and how can it help?',
+        body: `AI assistants are computer programs trained on very large amounts of text. They predict useful-sounding answers to your questions. They can be fast and helpful, but they do not truly understand your situation, and they can be wrong.
 
 AI can help you:
 - explain an unfamiliar word or idea in simple language
@@ -35,8 +41,12 @@ Jassim, a fictional employee, keeps hearing the word "phishing" in meetings. He 
 Watch out: Helpful is not the same as correct
 AI can produce answers that sound confident but contain mistakes. It is a helper, not an authority.
 
-Key takeaway: AI is a useful assistant for general explanations and writing help. Treat its answers as a starting point, not the final word.` },
-    { key: 'protecting-data-with-ai', title: 'Lesson 2: Protecting data when using AI', body: `When you type or paste something into an AI service, it is usually sent to the provider's systems to be processed. Depending on the service and how it is set up, the provider may keep that information for a period of time. You may not control who can access it or how long it is stored.
+Key takeaway: AI is a useful assistant for general explanations and writing help. Treat its answers as a starting point, not the final word.`,
+      },
+      {
+        key: 'protecting-data-with-ai',
+        title: 'Lesson 2: Protecting data when using AI',
+        body: `When you type or paste something into an AI service, it is usually sent to the provider's systems to be processed. Depending on the service and how it is set up, the provider may keep that information for a period of time. You may not control who can access it or how long it is stored.
 
 Never enter these into AI tools unless your organization has explicitly approved that tool and that use:
 - passwords or MFA verification codes
@@ -57,8 +67,12 @@ Tip: Ask before you paste
 2. Does this text contain anything personal, confidential, secret or restricted?
 3. Could I achieve the same result with general or anonymized information?
 
-Key takeaway: If you would not post it on a public noticeboard, do not paste it into an unapproved AI tool.` },
-    { key: 'ai-not-always-correct', title: 'Lesson 3: AI is helpful, but not always correct', body: `AI assistants generate answers that sound right. They do not check facts the way a careful person would.
+Key takeaway: If you would not post it on a public noticeboard, do not paste it into an unapproved AI tool.`,
+      },
+      {
+        key: 'ai-not-always-correct',
+        title: 'Lesson 3: AI is helpful, but not always correct',
+        body: `AI assistants generate answers that sound right. They do not check facts the way a careful person would.
 
 AI can:
 - give incorrect information
@@ -78,8 +92,12 @@ Tip: Before you rely on an AI answer
 3. Can I confirm it with a trusted person or official source?
 4. If the AI mentions a rule, policy or reference, does it actually exist?
 
-Key takeaway: Confident is not the same as correct. Verify important AI answers before you act on them.` },
-    { key: 'ai-powered-scams', title: 'Lesson 4: AI-powered scams and social engineering', body: `Attackers use AI too. It helps them create convincing scams quickly, in good grammar and in many languages.
+Key takeaway: Confident is not the same as correct. Verify important AI answers before you act on them.`,
+      },
+      {
+        key: 'ai-powered-scams',
+        title: 'Lesson 4: AI-powered scams and social engineering',
+        body: `Attackers use AI too. It helps them create convincing scams quickly, in good grammar and in many languages.
 
 Attackers may use AI to create:
 - polished phishing emails with no spelling mistakes
@@ -96,8 +114,12 @@ Mona, a fictional employee, receives a voice message that sounds exactly like a 
 Warning signs: urgency, secrecy, a personal number and a request for confidential information.
 The safer response: Mona does not reply to that number. She verifies the request through a known, independent channel, such as the manager's official number from the directory, or by checking with the manager's office. She reports the message through the approved channel.
 
-Key takeaway: Verify the request, not the voice. Use a known, independent channel before sending money, data or access.` },
-    { key: 'using-ewaguard-ai-responsibly', title: 'Lesson 5: Using EWAGuard AI responsibly', body: `EWAGuard AI is designed to help you make safer decisions. Like any tool, it has limits.
+Key takeaway: Verify the request, not the voice. Use a known, independent channel before sending money, data or access.`,
+      },
+      {
+        key: 'using-ewaguard-ai-responsibly',
+        title: 'Lesson 5: Using EWAGuard AI responsibly',
+        body: `EWAGuard AI is designed to help you make safer decisions. Like any tool, it has limits.
 
 What EWAGuard AI can help with:
 - Ask EWAGuard AI: answers general cybersecurity questions and can help explain analysis results.
@@ -128,8 +150,10 @@ Your Responsible AI checklist:
 
 Key takeaway: Use AI wisely, protect information, and keep a human in charge of the decision.
 
-Next, complete the short five-question quiz below to finish the course.` },
-  ] },
+Next, complete the short five-question quiz below to finish the course.`,
+      },
+    ],
+  },
 };
 
 export const responsibleAiQuiz = {
@@ -137,40 +161,66 @@ export const responsibleAiQuiz = {
   passingPercent: 80,
   maxAttempts: 3,
   questions: [
-    { type: 'MULTIPLE_CHOICE', points: 1,
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'Which of these is safe to enter into a public AI chatbot that your organization has not approved?',
-      explanation: 'Only general, non-confidential questions belong in unapproved AI tools. Never enter passwords, codes, customer data or confidential documents.',
+      explanation:
+        'Only general, non-confidential questions belong in unapproved AI tools. Never enter passwords, codes, customer data or confidential documents.',
       options: [
         { text: 'A spreadsheet of customer names and account numbers.', isCorrect: false },
         { text: 'Your password, so it can check whether it is strong.', isCorrect: false },
         { text: 'A general question such as "What is multi-factor authentication?"', isCorrect: true },
         { text: 'An internal incident report, so it can summarize it.', isCorrect: false },
-      ] },
-    { type: 'MULTIPLE_CHOICE', points: 1,
+      ],
+    },
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'An AI assistant confidently tells you a specific security rule and quotes a policy number you have never heard of. What should you do?',
-      explanation: 'AI can invent rules and references. Verify important guidance with trusted organizational resources before acting on it.',
+      explanation:
+        'AI can invent rules and references. Verify important guidance with trusted organizational resources before acting on it.',
       options: [
         { text: 'Follow it, because the answer sounds confident and detailed.', isCorrect: false },
         { text: 'Verify it with approved policies or your IT or security team before acting.', isCorrect: true },
         { text: 'Share it with colleagues so everyone follows the new rule.', isCorrect: false },
         { text: 'Ask the same AI again; if it repeats the answer, it must be correct.', isCorrect: false },
-      ] },
-    { type: 'MULTIPLE_CHOICE', points: 1,
+      ],
+    },
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'You receive a voice message that sounds exactly like your director, urgently asking you to send confidential figures to a personal number. What is the safest response?',
-      explanation: 'Voices can be imitated with AI. Verify the request through a known, independent channel and report it. Do not rely on how the voice sounds.',
+      explanation:
+        'Voices can be imitated with AI. Verify the request through a known, independent channel and report it. Do not rely on how the voice sounds.',
       options: [
         { text: 'Send the figures, because you recognize the voice.', isCorrect: false },
         { text: 'Reply to the personal number to ask whether it is really them.', isCorrect: false },
         { text: 'Verify the request through a known, independent channel and report it.', isCorrect: true },
         { text: 'Send only part of the figures to be safe.', isCorrect: false },
-      ] },
-    { type: 'TRUE_FALSE', points: 1,
+      ],
+    },
+    {
+      type: 'TRUE_FALSE',
+      points: 1,
       text: 'True or false: If EWAGuard AI rates a link as LOW risk, the link is guaranteed to be safe.',
-      explanation: 'False. Automated analysis can miss real threats. A LOW result means the available checks found little evidence of risk, not that the link is guaranteed safe.',
-      options: [{ text: 'True', isCorrect: false }, { text: 'False', isCorrect: true }] },
-    { type: 'TRUE_FALSE', points: 1,
-      text: 'True or false: Using EWAGuard AI to analyze a suspicious email does not replace reporting it through your organization\'s approved incident-reporting channel.',
-      explanation: 'True. EWAGuard AI supports your judgment, but the official incident-reporting process always comes first.',
-      options: [{ text: 'True', isCorrect: true }, { text: 'False', isCorrect: false }] },
+      explanation:
+        'False. Automated analysis can miss real threats. A LOW result means the available checks found little evidence of risk, not that the link is guaranteed safe.',
+      options: [
+        { text: 'True', isCorrect: false },
+        { text: 'False', isCorrect: true },
+      ],
+    },
+    {
+      type: 'TRUE_FALSE',
+      points: 1,
+      text: "True or false: Using EWAGuard AI to analyze a suspicious email does not replace reporting it through your organization's approved incident-reporting channel.",
+      explanation:
+        'True. EWAGuard AI supports your judgment, but the official incident-reporting process always comes first.',
+      options: [
+        { text: 'True', isCorrect: true },
+        { text: 'False', isCorrect: false },
+      ],
+    },
   ],
 };

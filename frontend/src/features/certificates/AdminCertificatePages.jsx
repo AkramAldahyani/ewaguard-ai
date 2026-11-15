@@ -4,51 +4,331 @@ import { AlertCircle, Award, Search, ShieldCheck } from 'lucide-react';
 import { PageHeader } from '../../components/PageHeader.jsx';
 import { Badge, Button, Card, Input, Select, StatePanel, Table } from '../../components/ui/index.jsx';
 import { createCertificateApi } from './certificate-api.js';
-import { CertificateFeedback, CertificatePager, CertificateStatus, CertificateSummary, DownloadCertificateButton } from './CertificateCommon.jsx';
+import {
+  CertificateFeedback,
+  CertificatePager,
+  CertificateStatus,
+  CertificateSummary,
+  DownloadCertificateButton,
+} from './CertificateCommon.jsx';
 import { certificateDate, certificateError } from './certificate-model.js';
 
 const api = createCertificateApi(true);
 export function AdminCertificateListPage() {
   const [draft, setDraft] = useState({ search: '', status: '' });
   const [filters, setFilters] = useState({ search: '', status: '' });
-  const [page, setPage] = useState(1), [revision, setRevision] = useState(0);
+  const [page, setPage] = useState(1),
+    [revision, setRevision] = useState(0);
   const [state, setState] = useState({ loading: true, error: '', result: null });
-  const [number, setNumber] = useState(''); const [verification, setVerification] = useState({ loading: false, error: '', result: null });
-  useEffect(() => { const controller = new AbortController();
-    api.list({ page, pageSize: 20, ...(filters.search ? { search: filters.search } : {}), ...(filters.status ? { status: filters.status } : {}) }, controller.signal)
-      .then((result) => { if (!controller.signal.aborted) setState({ loading: false, error: '', result }); })
-      .catch((error) => { if (!controller.signal.aborted) setState({ loading: false, error: certificateError(error), result: null }); });
-    return () => controller.abort(); }, [filters, page, revision]);
-  const refresh = () => { setState({ loading: true, error: '', result: null }); setRevision((value) => value + 1); };
-  function apply(event) { event.preventDefault(); setPage(1); setState({ loading: true, error: '', result: null }); setFilters({ search: draft.search.trim(), status: draft.status }); }
-  async function verify(event) { event.preventDefault(); const normalized = number.trim(); setVerification({ loading: true, error: '', result: null });
-    try { const result = await api.verify(normalized); setVerification({ loading: false, error: '', result }); }
-    catch (error) { setVerification({ loading: false, error: certificateError(error, 'verify'), result: null });
-      if ([401, 403].includes(error.status)) setState({ loading: false, error: certificateError(error), result: null }); } }
+  const [number, setNumber] = useState('');
+  const [verification, setVerification] = useState({ loading: false, error: '', result: null });
+  useEffect(() => {
+    const controller = new AbortController();
+    api
+      .list(
+        {
+          page,
+          pageSize: 20,
+          ...(filters.search ? { search: filters.search } : {}),
+          ...(filters.status ? { status: filters.status } : {}),
+        },
+        controller.signal,
+      )
+      .then((result) => {
+        if (!controller.signal.aborted) setState({ loading: false, error: '', result });
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted) setState({ loading: false, error: certificateError(error), result: null });
+      });
+    return () => controller.abort();
+  }, [filters, page, revision]);
+  const refresh = () => {
+    setState({ loading: true, error: '', result: null });
+    setRevision((value) => value + 1);
+  };
+  function apply(event) {
+    event.preventDefault();
+    setPage(1);
+    setState({ loading: true, error: '', result: null });
+    setFilters({ search: draft.search.trim(), status: draft.status });
+  }
+  async function verify(event) {
+    event.preventDefault();
+    const normalized = number.trim();
+    setVerification({ loading: true, error: '', result: null });
+    try {
+      const result = await api.verify(normalized);
+      setVerification({ loading: false, error: '', result });
+    } catch (error) {
+      setVerification({ loading: false, error: certificateError(error, 'verify'), result: null });
+      if ([401, 403].includes(error.status)) setState({ loading: false, error: certificateError(error), result: null });
+    }
+  }
   const result = state.result;
-  return <><PageHeader eyebrow="Security awareness administration" title="Training certificates" description="Review issued records and verify completion evidence. Records are ordered newest first." />
-    <div className="mb-6 grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(19rem,0.8fr)]"><Card className="p-5 sm:p-6"><h2 className="font-bold text-slate-900">Find certificates</h2><form onSubmit={apply} className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem_auto]"><label className="text-sm font-semibold text-slate-700">Employee, course, or number<Input type="search" value={draft.search} maxLength={100} onChange={(event) => setDraft((value) => ({ ...value, search: event.target.value }))} className="mt-2" /></label><label className="text-sm font-semibold text-slate-700">Status<Select value={draft.status} onChange={(event) => setDraft((value) => ({ ...value, status: event.target.value }))} className="mt-2"><option value="">All statuses</option><option value="ISSUED">Issued</option><option value="REVOKED">Revoked</option></Select></label><Button type="submit" className="self-end"><Search className="size-4" aria-hidden="true" />Apply filters</Button></form></Card>
-      <Card className="p-5 sm:p-6"><h2 className="font-bold text-slate-900">Verify certificate number</h2><p className="mt-1 text-xs leading-5 text-slate-500">Verification is available only in the administrator workspace.</p><form onSubmit={verify} className="mt-4 flex flex-col gap-3"><label className="text-sm font-semibold text-slate-700">Unique certificate number<Input value={number} onChange={(event) => { setNumber(event.target.value); setVerification({ loading: false, error: '', result: null }); }} required maxLength={36} placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" className="mt-2 font-mono text-xs" /></label><Button type="submit" variant="secondary" disabled={verification.loading}>{verification.loading ? 'Verifying…' : 'Verify certificate'}</Button></form>{verification.error && <p role="alert" className="mt-3 text-sm text-danger-700">{verification.error}</p>}{verification.result && <div role="status" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm"><div className="flex items-center gap-2"><ShieldCheck className="size-5 text-brand-700" aria-hidden="true" /><strong>{verification.result.trainingCompletionConfirmed ? 'Training completion confirmed' : 'Completion could not be confirmed'}</strong></div><p className="mt-2 break-words">{verification.result.certificate.trainingTitle} · {verification.result.certificate.employeeName}</p><p className="mt-1 text-slate-600">{verification.result.certificate.certificateNumber}</p><div className="mt-2 flex flex-wrap gap-2"><CertificateStatus status={verification.result.certificate.status} />{verification.result.certificate.scorePercent !== null && <Badge tone="brand">Course quiz {verification.result.certificate.scorePercent}%</Badge>}</div><Button as={Link} to={`/admin/certificates/${verification.result.certificate.id}`} variant="ghost" className="mt-3">View record →</Button></div>}</Card></div>
-    <CertificateFeedback loading={state.loading} error={state.error} retry={refresh} empty={result?.items.length === 0} emptyTitle="No matching certificates" emptyDescription="Try another search or status filter. Issued records appear after qualifying training completion." />
-    {result?.items.length > 0 && <><div className="grid gap-4 md:grid-cols-2 xl:hidden">{result.items.map((certificate) => <CertificateSummary key={certificate.id} certificate={certificate} admin />)}</div><Card className="hidden overflow-hidden xl:block"><Table caption="Issued training certificates" columns={[{ key: 'employeeName', label: 'Employee' }, { key: 'trainingTitle', label: 'Training program' }, { key: 'certificateNumber', label: 'Certificate number', render: (row) => <span className="break-all font-mono text-xs">{row.certificateNumber}</span> }, { key: 'issuedAt', label: 'Issued', render: (row) => certificateDate(row.issuedAt) }, { key: 'status', label: 'Status', render: (row) => <CertificateStatus status={row.status} /> }, { key: 'action', label: 'Record', render: (row) => <Button as={Link} to={`/admin/certificates/${row.id}`} variant="ghost" size="sm">View details</Button> }]} rows={result.items} /></Card><Card className="mt-5"><CertificatePager result={result} onChange={(value) => { setState({ loading: true, error: '', result: null }); setPage(value); }} /></Card></>}
-  </>;
+  return (
+    <>
+      <PageHeader
+        eyebrow="Security awareness administration"
+        title="Training certificates"
+        description="Review issued records and verify completion evidence. Records are ordered newest first."
+      />
+      <div className="mb-6 grid gap-5 xl:grid-cols-[minmax(0,1.5fr)_minmax(19rem,0.8fr)]">
+        <Card className="p-5 sm:p-6">
+          <h2 className="font-bold text-slate-900">Find certificates</h2>
+          <form onSubmit={apply} className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_11rem_auto]">
+            <label className="text-sm font-semibold text-slate-700">
+              Employee, course, or number
+              <Input
+                type="search"
+                value={draft.search}
+                maxLength={100}
+                onChange={(event) => setDraft((value) => ({ ...value, search: event.target.value }))}
+                className="mt-2"
+              />
+            </label>
+            <label className="text-sm font-semibold text-slate-700">
+              Status
+              <Select
+                value={draft.status}
+                onChange={(event) => setDraft((value) => ({ ...value, status: event.target.value }))}
+                className="mt-2"
+              >
+                <option value="">All statuses</option>
+                <option value="ISSUED">Issued</option>
+                <option value="REVOKED">Revoked</option>
+              </Select>
+            </label>
+            <Button type="submit" className="self-end">
+              <Search className="size-4" aria-hidden="true" />
+              Apply filters
+            </Button>
+          </form>
+        </Card>
+        <Card className="p-5 sm:p-6">
+          <h2 className="font-bold text-slate-900">Verify certificate number</h2>
+          <p className="mt-1 text-xs leading-5 text-slate-500">
+            Verification is available only in the administrator workspace.
+          </p>
+          <form onSubmit={verify} className="mt-4 flex flex-col gap-3">
+            <label className="text-sm font-semibold text-slate-700">
+              Unique certificate number
+              <Input
+                value={number}
+                onChange={(event) => {
+                  setNumber(event.target.value);
+                  setVerification({ loading: false, error: '', result: null });
+                }}
+                required
+                maxLength={36}
+                placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+                className="mt-2 font-mono text-xs"
+              />
+            </label>
+            <Button type="submit" variant="secondary" disabled={verification.loading}>
+              {verification.loading ? 'Verifying…' : 'Verify certificate'}
+            </Button>
+          </form>
+          {verification.error && (
+            <p role="alert" className="mt-3 text-sm text-danger-700">
+              {verification.error}
+            </p>
+          )}
+          {verification.result && (
+            <div role="status" className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm">
+              <div className="flex items-center gap-2">
+                <ShieldCheck className="size-5 text-brand-700" aria-hidden="true" />
+                <strong>
+                  {verification.result.trainingCompletionConfirmed
+                    ? 'Training completion confirmed'
+                    : 'Completion could not be confirmed'}
+                </strong>
+              </div>
+              <p className="mt-2 break-words">
+                {verification.result.certificate.trainingTitle} · {verification.result.certificate.employeeName}
+              </p>
+              <p className="mt-1 text-slate-600">{verification.result.certificate.certificateNumber}</p>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <CertificateStatus status={verification.result.certificate.status} />
+                {verification.result.certificate.scorePercent !== null && (
+                  <Badge tone="brand">Course quiz {verification.result.certificate.scorePercent}%</Badge>
+                )}
+              </div>
+              <Button
+                as={Link}
+                to={`/admin/certificates/${verification.result.certificate.id}`}
+                variant="ghost"
+                className="mt-3"
+              >
+                View record →
+              </Button>
+            </div>
+          )}
+        </Card>
+      </div>
+      <CertificateFeedback
+        loading={state.loading}
+        error={state.error}
+        retry={refresh}
+        empty={result?.items.length === 0}
+        emptyTitle="No matching certificates"
+        emptyDescription="Try another search or status filter. Issued records appear after qualifying training completion."
+      />
+      {result?.items.length > 0 && (
+        <>
+          <div className="grid gap-4 md:grid-cols-2 xl:hidden">
+            {result.items.map((certificate) => (
+              <CertificateSummary key={certificate.id} certificate={certificate} admin />
+            ))}
+          </div>
+          <Card className="hidden overflow-hidden xl:block">
+            <Table
+              caption="Issued training certificates"
+              columns={[
+                { key: 'employeeName', label: 'Employee' },
+                { key: 'trainingTitle', label: 'Training program' },
+                {
+                  key: 'certificateNumber',
+                  label: 'Certificate number',
+                  render: (row) => <span className="break-all font-mono text-xs">{row.certificateNumber}</span>,
+                },
+                { key: 'issuedAt', label: 'Issued', render: (row) => certificateDate(row.issuedAt) },
+                { key: 'status', label: 'Status', render: (row) => <CertificateStatus status={row.status} /> },
+                {
+                  key: 'action',
+                  label: 'Record',
+                  render: (row) => (
+                    <Button as={Link} to={`/admin/certificates/${row.id}`} variant="ghost" size="sm">
+                      View details
+                    </Button>
+                  ),
+                },
+              ]}
+              rows={result.items}
+            />
+          </Card>
+          <Card className="mt-5">
+            <CertificatePager
+              result={result}
+              onChange={(value) => {
+                setState({ loading: true, error: '', result: null });
+                setPage(value);
+              }}
+            />
+          </Card>
+        </>
+      )}
+    </>
+  );
 }
 
 export function AdminCertificateDetailPage() {
-  const { id } = useParams(); const [revision, setRevision] = useState(0);
+  const { id } = useParams();
+  const [revision, setRevision] = useState(0);
   const [state, setState] = useState({ id, loading: true, error: '', certificate: null });
   const [verification, setVerification] = useState({ loading: false, error: '', result: null });
-  useEffect(() => { const controller = new AbortController();
-    api.detail(id, controller.signal).then(({ certificate }) => { if (!controller.signal.aborted) setState({ id, loading: false, error: '', certificate }); })
-      .catch((error) => { if (!controller.signal.aborted) setState({ id, loading: false, error: certificateError(error), certificate: null }); });
-    return () => controller.abort(); }, [id, revision]);
-  const current = state.id === id; const certificate = current ? state.certificate : null;
-  async function verify() { if (!certificate) return; setVerification({ loading: true, error: '', result: null });
-    try { const result = await api.verify(certificate.certificateNumber); setVerification({ loading: false, error: '', result }); }
-    catch (error) { setVerification({ loading: false, error: certificateError(error, 'verify'), result: null });
-      if ([401, 403].includes(error.status)) setState({ id, loading: false, error: certificateError(error), certificate: null }); } }
-  return <><Button as={Link} to="/admin/certificates" variant="ghost" className="mb-4">← Certificate management</Button><PageHeader eyebrow="Certificate record" title={certificate?.trainingTitle ?? 'Certificate details'} description="Authorized training completion record and verification." />
-    <CertificateFeedback loading={!current || state.loading} error={current ? state.error : ''} retry={() => { setState({ id, loading: true, error: '', certificate: null }); setVerification({ loading: false, error: '', result: null }); setRevision((value) => value + 1); }} />
-    {certificate && <Card className="p-6 sm:p-8"><div className="flex flex-wrap items-start justify-between gap-4"><Award className="size-10 text-brand-700" aria-hidden="true" /><CertificateStatus status={certificate.status} /></div><dl className="mt-6 grid gap-5 sm:grid-cols-2"><div><dt className="text-xs font-semibold uppercase text-slate-500">Employee</dt><dd className="mt-1 break-words">{certificate.employeeName}</dd></div><div><dt className="text-xs font-semibold uppercase text-slate-500">Course</dt><dd className="mt-1 break-words">{certificate.trainingTitle}</dd></div><div><dt className="text-xs font-semibold uppercase text-slate-500">Certificate number</dt><dd className="mt-1 break-all font-mono text-xs">{certificate.certificateNumber}</dd></div><div><dt className="text-xs font-semibold uppercase text-slate-500">Completed</dt><dd className="mt-1">{certificateDate(certificate.completedAt)}</dd></div><div><dt className="text-xs font-semibold uppercase text-slate-500">Issued</dt><dd className="mt-1">{certificateDate(certificate.issuedAt)}</dd></div>{certificate.scorePercent !== null && <div><dt className="text-xs font-semibold uppercase text-slate-500">Course quiz score</dt><dd className="mt-1">{certificate.scorePercent}%</dd></div>}</dl><div className="mt-7 flex flex-wrap gap-3 border-t border-slate-100 pt-6"><Button variant="secondary" onClick={verify} disabled={verification.loading}>{verification.loading ? 'Verifying…' : 'Verify completion'}</Button><DownloadCertificateButton id={certificate.id} admin disabled={certificate.status !== 'ISSUED'} /></div>{verification.error && <p role="alert" className="mt-4 text-sm text-danger-700">{verification.error}</p>}{verification.result?.certificate.id === certificate.id && <p role="status" className={`mt-4 rounded-xl p-4 text-sm ${verification.result.trainingCompletionConfirmed ? 'bg-success-50 text-success-800' : 'bg-warning-50 text-warning-900'}`}>{verification.result.trainingCompletionConfirmed ? 'The stored training completion and qualifying course result are confirmed.' : 'The stored training completion or qualifying course result could not be confirmed.'}</p>}</Card>}
-  </>;
+  useEffect(() => {
+    const controller = new AbortController();
+    api
+      .detail(id, controller.signal)
+      .then(({ certificate }) => {
+        if (!controller.signal.aborted) setState({ id, loading: false, error: '', certificate });
+      })
+      .catch((error) => {
+        if (!controller.signal.aborted)
+          setState({ id, loading: false, error: certificateError(error), certificate: null });
+      });
+    return () => controller.abort();
+  }, [id, revision]);
+  const current = state.id === id;
+  const certificate = current ? state.certificate : null;
+  async function verify() {
+    if (!certificate) return;
+    setVerification({ loading: true, error: '', result: null });
+    try {
+      const result = await api.verify(certificate.certificateNumber);
+      setVerification({ loading: false, error: '', result });
+    } catch (error) {
+      setVerification({ loading: false, error: certificateError(error, 'verify'), result: null });
+      if ([401, 403].includes(error.status))
+        setState({ id, loading: false, error: certificateError(error), certificate: null });
+    }
+  }
+  return (
+    <>
+      <Button as={Link} to="/admin/certificates" variant="ghost" className="mb-4">
+        ← Certificate management
+      </Button>
+      <PageHeader
+        eyebrow="Certificate record"
+        title={certificate?.trainingTitle ?? 'Certificate details'}
+        description="Authorized training completion record and verification."
+      />
+      <CertificateFeedback
+        loading={!current || state.loading}
+        error={current ? state.error : ''}
+        retry={() => {
+          setState({ id, loading: true, error: '', certificate: null });
+          setVerification({ loading: false, error: '', result: null });
+          setRevision((value) => value + 1);
+        }}
+      />
+      {certificate && (
+        <Card className="p-6 sm:p-8">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <Award className="size-10 text-brand-700" aria-hidden="true" />
+            <CertificateStatus status={certificate.status} />
+          </div>
+          <dl className="mt-6 grid gap-5 sm:grid-cols-2">
+            <div>
+              <dt className="text-xs font-semibold uppercase text-slate-500">Employee</dt>
+              <dd className="mt-1 break-words">{certificate.employeeName}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase text-slate-500">Course</dt>
+              <dd className="mt-1 break-words">{certificate.trainingTitle}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase text-slate-500">Certificate number</dt>
+              <dd className="mt-1 break-all font-mono text-xs">{certificate.certificateNumber}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase text-slate-500">Completed</dt>
+              <dd className="mt-1">{certificateDate(certificate.completedAt)}</dd>
+            </div>
+            <div>
+              <dt className="text-xs font-semibold uppercase text-slate-500">Issued</dt>
+              <dd className="mt-1">{certificateDate(certificate.issuedAt)}</dd>
+            </div>
+            {certificate.scorePercent !== null && (
+              <div>
+                <dt className="text-xs font-semibold uppercase text-slate-500">Course quiz score</dt>
+                <dd className="mt-1">{certificate.scorePercent}%</dd>
+              </div>
+            )}
+          </dl>
+          <div className="mt-7 flex flex-wrap gap-3 border-t border-slate-100 pt-6">
+            <Button variant="secondary" onClick={verify} disabled={verification.loading}>
+              {verification.loading ? 'Verifying…' : 'Verify completion'}
+            </Button>
+            <DownloadCertificateButton id={certificate.id} admin disabled={certificate.status !== 'ISSUED'} />
+          </div>
+          {verification.error && (
+            <p role="alert" className="mt-4 text-sm text-danger-700">
+              {verification.error}
+            </p>
+          )}
+          {verification.result?.certificate.id === certificate.id && (
+            <p
+              role="status"
+              className={`mt-4 rounded-xl p-4 text-sm ${verification.result.trainingCompletionConfirmed ? 'bg-success-50 text-success-800' : 'bg-warning-50 text-warning-900'}`}
+            >
+              {verification.result.trainingCompletionConfirmed
+                ? 'The stored training completion and qualifying course result are confirmed.'
+                : 'The stored training completion or qualifying course result could not be confirmed.'}
+            </p>
+          )}
+        </Card>
+      )}
+    </>
+  );
 }

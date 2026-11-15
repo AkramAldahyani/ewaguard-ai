@@ -5,7 +5,9 @@ import { DEMO_POLICY_NOTICE } from './company-source.js';
 
 // Fixed SQL fragments only; filters, model and vectors are bound parameters.
 function eligibility(filters, model) {
-  const publication = filters.category === 'COMPANY_POLICY' ? Prisma.sql`
+  const publication =
+    filters.category === 'COMPANY_POLICY'
+      ? Prisma.sql`
     ${filters.demoEligible === true && filters.classification === 'DEMONSTRATION' && filters.approvalStatus === 'NOT_OFFICIALLY_APPROVED'}
     AND d.status = 'DRAFT' AND d.active = false AND d."approvedAt" IS NULL AND d."approvedById" IS NULL
     AND d."ingestionMetadata"->>'sourceUse' = 'DEMONSTRATION'
@@ -15,7 +17,7 @@ function eligibility(filters, model) {
     AND d."ingestionMetadata"->'demoEligibility'->>'reviewedAt' IS NOT NULL
     AND d."ingestionMetadata"->'demoEligibility'->>'contentSha256' = d."contentSha256"
     AND d."ingestionMetadata"->'demoEligibility'->>'fingerprint' = d."ingestionMetadata"->>'fingerprint'`
-    : Prisma.sql`d.status = ${filters.approvalStatus}::"ApprovalStatus" AND d.active = true AND d."approvedAt" IS NOT NULL AND d."approvedById" IS NOT NULL`;
+      : Prisma.sql`d.status = ${filters.approvalStatus}::"ApprovalStatus" AND d.active = true AND d."approvedAt" IS NOT NULL AND d."approvedById" IS NOT NULL`;
   return Prisma.sql`d.kind = ${filters.category}::"DocumentKind"
     AND (${publication})
     AND d."indexingStatus" = 'INDEXED' AND d.classification = ${filters.classification}
@@ -30,16 +32,36 @@ function eligibility(filters, model) {
 }
 
 function project(row) {
-  return { chunkId: row.chunkId, excerpt: row.content, similarity: row.similarity == null ? null : Math.min(1, row.similarity),
-    source: { documentId: row.documentId, documentKey: row.documentKey, title: row.title,
+  return {
+    chunkId: row.chunkId,
+    excerpt: row.content,
+    similarity: row.similarity == null ? null : Math.min(1, row.similarity),
+    source: {
+      documentId: row.documentId,
+      documentKey: row.documentKey,
+      title: row.title,
       filename: typeof row.filename === 'string' && !/[\\/]/.test(row.filename) ? row.filename : null,
-      category: row.kind, version: row.version, approvalStatus: row.kind === 'COMPANY_POLICY' ? 'NOT_OFFICIALLY_APPROVED' : 'APPROVED', classification: row.classification,
-      ...(row.kind === 'COMPANY_POLICY' ? { notice: DEMO_POLICY_NOTICE, documentStatus: 'DRAFT',
-        policyId: row.policySource?.policyId ?? null, sourceTitle: row.policySource?.sourceTitle ?? null,
-        sourceVersionDate: row.policySource?.sourceVersionDate ?? null, sourceStatus: row.policySource?.sourceStatus ?? null } : {}),
+      category: row.kind,
+      version: row.version,
+      approvalStatus: row.kind === 'COMPANY_POLICY' ? 'NOT_OFFICIALLY_APPROVED' : 'APPROVED',
+      classification: row.classification,
+      ...(row.kind === 'COMPANY_POLICY'
+        ? {
+            notice: DEMO_POLICY_NOTICE,
+            documentStatus: 'DRAFT',
+            policyId: row.policySource?.policyId ?? null,
+            sourceTitle: row.policySource?.sourceTitle ?? null,
+            sourceVersionDate: row.policySource?.sourceVersionDate ?? null,
+            sourceStatus: row.policySource?.sourceStatus ?? null,
+          }
+        : {}),
       page: Number.isInteger(row.metadata?.page) && row.metadata.page > 0 ? row.metadata.page : null,
-      section: typeof row.metadata?.section === 'string' && row.metadata.section.length <= 500 ? row.metadata.section : null,
-      chunkPosition: row.position }, referenceTrust: 'UNTRUSTED' };
+      section:
+        typeof row.metadata?.section === 'string' && row.metadata.section.length <= 500 ? row.metadata.section : null,
+      chunkPosition: row.position,
+    },
+    referenceTrust: 'UNTRUSTED',
+  };
 }
 
 // Backend receipt recovery only: caller supplies IDs from its owned request record.
@@ -49,7 +71,10 @@ export async function readReferenceChunks(database, filters, model, ids) {
     d.id AS "documentId", d."documentKey", d.title, d.filename, d.kind, d.version, d.classification, d."ingestionMetadata"->'policySource' AS "policySource"
     FROM document_chunks c JOIN knowledge_documents d ON d.id = c."documentId"
     WHERE ${eligibility(filters, model)} AND c.id IN (${Prisma.join(ids)})`;
-  return ids.map(id => rows.find(row => row.chunkId === id)).filter(Boolean).map(project);
+  return ids
+    .map((id) => rows.find((row) => row.chunkId === id))
+    .filter(Boolean)
+    .map(project);
 }
 
 export async function hasRetrievableChunks(database, filters, model) {
@@ -59,15 +84,25 @@ export async function hasRetrievableChunks(database, filters, model) {
 }
 
 export function isPdplDefinitionQuestion(question = '') {
-  return /\b(?:define|definition|meaning|mean|what (?:is|are))\b/i.test(question) ||
-    /\bwhat does\b[^?\n]*\b(?:PDPL|law)\b[^?\n]*\bsay about\s+(?:sensitive\s+)?personal data\s*[?.!]*$/i.test(question.trim());
+  return (
+    /\b(?:define|definition|meaning|mean|what (?:is|are))\b/i.test(question) ||
+    /\bwhat does\b[^?\n]*\b(?:PDPL|law)\b[^?\n]*\bsay about\s+(?:sensitive\s+)?personal data\s*[?.!]*$/i.test(
+      question.trim(),
+    )
+  );
 }
 
 // Hybrid ranking adds discriminating terms to vector similarity without another
 // provider call. Generic corpus/jurisdiction words otherwise dominate short questions.
 export function retrievalTerms(question = '') {
-  const stop = new Set('what which who how why when where can could may should must does do is are be the a an and or to of in on for about our company organizational policy policies bahrain pdpl law under have has say says employee employees individual individuals people companies work workplace requirements rules personal data information according without with this that it its use using'.split(' '));
-  return [...new Set((question.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter(word => !stop.has(word)))].slice(0, 24).join(' | ');
+  const stop = new Set(
+    'what which who how why when where can could may should must does do is are be the a an and or to of in on for about our company organizational policy policies bahrain pdpl law under have has say says employee employees individual individuals people companies work workplace requirements rules personal data information according without with this that it its use using'.split(
+      ' ',
+    ),
+  );
+  return [...new Set((question.toLowerCase().match(/[a-z]{3,}/g) ?? []).filter((word) => !stop.has(word)))]
+    .slice(0, 24)
+    .join(' | ');
 }
 
 export async function searchChunks(database, filters, model, vector) {
@@ -78,11 +113,12 @@ export async function searchChunks(database, filters, model, vector) {
   const requestedSection = article ? `PDPL Article (${article})` : '';
   const definitionQuestion = Boolean(filters.pdplContext && !article && isPdplDefinitionQuestion(filters.question));
   const lexical = filters.pdplContext || filters.companyContext ? retrievalTerms(filters.question) : '';
-  return database.$transaction(async tx => {
-    await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
-    // Exact search over already-authorized candidates avoids filtered ANN recall gaps
-    // for this small corpus. Keep HNSW intact for later measured optimization.
-    const rows = await tx.$queryRaw`WITH eligible AS MATERIALIZED (
+  return database.$transaction(
+    async (tx) => {
+      await tx.$executeRaw`SET LOCAL statement_timeout = '5000ms'`;
+      // Exact search over already-authorized candidates avoids filtered ANN recall gaps
+      // for this small corpus. Keep HNSW intact for later measured optimization.
+      const rows = await tx.$queryRaw`WITH eligible AS MATERIALIZED (
       SELECT c.id AS "chunkId", c.position, c.content, c.metadata, c.embedding,
         d.id AS "documentId", d."documentKey", d.title, d.filename, d.kind, d.version, d.classification, d."ingestionMetadata"->'policySource' AS "policySource"
       FROM document_chunks c JOIN knowledge_documents d ON d.id = c."documentId"
@@ -90,9 +126,13 @@ export async function searchChunks(database, filters, model, vector) {
     ), similarities AS (
       SELECT *, 1 - (embedding <=> ${encoded}::vector) AS similarity FROM eligible
     ), ranked AS (
-      SELECT *, similarity + ${lexical ? Prisma.sql`0.6 * ts_rank_cd(
+      SELECT *, similarity + ${
+        lexical
+          ? Prisma.sql`0.6 * ts_rank_cd(
         setweight(to_tsvector('english', left(content, 180)), 'A') || setweight(to_tsvector('english', content), 'B'),
-        to_tsquery('english', ${lexical}), 32)` : Prisma.sql`0`} AS relevance FROM similarities
+        to_tsquery('english', ${lexical}), 32)`
+          : Prisma.sql`0`
+      } AS relevance FROM similarities
     ), anchor AS (
       SELECT * FROM ranked WHERE similarity >= ${RETRIEVAL_LIMITS.minimumSimilarity} AND similarity <= 1.000001
       ORDER BY (metadata->>'section' = ${requestedSection}) DESC NULLS LAST,
@@ -103,12 +143,18 @@ export async function searchChunks(database, filters, model, vector) {
       WHERE (similarity >= ${RETRIEVAL_LIMITS.minimumSimilarity} AND similarity <= 1.000001)
         OR (${Boolean(filters.pdplContext)} AND EXISTS (SELECT 1 FROM anchor a WHERE a."documentId" = ranked."documentId"
           AND a.metadata->>'section' = ranked.metadata->>'section' AND abs(a.position - ranked.position) = 1))
-      ORDER BY ${filters.pdplContext ? Prisma.sql`CASE
+      ORDER BY ${
+        filters.pdplContext
+          ? Prisma.sql`CASE
         WHEN "chunkId" = (SELECT "chunkId" FROM anchor) THEN 0
         WHEN EXISTS (SELECT 1 FROM anchor a WHERE a."documentId" = ranked."documentId"
           AND a.metadata->>'section' = ranked.metadata->>'section' AND abs(a.position - ranked.position) = 1) THEN 1
-        ELSE 2 END,` : Prisma.empty}
+        ELSE 2 END,`
+          : Prisma.empty
+      }
         relevance DESC, "documentId", position LIMIT ${filters.limit}`;
-    return rows.map(project);
-  }, { timeout: 10_000 });
+      return rows.map(project);
+    },
+    { timeout: 10_000 },
+  );
 }

@@ -10,7 +10,12 @@ try {
     for (const name of ['EMPLOYEE', 'IT_SECURITY_ADMIN']) {
       await tx.role.upsert({ where: { name }, create: { name }, update: {} });
     }
-    for (const [code, name] of [['IT', 'IT'], ['FIN', 'Finance'], ['HR', 'HR'], ['OPS', 'Operations']]) {
+    for (const [code, name] of [
+      ['IT', 'IT'],
+      ['FIN', 'Finance'],
+      ['HR', 'HR'],
+      ['OPS', 'Operations'],
+    ]) {
       await tx.department.upsert({ where: { code }, create: { code, name }, update: {} });
     }
   });

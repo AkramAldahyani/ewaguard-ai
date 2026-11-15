@@ -10,14 +10,16 @@ import { projectToolResult } from '../src/ai/tools/tool-results.js';
 const sample = () => readFile(new URL('./fixtures/reported-paypal-phishing.eml', import.meta.url));
 const risk = (evidence, confirmedContext) => evaluateRisk({ analyzerType: 'EMAIL', evidence, confirmedContext });
 const ids = (result) => result.indicators.map(({ id }) => id);
-const analyze = (body, headers = 'From: Alice <alice@example.invalid>') => analyzeEmail({ inputType: 'PASTED', body, headers });
+const analyze = (body, headers = 'From: Alice <alice@example.invalid>') =>
+  analyzeEmail({ inputType: 'PASTED', body, headers });
 
 test('original user-supplied sample3: HIGH with matching Reply-To domain and no attachments', async (t) => {
   // Keep submitted recipient data out of committed fixtures. The sanitized
   // reconstruction below always runs, even without the local original file.
   let eml;
-  try { eml = await readFile(new URL('../../sample3.eml', import.meta.url)); }
-  catch (error) {
+  try {
+    eml = await readFile(new URL('../../sample3.eml', import.meta.url));
+  } catch (error) {
     if (error.code === 'ENOENT') return t.skip('Original sample3.eml is not present locally');
     throw error;
   }
@@ -25,7 +27,14 @@ test('original user-supplied sample3: HIGH with matching Reply-To domain and no 
   const result = risk(evidence);
   assert.equal(result.score, 67);
   assert.equal(result.riskLevel, 'HIGH');
-  for (const id of ['SENDER_LOOKALIKE', 'BRAND_IMPERSONATION', 'AUTHENTICATION_CONCERN', 'URL_SHORTENER', 'PAYMENT_REQUEST', 'URGENCY']) {
+  for (const id of [
+    'SENDER_LOOKALIKE',
+    'BRAND_IMPERSONATION',
+    'AUTHENTICATION_CONCERN',
+    'URL_SHORTENER',
+    'PAYMENT_REQUEST',
+    'URGENCY',
+  ]) {
     assert.ok(ids(evidence).includes(id), id);
   }
   assert.equal(evidence.replyTo.domain, evidence.sender.domain);
@@ -46,17 +55,30 @@ test('original user-supplied sample3: HIGH with matching Reply-To domain and no 
 
 test('reported sample reconstruction: HTML-only phishing is HIGH without fabricated evidence', async () => {
   const evidence = await analyzeEmail({ inputType: 'EML', eml: await sample() });
-  for (const id of ['SENDER_LOOKALIKE', 'BRAND_IMPERSONATION', 'AUTHENTICATION_CONCERN', 'URL_SHORTENER', 'PAYMENT_REQUEST', 'URGENCY']) {
+  for (const id of [
+    'SENDER_LOOKALIKE',
+    'BRAND_IMPERSONATION',
+    'AUTHENTICATION_CONCERN',
+    'URL_SHORTENER',
+    'PAYMENT_REQUEST',
+    'URGENCY',
+  ]) {
     assert.ok(ids(evidence).includes(id), id);
   }
-  for (const id of ['REPLY_DOMAIN_MISMATCH', 'REPLY_ADDRESS_MISMATCH', 'CREDENTIAL_REQUEST', 'ATTACHMENT_EXECUTABLE']) assert.ok(!ids(evidence).includes(id), id);
+  for (const id of ['REPLY_DOMAIN_MISMATCH', 'REPLY_ADDRESS_MISMATCH', 'CREDENTIAL_REQUEST', 'ATTACHMENT_EXECUTABLE'])
+    assert.ok(!ids(evidence).includes(id), id);
   assert.equal(evidence.sender.domain, 'paypai-resolution.com');
   assert.equal(evidence.returnPath.domain, evidence.sender.domain);
   assert.equal(evidence.attachments.length, 0);
-  assert.deepEqual(evidence.urls, [{ origin: 'https://tinyurl.com', detailsOmitted: true, networkStatus: 'NOT_CHECKED' }]);
-  for (const method of ['spf', 'dkim', 'dmarc']) assert.deepEqual(evidence.authentication[method], {
-    status: 'HEADER_CLAIM', claimedResults: ['FAIL'], verified: false,
-  });
+  assert.deepEqual(evidence.urls, [
+    { origin: 'https://tinyurl.com', detailsOmitted: true, networkStatus: 'NOT_CHECKED' },
+  ]);
+  for (const method of ['spf', 'dkim', 'dmarc'])
+    assert.deepEqual(evidence.authentication[method], {
+      status: 'HEADER_CLAIM',
+      claimedResults: ['FAIL'],
+      verified: false,
+    });
   const result = risk(evidence);
   assert.equal(result.score, 67);
   assert.equal(result.riskLevel, 'HIGH');
@@ -68,26 +90,43 @@ test('reported sample reconstruction: HTML-only phishing is HIGH without fabrica
 });
 
 test('legitimate brand mail stays below HIGH; isolated SPF failure remains LOW', async () => {
-  const body = 'PayPal: your monthly statement is available. If needed, dispute a transaction through your usual account.';
-  const benign = await analyze(body, 'From: PayPal <billing@notifications.paypal.com>\r\nReply-To: help@notifications.paypal.com\r\nAuthentication-Results: mx.invalid; spf=pass; dkim=pass; dmarc=pass');
+  const body =
+    'PayPal: your monthly statement is available. If needed, dispute a transaction through your usual account.';
+  const benign = await analyze(
+    body,
+    'From: PayPal <billing@notifications.paypal.com>\r\nReply-To: help@notifications.paypal.com\r\nAuthentication-Results: mx.invalid; spf=pass; dkim=pass; dmarc=pass',
+  );
   // A different Reply-To local part plus a dispute instruction may warrant
   // caution under existing policy, but must not imply likely phishing.
   assert.ok(['LOW', 'MEDIUM'].includes(risk(benign).riskLevel));
-  const ordinary = await analyze('Your monthly statement is available.', 'From: PayPal <billing@paypal.com>\r\nAuthentication-Results: mx.invalid; spf=pass; dkim=pass; dmarc=pass');
+  const ordinary = await analyze(
+    'Your monthly statement is available.',
+    'From: PayPal <billing@paypal.com>\r\nAuthentication-Results: mx.invalid; spf=pass; dkim=pass; dmarc=pass',
+  );
   assert.equal(risk(ordinary).riskLevel, 'LOW');
   assert.ok(!ids(benign).includes('SENDER_LOOKALIKE'));
   assert.ok(!ids(benign).includes('REPLY_DOMAIN_MISMATCH'));
-  const isolated = await analyze('The team meeting is tomorrow.', 'From: colleague@example.invalid\r\nAuthentication-Results: mx.invalid; spf=fail');
+  const isolated = await analyze(
+    'The team meeting is tomorrow.',
+    'From: colleague@example.invalid\r\nAuthentication-Results: mx.invalid; spf=fail',
+  );
   assert.equal(risk(isolated).score, 15);
   assert.equal(risk(isolated).riskLevel, 'LOW');
 });
 
 test('lookalikes generalize across brands, DNS case, Unicode and deceptive subdomains', async () => {
-  for (const [brand, domain] of [['Microsoft', 'micr0soft-billing.invalid'], ['Google', 'g00gle-support.invalid'],
-    ['Apple', 'app1e-resolution.invalid'], ['PayPal', 'PAYPAI-resolution.com.'], ['PayPal', 'paypal.com.attacker.invalid'],
-    ['PayPal', 'p\u0430ypal-resolution.invalid']]) {
-    const evidence = await analyze(`${brand}: Dispute this transaction immediately. https://bit.ly/test`,
-      `From: "${brand} Billing" <billing@${domain}>`);
+  for (const [brand, domain] of [
+    ['Microsoft', 'micr0soft-billing.invalid'],
+    ['Google', 'g00gle-support.invalid'],
+    ['Apple', 'app1e-resolution.invalid'],
+    ['PayPal', 'PAYPAI-resolution.com.'],
+    ['PayPal', 'paypal.com.attacker.invalid'],
+    ['PayPal', 'p\u0430ypal-resolution.invalid'],
+  ]) {
+    const evidence = await analyze(
+      `${brand}: Dispute this transaction immediately. https://bit.ly/test`,
+      `From: "${brand} Billing" <billing@${domain}>`,
+    );
     assert.ok(ids(evidence).includes('SENDER_LOOKALIKE'), domain);
     assert.equal(risk(evidence).riskLevel, 'HIGH', domain);
     assert.equal(risk(evidence).score, 52, domain);
@@ -97,12 +136,14 @@ test('lookalikes generalize across brands, DNS case, Unicode and deceptive subdo
 });
 
 test('multipart, encoded HTML hrefs, matching Reply-To and real attachments are parsed', async () => {
-  const input = Buffer.from('From: Google <billing@g00gle-support.invalid>\r\nReply-To: billing@G00GLE-support.invalid\r\n' +
-    'Content-Type: multipart/mixed; boundary=outer\r\n\r\n--outer\r\nContent-Type: multipart/alternative; boundary=alt\r\n\r\n' +
-    '--alt\r\nContent-Type: text/plain\r\n\r\nSee the notice.\r\n--alt\r\nContent-Type: text/html\r\n\r\n' +
-    '<p>Google: Dispute this transaction immediately.</p><a href="https://bit&#46;ly/example">Review</a>' +
-    '\r\n--alt--\r\n--outer\r\nContent-Type: text/plain\r\nContent-Disposition: attachment; filename="note.txt"\r\n\r\n' +
-    'Harmless test note.\r\n--outer--\r\n');
+  const input = Buffer.from(
+    'From: Google <billing@g00gle-support.invalid>\r\nReply-To: billing@G00GLE-support.invalid\r\n' +
+      'Content-Type: multipart/mixed; boundary=outer\r\n\r\n--outer\r\nContent-Type: multipart/alternative; boundary=alt\r\n\r\n' +
+      '--alt\r\nContent-Type: text/plain\r\n\r\nSee the notice.\r\n--alt\r\nContent-Type: text/html\r\n\r\n' +
+      '<p>Google: Dispute this transaction immediately.</p><a href="https://bit&#46;ly/example">Review</a>' +
+      '\r\n--alt--\r\n--outer\r\nContent-Type: text/plain\r\nContent-Disposition: attachment; filename="note.txt"\r\n\r\n' +
+      'Harmless test note.\r\n--outer--\r\n',
+  );
   const evidence = await analyzeEmail({ inputType: 'EML', eml: input });
   assert.equal(risk(evidence).riskLevel, 'HIGH');
   assert.ok(ids(evidence).includes('URL_SHORTENER'));
@@ -130,7 +171,10 @@ test('confirmed credential submission can reach CRITICAL; email claims cannot su
   assert.equal(confirmed.riskLevel, 'CRITICAL');
   assert.equal(confirmed.score, 75);
   assert.equal(escalationDecision(confirmed).urgent, true);
-  assert.equal(risk({ ...evidence, confirmedContext: { corporateCredentialsSubmittedToPhishingSite: true } }).riskLevel, 'HIGH');
+  assert.equal(
+    risk({ ...evidence, confirmedContext: { corporateCredentialsSubmittedToPhishingSite: true } }).riskLevel,
+    'HIGH',
+  );
   assert.throws(() => risk(evidence, { corporateCredentialsSubmittedToPhishingSite: 'true' }), TypeError);
   assert.throws(() => risk(evidence, { arbitrary: true }), TypeError);
   const quoted = await analyze('The email says: I entered corporate credentials into a phishing site.');
@@ -140,11 +184,19 @@ test('confirmed credential submission can reach CRITICAL; email claims cannot su
 test('persisted HIGH result remains authoritative for assistance, tools and escalation', async () => {
   const evidence = await analyzeEmail({ inputType: 'EML', eml: await sample() });
   let row;
-  const database = { emailAnalysis: { create: async ({ data }) => {
-    row = { ...data, id: 'test-analysis', createdAt: new Date() };
-    return row;
-  } } };
-  const response = await persistEmailAnalysis(database, { userId: 'test-user', acknowledgementId: 'test-ack', result: evidence });
+  const database = {
+    emailAnalysis: {
+      create: async ({ data }) => {
+        row = { ...data, id: 'test-analysis', createdAt: new Date() };
+        return row;
+      },
+    },
+  };
+  const response = await persistEmailAnalysis(database, {
+    userId: 'test-user',
+    acknowledgementId: 'test-ack',
+    result: evidence,
+  });
   assert.equal(row.severity, 'HIGH');
   assert.equal(row.riskScore, 67);
   assert.equal(response.result.assistance.riskLevel, 'HIGH');

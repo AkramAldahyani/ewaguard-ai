@@ -224,8 +224,34 @@ model Department {
   incidents           Incident[]              @relation("Incident_department")
   trainingAssignments TrainingAssignment[]    @relation("TrainingAssignment_department")
   monthlyAssignments  MonthlyQuizAssignment[] @relation("MonthlyQuizAssignment_department")
+  registrationInvites RegistrationInvite[]    @relation("RegistrationInvite_department")
 
   @@map("departments")
+}
+
+// A shareable self-registration link issued by an administrator. Only the SHA-256 digest of the
+// link token is stored; the link itself is disclosed once, at creation.
+model RegistrationInvite {
+  id           String     @id @default(uuid()) @db.Uuid
+  tokenHash    String     @unique @db.VarChar(64)
+  label        String     @db.VarChar(120)
+  emailDomain  String?    @db.VarChar(253)
+  maxUses      Int
+  useCount     Int        @default(0)
+  expiresAt    DateTime   @db.Timestamptz(3)
+  revokedAt    DateTime?  @db.Timestamptz(3)
+  createdAt    DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @db.Timestamptz(3)
+  departmentId String     @db.Uuid
+  createdById  String     @db.Uuid
+  department   Department @relation("RegistrationInvite_department", fields: [departmentId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy    User       @relation("RegistrationInvite_createdBy", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([expiresAt])
+  @@index([createdAt])
+  @@index([departmentId])
+  @@index([createdById])
+  @@map("registration_invites")
 }
 
 model User {
@@ -289,6 +315,7 @@ model User {
   reviewedReports        CommunityReport[]           @relation("Report_reviewer")
   moderationActions      PostModerationAction[]      @relation("PostModerationAction_moderator")
   auditLogs              AuditLog[]                  @relation("AuditLog_actor")
+  registrationInvites    RegistrationInvite[]        @relation("RegistrationInvite_createdBy")
 
   @@index([status])
   @@index([deletedAt, createdAt])

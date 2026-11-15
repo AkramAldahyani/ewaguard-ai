@@ -6,16 +6,20 @@ export const REASON_CODES = Object.freeze({
   EMAIL_SENDER_STRUCTURE: 'The sender domain has an unusual structure.',
   EMAIL_DISPLAY_NAME_CLAIM: 'The display name claims a familiar identity that has not been verified.',
   EMAIL_DISPLAY_ADDRESS_MISMATCH: 'The displayed address differs from the actual sender address.',
-  EMAIL_SENDER_LOOKALIKE: 'The sender domain resembles a claimed brand outside its common domains; ownership is unverified.',
+  EMAIL_SENDER_LOOKALIKE:
+    'The sender domain resembles a claimed brand outside its common domains; ownership is unverified.',
   EMAIL_URL_SHORTENER: 'A shortened email URL hides the eventual destination; no malicious reputation is implied.',
-  CONFIRMED_CREDENTIAL_SUBMISSION: 'Separate confirmed context records corporate credentials submitted to a phishing site.',
-  EMAIL_AUTH_FAILURE: 'Supplied headers claim an authentication failure or error; these claims are not independently verified.',
+  CONFIRMED_CREDENTIAL_SUBMISSION:
+    'Separate confirmed context records corporate credentials submitted to a phishing site.',
+  EMAIL_AUTH_FAILURE:
+    'Supplied headers claim an authentication failure or error; these claims are not independently verified.',
   EMAIL_SUSPICIOUS_LINK: 'The email contains a link using an unsupported scheme.',
   EMAIL_LINK_CREDENTIALS: 'A link contains embedded credentials.',
   EMAIL_LINK_STRUCTURE: 'The analyzer found unusual link structure.',
   EMAIL_HTTP_LINK: 'An email link uses unencrypted HTTP.',
   EMAIL_LINK_DESTINATION_MISMATCH: 'A displayed link destination differs from its actual destination.',
-  EMAIL_SUSPICIOUS_ATTACHMENT: 'Attachment metadata indicates executable, script, or macro-capable content; the content was not scanned.',
+  EMAIL_SUSPICIOUS_ATTACHMENT:
+    'Attachment metadata indicates executable, script, or macro-capable content; the content was not scanned.',
   EMAIL_ARCHIVE_ATTACHMENT: 'An attachment may contain archived content that was not inspected.',
   EMAIL_ATTACHMENT_DISGUISE: 'Attachment naming may obscure the file type.',
   EMAIL_URGENCY: 'Urgency language was detected; urgency alone is a weak signal.',
@@ -25,7 +29,8 @@ export const REASON_CODES = Object.freeze({
   EMAIL_ATTACHMENT_INVITATION: 'The message invites opening an attachment or enabling active content.',
   EMAIL_PAYMENT_PRESSURE: 'The message includes payment pressure or a gift-card request.',
   EMAIL_PROCESS_BYPASS: 'The message requests bypassing an approval or verification process.',
-  EMAIL_COMBINED_PHISHING: 'A credential or authentication-code request is corroborated by another category of phishing evidence.',
+  EMAIL_COMBINED_PHISHING:
+    'A credential or authentication-code request is corroborated by another category of phishing evidence.',
   EMAIL_AUTH_UNAVAILABLE: 'Some email authentication header evidence is unavailable.',
   EMAIL_UNVERIFIED_HEADERS: 'Email authentication claims are supplied data, not independently verified results.',
   URL_IP_HOST: 'The URL uses an IP address instead of a domain.',
@@ -39,7 +44,8 @@ export const REASON_CODES = Object.freeze({
   URL_UNUSUAL_PORT: 'The URL specifies an unusual network port.',
   URL_HTTP: 'HTTP does not provide transport encryption.',
   URL_TLS_CONCERN: 'Available certificate evidence reports a validity, hostname, or trust-chain concern.',
-  URL_REPUTATION_MALICIOUS: 'Existing URL or domain reputation contains malicious detections; strength depends on consensus.',
+  URL_REPUTATION_MALICIOUS:
+    'Existing URL or domain reputation contains malicious detections; strength depends on consensus.',
   URL_REPUTATION_SUSPICIOUS: 'Existing URL or domain reputation contains suspicious detections.',
   FILE_TYPE_MISMATCH: 'The file extension does not match detected content.',
   FILE_MIME_MISMATCH: 'The supplied MIME type differs from detected content.',
@@ -59,5 +65,6 @@ export const REASON_CODES = Object.freeze({
   REPUTATION_FRESHNESS_UNKNOWN: 'Report freshness could not be established for all available reputation evidence.',
   REPUTATION_STALE: 'Some reputation evidence is older than the model freshness window.',
   CONFLICTING_SECURITY_EVIDENCE: 'Security sources disagree. Positive detections were retained and confidence reduced.',
-  NO_KNOWN_INDICATORS: 'No weighted threat indicators were found in the available checks. This does not guarantee safety.',
+  NO_KNOWN_INDICATORS:
+    'No weighted threat indicators were found in the available checks. This does not guarantee safety.',
 });

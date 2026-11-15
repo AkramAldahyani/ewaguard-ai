@@ -3,8 +3,14 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "workspaces": ["frontend", "backend"],
-  "engines": { "node": ">=24.13.0 <25", "npm": ">=11 <12" },
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
+  "engines": {
+    "node": ">=24.13.0 <25",
+    "npm": ">=11 <12"
+  },
   "scripts": {
     "knowledge:ingest": "node backend/scripts/ingest-knowledge.js",
     "knowledge:index": "node backend/scripts/index-knowledge.js",
@@ -20,6 +26,8 @@
     "start:backend": "npm run start --workspace backend",
     "build": "npm run build --workspace frontend",
     "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "test": "npm run test --workspace backend",
     "test:users": "node --max-old-space-size=768 --test --test-concurrency=1 --test-timeout=60000 backend/tests/user-policy.test.js backend/tests/user-management.integration.test.js",
     "test:users:ui": "node --max-old-space-size=768 --test --test-concurrency=1 --test-timeout=60000 frontend/tests/users-ui.test.mjs",
@@ -68,6 +76,7 @@
     "eslint-plugin-react-hooks": "^7.1.1",
     "eslint-plugin-react-refresh": "^0.5.7",
     "globals": "^17.0.0",
+    "prettier": "3.10.1",
     "prisma": "^7.10.0"
   },
   "overrides": {

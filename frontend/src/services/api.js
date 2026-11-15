@@ -12,7 +12,10 @@ export async function apiRequest(path, options = {}) {
   const response = await fetch(path, {
     credentials: 'include',
     ...fetchOptions,
-    headers: { ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}), ...options.headers },
+    headers: {
+      ...(options.body && !(options.body instanceof FormData) ? { 'Content-Type': 'application/json' } : {}),
+      ...options.headers,
+    },
   });
   if (response.status === 204) return null;
   const payload = response.ok && responseType === 'blob' ? null : await response.json().catch(() => null);
@@ -22,7 +25,12 @@ export async function apiRequest(path, options = {}) {
       payload?.error?.code ?? 'REQUEST_FAILED',
       payload?.error?.message ?? 'The request could not be completed.',
     );
-    if (response.status === 401 && path !== '/api/auth/login' && path !== '/api/auth/me' && path !== '/api/auth/mfa/verify') {
+    if (
+      response.status === 401 &&
+      path !== '/api/auth/login' &&
+      path !== '/api/auth/me' &&
+      path !== '/api/auth/mfa/verify'
+    ) {
       window.dispatchEvent(new CustomEvent('ewaguard:session-expired'));
     }
     throw error;

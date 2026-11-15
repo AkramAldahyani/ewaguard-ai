@@ -13,22 +13,35 @@ export function createDisclaimerRouter({ database, config }) {
     limit: 30,
     standardHeaders: 'draft-7',
     legacyHeaders: false,
-    handler: (_req, res) => res.status(429).json({ error: { code: 'ACKNOWLEDGEMENT_RATE_LIMITED', message: 'Too many acknowledgement requests. Please try again shortly.' } }),
+    handler: (_req, res) =>
+      res.status(429).json({
+        error: {
+          code: 'ACKNOWLEDGEMENT_RATE_LIMITED',
+          message: 'Too many acknowledgement requests. Please try again shortly.',
+        },
+      }),
   });
   router.use(createAuthenticate({ database, config }), requireRole('EMPLOYEE'));
   router.post('/acknowledge', limiter, createTrustedOrigin(config.trustedOrigins), async (req, res, next) => {
     try {
       const context = validateBody(req.body);
-      if (!context) return res.status(400).json({ error: { code: 'INVALID_ACKNOWLEDGEMENT', message: 'A supported disclaimer context is required.' } });
+      if (!context)
+        return res
+          .status(400)
+          .json({ error: { code: 'INVALID_ACKNOWLEDGEMENT', message: 'A supported disclaimer context is required.' } });
       const result = await acknowledgeDisclaimer(database, { userId: req.user.id, context });
-      return res.status(result.reused ? 200 : 201).json({ acknowledgement: {
-        id: result.acknowledgement.id,
-        context: result.acknowledgement.context,
-        version: result.acknowledgement.version,
-        acknowledgedAt: result.acknowledgement.createdAt.toISOString(),
-        reused: result.reused,
-      } });
-    } catch (error) { return next(error); }
+      return res.status(result.reused ? 200 : 201).json({
+        acknowledgement: {
+          id: result.acknowledgement.id,
+          context: result.acknowledgement.context,
+          version: result.acknowledgement.version,
+          acknowledgedAt: result.acknowledgement.createdAt.toISOString(),
+          reused: result.reused,
+        },
+      });
+    } catch (error) {
+      return next(error);
+    }
   });
   return router;
 }

@@ -7,7 +7,8 @@
 
 export const reportingSecurityIncidentsCourse = {
   title: 'Reporting Security Incidents',
-  description: 'Spot it. Report it. Protect everyone. Learn how to recognize a possible security incident, why reporting quickly matters, what to do first, how to make a useful report, and what to expect after you report.',
+  description:
+    'Spot it. Report it. Protect everyone. Learn how to recognize a possible security incident, why reporting quickly matters, what to do first, how to make a useful report, and what to expect after you report.',
   topic: 'INCIDENT_REPORTING',
   learningObjectives: [
     'Recognize situations that may indicate a security incident.',
@@ -18,8 +19,13 @@ export const reportingSecurityIncidentsCourse = {
   ],
   estimatedMinutes: 9,
   requiresQuiz: true,
-  content: { version: 1, sections: [
-    { key: 'what-is-a-security-incident', title: 'Lesson 1: What is a security incident?', body: `A security incident is anything that may put the organization's information, accounts, devices or systems at risk. It can start with a single click, a lost bag or an email sent to the wrong person.
+  content: {
+    version: 1,
+    sections: [
+      {
+        key: 'what-is-a-security-incident',
+        title: 'Lesson 1: What is a security incident?',
+        body: `A security incident is anything that may put the organization's information, accounts, devices or systems at risk. It can start with a single click, a lost bag or an email sent to the wrong person.
 
 Possible incidents include:
 - clicking a link in a suspicious message
@@ -35,8 +41,12 @@ There is a difference between noticing something suspicious and confirming a sec
 Example: Is this an incident?
 Omar, a fictional employee, gets a text saying "New sign-in to your work account from another country." He did not sign in from abroad. He does not know whether it is a real attack, a system glitch or a fake text. He does not need to know. It is worth reporting.
 
-Key takeaway: You do not have to prove an incident before reporting it. If something seems wrong, report it.` },
-    { key: 'why-reporting-quickly-matters', title: 'Lesson 2: Why reporting quickly matters', body: `Security incidents are often like a small leak: easy to deal with early, much harder once the damage spreads.
+Key takeaway: You do not have to prove an incident before reporting it. If something seems wrong, report it.`,
+      },
+      {
+        key: 'why-reporting-quickly-matters',
+        title: 'Lesson 2: Why reporting quickly matters',
+        body: `Security incidents are often like a small leak: easy to deal with early, much harder once the damage spreads.
 
 Why speed helps:
 - Early reports give the security team the chance to act before an attacker can use stolen access.
@@ -54,8 +64,12 @@ Everyone makes mistakes, and attackers design their tricks to catch careful peop
 
 Always report through your organization's approved reporting channels, so the right people receive the information.
 
-Key takeaway: Report early, even if you are unsure or embarrassed. Fast reporting limits harm.` },
-    { key: 'what-to-do-first', title: 'Lesson 3: What should you do first?', body: `When something goes wrong, the first few minutes matter. These are safe general first steps. Always follow instructions from your IT or security team, and your organization's approved procedures, where they say something different.
+Key takeaway: Report early, even if you are unsure or embarrassed. Fast reporting limits harm.`,
+      },
+      {
+        key: 'what-to-do-first',
+        title: 'Lesson 3: What should you do first?',
+        body: `When something goes wrong, the first few minutes matter. These are safe general first steps. Always follow instructions from your IT or security team, and your organization's approved procedures, where they say something different.
 
 If you received a suspicious email:
 - Do not click links, open attachments or reply.
@@ -83,8 +97,12 @@ If you sent confidential information to the wrong person:
 Watch out: Do not try to fix it yourself
 Do not delete evidence, run cleaning tools, restart, unplug or switch off workplace systems or equipment unless the IT or security team tells you to. Well-meant actions can disrupt operations or destroy information the team needs.
 
-Key takeaway: Stop, do not make it worse, report promptly, and follow the security team's instructions.` },
-    { key: 'making-a-useful-report', title: 'Lesson 4: How to make a useful security report', body: `A good report helps the security team understand what happened quickly. You do not need technical knowledge. Describe what you saw and did in plain words.
+Key takeaway: Stop, do not make it worse, report promptly, and follow the security team's instructions.`,
+      },
+      {
+        key: 'making-a-useful-report',
+        title: 'Lesson 4: How to make a useful security report',
+        body: `A good report helps the security team understand what happened quickly. You do not need technical knowledge. Describe what you saw and did in plain words.
 
 Useful details to include:
 - What happened, in a sentence or two.
@@ -104,8 +122,12 @@ Tip: How EWAGuard AI can help
 - When an analysis result is HIGH or CRITICAL, EWAGuard AI records an incident for review by the security team, and you can follow its status under My Incidents.
 These tools help you and the security team, but they may not detect every threat, and a low result does not mean something is safe. They do not replace official incident reporting. If you are worried, report it through the approved channel as well.
 
-Key takeaway: Say what happened, when, what was involved and what you did. Keep passwords and confidential data out of your report.` },
-    { key: 'after-you-report', title: 'Lesson 5: What happens after you report?', body: `Reporting is the most important step, but your role does not end there.
+Key takeaway: Say what happened, when, what was involved and what you did. Keep passwords and confidential data out of your report.`,
+      },
+      {
+        key: 'after-you-report',
+        title: 'Lesson 5: What happens after you report?',
+        body: `Reporting is the most important step, but your role does not end there.
 
 After you report:
 - Follow directions from the authorized security team.
@@ -132,8 +154,10 @@ Your five-point reporting checklist:
 
 Key takeaway: Spot it. Report it. Protect everyone.
 
-Next, complete the short five-question quiz below to finish the course.` },
-  ] },
+Next, complete the short five-question quiz below to finish the course.`,
+      },
+    ],
+  },
 };
 
 export const reportingSecurityIncidentsQuiz = {
@@ -141,40 +165,69 @@ export const reportingSecurityIncidentsQuiz = {
   passingPercent: 80,
   maxAttempts: 3,
   questions: [
-    { type: 'MULTIPLE_CHOICE', points: 1,
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'Which of these situations should be reported as a possible security incident?',
-      explanation: 'A sign-in alert you did not cause may indicate someone else is using your account. You do not need to confirm it is an attack before reporting.',
+      explanation:
+        'A sign-in alert you did not cause may indicate someone else is using your account. You do not need to confirm it is an attack before reporting.',
       options: [
         { text: 'You receive a sign-in alert for your work account that you did not cause.', isCorrect: true },
         { text: 'Your scheduled software update finishes normally.', isCorrect: false },
         { text: 'A colleague sends you the meeting agenda you asked for.', isCorrect: false },
         { text: 'You sign in to your work email as usual from your office computer.', isCorrect: false },
-      ] },
-    { type: 'MULTIPLE_CHOICE', points: 1,
+      ],
+    },
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'You realize you have just typed your work password into a suspicious sign-in page. What should you do?',
-      explanation: 'Report immediately through the approved channel. Change your password from a trusted device if your procedures allow it, and tell the security team exactly what you entered.',
+      explanation:
+        'Report immediately through the approved channel. Change your password from a trusted device if your procedures allow it, and tell the security team exactly what you entered.',
       options: [
         { text: 'Wait a few days to see whether anything unusual happens.', isCorrect: false },
-        { text: 'Report it immediately and follow the security team\'s instructions, including changing your password through a trusted route if procedures allow.', isCorrect: true },
+        {
+          text: "Report it immediately and follow the security team's instructions, including changing your password through a trusted route if procedures allow.",
+          isCorrect: true,
+        },
         { text: 'Delete your browser history so nobody can see the page.', isCorrect: false },
         { text: 'Ask colleagues in a group chat whether they have seen the same page.', isCorrect: false },
-      ] },
-    { type: 'MULTIPLE_CHOICE', points: 1,
+      ],
+    },
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'Which detail is most useful to include in a security report?',
-      explanation: 'Describe what happened, when, what was involved and what you did. Never include your password or verification codes in a report.',
+      explanation:
+        'Describe what happened, when, what was involved and what you did. Never include your password or verification codes in a report.',
       options: [
         { text: 'Your password, so the team can check your account.', isCorrect: false },
         { text: 'Roughly when it happened and what you clicked, opened or entered.', isCorrect: true },
         { text: 'A copy of every confidential file on your laptop.', isCorrect: false },
         { text: 'Your guess about who the attacker is.', isCorrect: false },
-      ] },
-    { type: 'TRUE_FALSE', points: 1,
+      ],
+    },
+    {
+      type: 'TRUE_FALSE',
+      points: 1,
       text: 'True or false: You should wait until you are sure a security incident has happened before reporting it.',
-      explanation: 'False. Report suspicious activity promptly. Confirming an incident is the security team\'s job, and early reports help limit harm.',
-      options: [{ text: 'True', isCorrect: false }, { text: 'False', isCorrect: true }] },
-    { type: 'TRUE_FALSE', points: 1,
+      explanation:
+        "False. Report suspicious activity promptly. Confirming an incident is the security team's job, and early reports help limit harm.",
+      options: [
+        { text: 'True', isCorrect: false },
+        { text: 'False', isCorrect: true },
+      ],
+    },
+    {
+      type: 'TRUE_FALSE',
+      points: 1,
       text: 'True or false: If EWAGuard AI rates a suspicious email as LOW risk, you do not need to report it even if you are still worried.',
-      explanation: 'False. Automated analysis may not detect every threat and does not replace official reporting. If you are worried, report it through the approved channel.',
-      options: [{ text: 'True', isCorrect: false }, { text: 'False', isCorrect: true }] },
+      explanation:
+        'False. Automated analysis may not detect every threat and does not replace official reporting. If you are worried, report it through the approved channel.',
+      options: [
+        { text: 'True', isCorrect: false },
+        { text: 'False', isCorrect: true },
+      ],
+    },
   ],
 };

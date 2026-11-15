@@ -17,41 +17,81 @@ export function createToolService({ database }) {
     if (active >= TOOL_LIMITS.activeOperations) throw new ToolError(503, 'TOOL_BUSY', 'Tool operations are busy.');
     active++;
     try {
-      return await database.$transaction(async (tx) => {
-        // A session may expire while waiting for a transaction slot.
-        requireActiveSession(auth);
-        // Fixed server-authored statement; model arguments never become SQL.
-        await tx.$executeRaw`SET LOCAL statement_timeout = '2000ms'`;
-        const user = await authorizeToolContext(tx, auth, conversationId);
-        const tool = toolDefinition(name);
-        const parameters = await validateToolArguments(tool, argumentsJson);
-        if (tool.name === 'search_pdpl') throw new ToolError(400, 'PDPL_CONTEXT_REQUIRED', 'PDPL search requires the current authenticated chat turn.');
-        if (tool.name === 'search_company_policy') throw new ToolError(400, 'POLICY_CONTEXT_REQUIRED', 'Policy search requires the current authenticated chat turn.');
-        if (tool.kind === 'ACTION') {
-          const now = new Date();
-          const ack = await requireToolAcknowledgement(tx, user.id, tool);
-          if (!prepare) throw new ToolError(409, 'TOOL_EXECUTION_DEFERRED', 'New analysis requires a future human-confirmation workflow.');
+      return await database.$transaction(
+        async (tx) => {
+          // A session may expire while waiting for a transaction slot.
           requireActiveSession(auth);
-          return pendingContract({ userId: user.id, conversationId, tool, parameters, acknowledgementId: ack.id, now });
-        }
-        if (prepare) throw new ToolError(400, 'TOOL_NOT_ACTION', 'This tool does not initiate an analysis.');
-        const analyzerType = tool.name === 'get_file_analysis' ? 'FILE' : parameters.analyzerType;
-        const record = await tx[delegates[analyzerType]].findFirst({ where: { id: parameters.analysisId, userId: user.id, status: 'COMPLETED', expiresAt: { gt: new Date() } },
-          select: { ...select, ...(analyzerType === 'FILE' ? { clamavStatus: true, yaraStatus: true } : {}) } });
-        if (!record) throw new ToolError(404, 'TOOL_NOT_FOUND', 'Resource not found.');
-        requireActiveSession(auth);
-        // The incident linked to this analysis, if one was recorded. Scoped to the same owner; only fixed
-        // fields are projected, never descriptions, notes or assignee details.
-        const incident = await tx.incident.findFirst({ where: { sourceKey: `${analyzerType}:${record.id}`, reporterId: user.id },
-          select: { number: true, createdAt: true, severity: true, status: true, escalationMetadata: true,
-            _count: { select: { notifications: { where: { audience: 'IT_SECURITY_ADMIN' } } } } } });
-        requireActiveSession(auth);
-        return projectToolResult(tool, analyzerType, record, incident);
-      }, { maxWait: 1000, timeout: TOOL_LIMITS.transactionTimeoutMs });
+          // Fixed server-authored statement; model arguments never become SQL.
+          await tx.$executeRaw`SET LOCAL statement_timeout = '2000ms'`;
+          const user = await authorizeToolContext(tx, auth, conversationId);
+          const tool = toolDefinition(name);
+          const parameters = await validateToolArguments(tool, argumentsJson);
+          if (tool.name === 'search_pdpl')
+            throw new ToolError(
+              400,
+              'PDPL_CONTEXT_REQUIRED',
+              'PDPL search requires the current authenticated chat turn.',
+            );
+          if (tool.name === 'search_company_policy')
+            throw new ToolError(
+              400,
+              'POLICY_CONTEXT_REQUIRED',
+              'Policy search requires the current authenticated chat turn.',
+            );
+          if (tool.kind === 'ACTION') {
+            const now = new Date();
+            const ack = await requireToolAcknowledgement(tx, user.id, tool);
+            if (!prepare)
+              throw new ToolError(
+                409,
+                'TOOL_EXECUTION_DEFERRED',
+                'New analysis requires a future human-confirmation workflow.',
+              );
+            requireActiveSession(auth);
+            return pendingContract({
+              userId: user.id,
+              conversationId,
+              tool,
+              parameters,
+              acknowledgementId: ack.id,
+              now,
+            });
+          }
+          if (prepare) throw new ToolError(400, 'TOOL_NOT_ACTION', 'This tool does not initiate an analysis.');
+          const analyzerType = tool.name === 'get_file_analysis' ? 'FILE' : parameters.analyzerType;
+          const record = await tx[delegates[analyzerType]].findFirst({
+            where: { id: parameters.analysisId, userId: user.id, status: 'COMPLETED', expiresAt: { gt: new Date() } },
+            select: { ...select, ...(analyzerType === 'FILE' ? { clamavStatus: true, yaraStatus: true } : {}) },
+          });
+          if (!record) throw new ToolError(404, 'TOOL_NOT_FOUND', 'Resource not found.');
+          requireActiveSession(auth);
+          // The incident linked to this analysis, if one was recorded. Scoped to the same owner; only fixed
+          // fields are projected, never descriptions, notes or assignee details.
+          const incident = await tx.incident.findFirst({
+            where: { sourceKey: `${analyzerType}:${record.id}`, reporterId: user.id },
+            select: {
+              number: true,
+              createdAt: true,
+              severity: true,
+              status: true,
+              escalationMetadata: true,
+              _count: { select: { notifications: { where: { audience: 'IT_SECURITY_ADMIN' } } } },
+            },
+          });
+          requireActiveSession(auth);
+          return projectToolResult(tool, analyzerType, record, incident);
+        },
+        { maxWait: 1000, timeout: TOOL_LIMITS.transactionTimeoutMs },
+      );
     } catch (error) {
       if (error instanceof ToolError) throw error;
       throw new ToolError(503, 'TOOL_UNAVAILABLE', 'The tool operation could not be completed.');
-    } finally { active--; }
+    } finally {
+      active--;
+    }
   }
-  return Object.freeze({ execute: (request) => operation(request, false), prepareActionContract: (request) => operation(request, true) });
+  return Object.freeze({
+    execute: (request) => operation(request, false),
+    prepareActionContract: (request) => operation(request, true),
+  });
 }

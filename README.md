@@ -1,179 +1,316 @@
-# EWAGuard AI
-
 <p align="center">
-  <img src="frontend/src/assets/branding/ewa_logo_wide_sticker.png" alt="EWAGuard AI logo" width="600">
+  <img src="frontend/src/assets/branding/ewa_logo_wide_sticker.png" alt="EWAGuard AI logo" width="520">
 </p>
 
-Enterprise cybersecurity and Bahrain PDPL assistant prototype for threat analysis,
-incident triage, and security awareness.
+<h1 align="center">EWAGuard AI</h1>
 
-**Current implementation: Phase 0–2B foundation, design system and verified
-PostgreSQL/pgvector architecture, Phase 3A authentication, Phase 3B RBAC/MFA,
-the Phase 4A employee portal, Phase 4B chat interface, Phase 5A local password
-security, Phase 5B sensitive-information acknowledgement, Phase 6A email analysis,
-Phase 6B URL analysis, Phase 6C file analysis, Phase 7A central risk evaluation,
-Phase 7B incident assistance, Phase 8A secure OpenAI/chat backend, and Phase 8B1
-controlled tool registry, Phase 8B2A durable approvals, and Phase 8B2B Responses
-function calling with multi-round budget accounting, Phase 8C employee chat integration,
-and Phase 10A automatic incident creation. Phase 9 remains postponed pending approved source documents.**
-Employees sign in using short-lived HTTP-only JWT cookies. Administrators must
-enroll and verify TOTP before receiving an authenticated session. See
-[RBAC and MFA operations](docs/rbac-mfa.md) for enrollment and key configuration.
+<p align="center">
+  <strong>An AI-powered enterprise cybersecurity and Bahrain PDPL assistant for employee threat analysis,
+  incident triage and security awareness.</strong>
+</p>
 
-The employee portal includes dedicated tool, awareness, incident, community, and
-profile pages. Password strength analysis and secure generation run entirely in the
-browser and create no password records or API requests. The assistant
-supports real backend AI responses, conversation history and explicit analysis approvals. Later
-feature submissions remain disabled and explicitly labeled as previews. See
-[employee portal scope and verification](docs/employee-portal.md).
+<p align="center">
+  <img alt="Version" src="https://img.shields.io/badge/version-1.0.0-0aa2df">
+  <img alt="Node.js" src="https://img.shields.io/badge/Node.js-24.x-339933?logo=nodedotjs&logoColor=white">
+  <img alt="React" src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=black">
+  <img alt="PostgreSQL" src="https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?logo=postgresql&logoColor=white">
+  <img alt="Prisma" src="https://img.shields.io/badge/Prisma-7-2D3748?logo=prisma&logoColor=white">
+  <img alt="OpenAI" src="https://img.shields.io/badge/OpenAI-tool%20calling-412991?logo=openai&logoColor=white">
+</p>
 
-See [employee chat workflow and security boundaries](docs/chat-interface.md).
-See [password security architecture and privacy controls](docs/password-security.md).
-See [sensitive-information disclaimer architecture](docs/disclaimers.md).
-Phase 6A supports employee email submissions and minimized evidence. See
-[email analyzer scope and privacy boundaries](docs/email-analyzer.md).
-Phase 6B adds public URL structure, DNS, TLS and VirusTotal report evidence without
-loading webpages. See [URL analyzer architecture and privacy](docs/url-analyzer.md).
-Phase 6C adds bounded employee file uploads, local ClamAV/YARA scans and VirusTotal
-SHA-256 lookup only. See [file analyzer architecture and privacy](docs/file-analyzer.md).
+<p align="center">
+  <a href="#overview">Overview</a> ·
+  <a href="#features">Features</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#getting-started">Getting started</a> ·
+  <a href="#security-and-privacy">Security</a> ·
+  <a href="#testing">Testing</a> ·
+  <a href="#documentation">Docs</a>
+</p>
 
-Phase 7A computes deterministic final risk for all three analyzers, with separate
-confidence, coverage, reasons and recommendations. See [Central Risk Engine](docs/risk-engine.md).
-Run `npm run test:risk` for its policy and UI matrix.
-Phase 7B adds deterministic employee next-step guidance derived from completed risk
-results. See [Incident Assistance](docs/incident-assistance.md) and run
-`npm run test:assistance`. Guidance itself performs no remediation or administrator contact.
+---
 
-Phase 10A records incidents automatically for finalized HIGH/CRITICAL email, URL
-and file analyses, including approved AI analysis. See [Incident Engine](docs/incident-engine.md)
-for ownership, atomic evidence/history, idempotency, retry and retention controls.
-No administrator incident dashboard or Socket.IO notifications are implemented.
+## Overview
 
-See [database architecture and setup](docs/database.md) for the 32 tables,
-relationships, privacy boundaries, validation commands and pgvector prerequisite.
-See [authentication architecture](docs/authentication.md) for the session model,
-CSRF decision and development-account workflow.
+Employees receive phishing emails, suspicious links and unknown files every day, and often do not know whether
+something is dangerous or what to do next. Security teams, meanwhile, learn about incidents late and with incomplete
+information.
 
-## Local development
+**EWAGuard AI** gives every employee one secure place to check something suspicious, receive clear guidance, and
+have real threats escalated to the IT/security team automatically. It also helps prevent incidents through short
+awareness courses, quizzes, certificates and a moderated security community.
 
-Use Node.js 24.13+ (24.x) and npm 11.x. Run from the repository root:
+The platform is built around one rule:
 
-```powershell
-npm.cmd ci
-Copy-Item .env.example .env
-npm.cmd run db:migrate
-npm.cmd run db:seed
-npm.cmd run db:seed:auth
-npm.cmd run dev
+> **Security tools detect. The risk engine evaluates. AI explains and coordinates.**
+
+The language model never decides on its own whether something is malicious. Scanners and checks such as ClamAV,
+YARA, DNS/TLS and VirusTotal produce evidence; a deterministic, unit-tested risk engine turns that evidence into a
+score and severity; the AI explains the result in plain language and coordinates the next step.
+
+> [!NOTE]
+> EWAGuard AI is a university graduation project and enterprise prototype. It does not replace endpoint protection,
+> a SIEM, a SOC, or legal advice, and it never claims that an email, URL or file is guaranteed safe.
+
+## Features
+
+### For employees
+
+| Area | What it does |
+| --- | --- |
+| **AI security assistant** | Chat about security concerns; the assistant can run approved analysis tools after explicit confirmation. |
+| **Email analyzer** | Analyzes pasted emails or `.eml` files: sender and Reply-To mismatch, impersonation, links, attachments, urgency and credential requests. SPF/DKIM/DMARC are reported as unavailable when they cannot be checked. |
+| **URL analyzer** | Checks URL structure, lookalike and punycode domains, DNS, TLS certificates and reputation, without loading the page and with SSRF protection. |
+| **File analyzer** | Accepts bounded uploads and runs SHA-256 hashing, ClamAV, YARA and hash reputation lookups. Uploaded files are never executed. |
+| **Password security** | Checks password strength with zxcvbn and generates passwords with Web Crypto, entirely in the browser. |
+| **Incident assistance** | Gives step-by-step guidance after an analysis, and lets the employee report exposure (for example, "I entered my credentials"). |
+| **My incidents** | Lets employees follow their own reports and the updates the security team shares with them. |
+| **PDPL and policy assistant** | Answers Bahrain PDPL and company-policy questions using retrieval-augmented generation, with sources. |
+| **Awareness training** | Seven short courses (phishing, safe browsing, data privacy, physical security, incident reporting, secure remote work, responsible AI), each with a quiz. |
+| **Monthly quizzes and certificates** | Monthly knowledge checks with score history, and PDF certificates issued only after legitimate completion. |
+| **Security community** | Lets employees share warnings and tips; posts are visible to others only after moderation. |
+
+### For IT/security administrators
+
+| Area | What it does |
+| --- | --- |
+| **MFA-protected access** | Administrators sign in with password plus TOTP, verified on the server. |
+| **Incident queue** | Triage view of open incidents ordered by severity and waiting time, with unassigned and assigned-to-me views, search, severity filters and a severity-themed interface. |
+| **Investigation workspace** | Evidence, timeline, assignment, one-click lifecycle steps (`NEW → UNDER_INVESTIGATION → CONTAINED → RESOLVED → CLOSED`), and internal or employee-visible notes. |
+| **Real-time alerts** | High and critical incidents trigger Socket.IO notifications, delivered only to authorized users. |
+| **User management** | Account lifecycle, roles, and shareable invite links for self-registration (expiring, use-limited, revocable). |
+| **Training and quiz management** | Draft, review, approve and publish courses and monthly quizzes. AI drafts never publish automatically. |
+| **Analytics** | Security, incident and awareness analytics, including completion rates, pass rates and score trends. |
+| **Moderation and audit** | Community moderation and a searchable audit log of security-sensitive actions. |
+
+### End-to-end scenario
+
+```mermaid
+flowchart LR
+    A[Employee submits<br/>suspicious email] --> B[Email analyzer<br/>collects evidence]
+    B --> C[Risk engine<br/>scores HIGH]
+    C --> D[Employee reports<br/>entered credentials]
+    D --> E[Risk engine<br/>CRITICAL]
+    E --> F[Incident created<br/>automatically]
+    F --> G[Real-time alert<br/>to administrators]
+    G --> H[Investigate → Contain<br/>→ Resolve]
 ```
 
-Before seeding accounts, replace placeholders in ignored `.env`, generate a unique
-JWT secret of at least 32 random characters, and set strong local-only
-`DEV_EMPLOYEE_PASSWORD` and `DEV_ADMIN_PASSWORD` values (8–128 characters). Do
-not add these development passwords to `.env.example`. Copy the example only if
-`.env` does not already exist.
+## Architecture
 
-Open <http://127.0.0.1:5173>. Vite forwards `/api` to the backend on port 5000.
-In development, <http://localhost:5173> also works: CORS and CSRF checks accept
-both loopback hostnames at the configured scheme and port. Production accepts only
-the configured `FRONTEND_URL`. Cookies remain separate for each hostname.
-`GET http://127.0.0.1:5000/api/health` returns:
+```mermaid
+flowchart TB
+    subgraph Client["Browser — React + Tailwind CSS"]
+        UI[Employee portal & admin console]
+        PW[Password tools<br/>local only]
+    end
+    subgraph API["Node.js + Express REST API"]
+        AUTH[Auth · JWT cookies · bcrypt · TOTP MFA · RBAC]
+        AN[Analyzers<br/>email · URL · file]
+        RISK[Deterministic<br/>risk engine]
+        AI[AI orchestration<br/>allow-listed tools]
+        INC[Incident engine<br/>& management]
+        AW[Training · quizzes<br/>certificates · community]
+        RT[Socket.IO<br/>notifications]
+    end
+    subgraph Data["PostgreSQL + pgvector (Prisma ORM)"]
+        DB[(Relational data<br/>& audit logs)]
+        VEC[(Document embeddings)]
+    end
+    EXT[ClamAV · YARA · VirusTotal · OpenAI]
 
-```json
-{ "status": "ok", "service": "ewaguard-api" }
+    UI --> AUTH
+    AN --> RISK --> INC --> RT --> UI
+    AI --> AN
+    AI --> VEC
+    AN --> EXT
+    AI --> EXT
+    AUTH & INC & AW --> DB
 ```
 
-This endpoint checks API liveness only, not database or external-service readiness.
-The home page displays the actual result or an unavailable message.
+### Technology stack
 
-## Commands
+| Layer | Technologies |
+| --- | --- |
+| Frontend | React 19, React Router 7, Tailwind CSS 4, Vite, lucide-react |
+| Backend | Node.js 24, Express 5, REST, Socket.IO |
+| Database | PostgreSQL, pgvector, Prisma ORM 7 |
+| Authentication | JWT in HTTP-only cookies, bcrypt, TOTP MFA (otpauth), rate limiting, Helmet |
+| AI | OpenAI Responses API with function/tool calling, embeddings, RAG |
+| Security analysis | MailParser, ClamAV, YARA, VirusTotal, Node.js crypto (SHA-256), zxcvbn |
+| Documents | PDFKit (certificates), pdf.js (knowledge ingestion), sharp (community images) |
+
+### Repository structure
+
+```text
+ewaguard-ai/
+├── backend/
+│   ├── prisma/            # schema, migrations and seeds
+│   ├── scripts/           # provisioning, knowledge ingestion, retention and verification
+│   ├── security/          # project-owned YARA starter rules
+│   ├── src/
+│   │   ├── ai/            # OpenAI adapter, chat policy, tool registry and approvals
+│   │   ├── analyzers/     # email, URL and file analysis
+│   │   ├── risk/          # deterministic risk engine
+│   │   ├── incidents/     # incident engine and management
+│   │   ├── rag/           # chunking, embeddings and retrieval
+│   │   ├── training/      # courses, quizzes and monthly quiz content
+│   │   ├── certificates/  # PDF certificates
+│   │   ├── community/     # posts, comments, reports and moderation
+│   │   ├── notifications/ # persistence and Socket.IO delivery
+│   │   ├── users/         # accounts, setup and invite links
+│   │   └── routes/        # Express routers
+│   └── tests/             # unit and integration tests
+├── frontend/
+│   ├── src/
+│   │   ├── features/      # feature modules (incidents, chat, training…)
+│   │   ├── components/    # shared UI components
+│   │   └── layouts/ pages/ context/ services/
+│   └── tests/             # component and flow tests
+├── shared/                # policy shared by frontend and backend
+├── docs/                  # architecture, feature and security documentation
+└── AGENTS.md              # development and security rules
+```
+
+## Getting started
+
+### Prerequisites
+
+- **Node.js 24.13+** and **npm 11**
+- **PostgreSQL** with the **pgvector** extension installed
+- Optional, for full analysis: **ClamAV**, **YARA**, an **OpenAI API key** and a **VirusTotal API key**. When a
+  service is not configured, the application reports it as unavailable instead of inventing a result.
+
+### Installation
+
+```bash
+git clone https://github.com/AkramAldahyani/ewaguard-ai.git
+cd ewaguard-ai
+npm ci
+cp .env.example .env        # PowerShell: Copy-Item .env.example .env
+```
+
+Edit `.env` and replace every placeholder. At minimum, set:
+
+| Variable | Purpose |
+| --- | --- |
+| `DATABASE_URL` | PostgreSQL connection string |
+| `JWT_SECRET` | Random secret of at least 32 characters |
+| `MFA_ENCRYPTION_KEY` | 32 random bytes as 64 hex characters, required for administrator MFA |
+| `TOOL_APPROVAL_ENCRYPTION_KEY` | Key for encrypted AI tool approvals |
+| `DEV_EMPLOYEE_PASSWORD`, `DEV_ADMIN_PASSWORD` | Local-only passwords for the two development accounts |
+| `OPENAI_API_KEY` | Optional; enables the AI assistant and RAG |
+| `VIRUSTOTAL_API_KEY`, `CLAMAV_PATH`, `YARA_PATH` | Optional; enable reputation and malware scanning |
+
+See [`.env.example`](.env.example) for every option and its default.
+
+### Database and accounts
+
+```bash
+npm run db:migrate      # apply migrations (requires pgvector)
+npm run db:seed         # roles and departments
+npm run db:seed:auth    # local employee and administrator accounts
+```
+
+The development accounts are `employee@ewa.bh` and `admin@ewa.bh`, using the passwords you set in `.env`. On first
+sign-in, the administrator is asked to enroll an authenticator app.
+
+Optional content:
+
+```bash
+npm run training:provision -- --course all --admin-email admin@ewa.bh
+npm run monthly:provision -- --period all --admin-email admin@ewa.bh
+```
+
+### Run
+
+```bash
+npm run dev
+```
+
+Open <http://127.0.0.1:5173>. The Vite dev server proxies `/api` to the backend on port 5000, and
+`GET /api/health` returns `{ "status": "ok", "service": "ewaguard-api" }`.
+
+## Useful commands
 
 | Command | Purpose |
 | --- | --- |
-| `npm run dev` | Start both development servers; Ctrl+C stops them |
-| `npm run dev:frontend` | Start Vite only |
-| `npm run dev:backend` | Start API with Node watch mode |
-| `npm run start:backend` | Start API without watch mode |
-| `npm run build` | Build frontend into `frontend/dist` |
-| `npm run lint` | Lint frontend, backend, tests, and configuration |
-| `npm run check:backend` | Check backend entry/configuration syntax |
-| `npm test` | Run foundation and authentication API tests |
-| `npm run test:portal` | Render employee routes, role boundaries, profile and preview controls without a browser |
-| `npm run test:chat` | Check chat state, keyboard decisions and safe structured presentation |
-| `npm run test:password` | Check password strength, policy, secure generation and privacy boundaries |
-| `npm run test:disclaimer` | Check disclaimer UI, authorization, metadata minimization and verification |
-| `npm run test:email` | Check bounded email parsing, deterministic indicators and privacy minimization |
-| `npm run test:url` | Check URL normalization, SSRF, DNS/TLS, and mocked reputation providers |
-| `npm run test:url:api` | Check URL API authorization and real minimized PostgreSQL persistence |
-| `npm run test:url:ui` | Check employee URL UI rendering and interaction state |
-| `npm run test:file` | Check file validation, temporary lifecycle, scanner adapters and hash-only reputation |
-| `npm run test:file:api` | Check employee multipart API, authorization and minimized persistence |
-| `npm run test:file:ui` | Check file UI rendering, upload controls and interaction lifecycle |
-| `npm run prisma:format` | Format the PostgreSQL datasource schema |
-| `npm run prisma:validate` | Validate the MVP schema |
-| `npm run prisma:generate` | Generate the ignored Prisma Client |
-| `npm run db:migrate` | Apply pending migrations (requires pgvector installed) |
-| `npm run db:status` | Inspect migration application status |
-| `npm run db:seed` | Seed development roles/departments, without accounts |
-| `npm run db:seed:auth` | Create/rotate two fake local accounts from ignored environment passwords |
-| `npm run test:database` | Run rollback-isolated local database constraint tests |
-| `npm run test:vector` | Verify real vector storage, similarity, index and constraints |
+| `npm run dev` | Start the frontend and backend together |
+| `npm run build` | Build the frontend into `frontend/dist` |
+| `npm run lint` | Lint the whole repository |
+| `npm run format:check` | Check formatting with Prettier |
+| `npm test` | Run the backend unit and integration test suite |
+| `npm run prisma:validate` | Validate the Prisma schema |
+| `npm run db:status` | Show migration status |
+| `npm run knowledge:ingest` / `knowledge:index` | Ingest and embed approved PDPL and policy documents |
+| `npm run retention:preview` | Preview data that is eligible for retention cleanup without deleting anything |
 
-## Environment
+The root [`package.json`](package.json) also defines focused suites such as `test:risk`, `test:email`, `test:url`,
+`test:file`, `test:chat` and `test:tools`.
 
-The backend and Prisma load the root `.env` regardless of working directory.
-Injected environment variables take precedence. The backend requires a valid
-`JWT_SECRET`; Prisma and database-backed authentication require `DATABASE_URL`.
-The example's placeholder URL is sufficient for **format/validate only**, which do
-not verify database connectivity. No database is contacted by the Phase 0 API.
+## Security and privacy
 
-| Variable | Use |
+Security has priority over convenience throughout the project. Highlights:
+
+- **Authorization on the server:** every route checks identity, role and resource ownership; hidden buttons are never
+  the control. Employees cannot see other employees' incidents or administrator data.
+- **Strong authentication:** bcrypt password hashing, short-lived HTTP-only JWT cookies, session versioning and
+  revocation, login rate limiting, trusted-origin checks, and server-side TOTP MFA for administrators.
+- **Deterministic risk scoring:** severity comes from versioned, tested rules, not from the AI. A missing scanner is
+  reported as `UNAVAILABLE`; "no detection" is never presented as "safe".
+- **AI safety:** tools are allow-listed with validated arguments, analyses require explicit approval, retrieved
+  documents are treated as data rather than instructions, and a prompt such as "I am an administrator" grants nothing.
+- **Analyzer hardening:** URL checks block private, loopback, link-local and metadata addresses (SSRF); uploads use
+  size and type limits, randomized names, isolated temporary storage, and are never executed.
+- **Password privacy:** passwords entered in the password tools never leave the browser, and are never stored, logged
+  or sent to OpenAI.
+- **Privacy by design:** sensitive-information disclaimers with active acknowledgement, data minimization, retention
+  policies, and audit logging that excludes passwords, tokens and secrets.
+- **Moderation and review:** community posts and AI-drafted training content require administrator approval before
+  publication.
+
+See [RBAC and MFA](docs/rbac-mfa.md), [privacy and retention](docs/privacy-retention.md) and
+[controlled tools](docs/controlled-tools.md) for details.
+
+## Testing
+
+The project has more than 1,000 automated tests across the backend and frontend, covering authentication,
+authorization, MFA, password privacy, the risk engine, analyzers, incident escalation and management, RAG retrieval,
+training and quiz scoring, certificates, community moderation, disclaimers and Socket.IO authorization.
+
+```bash
+npm test                                   # backend suite (uses the local PostgreSQL database)
+node --test frontend/tests/*.test.mjs      # frontend component and flow tests
+```
+
+Automated tests use mocked OpenAI responses and make no paid API calls. Integration tests refuse to run against a
+non-local database.
+
+## Documentation
+
+| Topic | Document |
 | --- | --- |
-| `NODE_ENV` | `development`, `test`, or `production` |
-| `PORT` | Backend port, 1–65535; default 5000 |
-| `HOST` | Explicit bind address; default `127.0.0.1`; containers may use `0.0.0.0` |
-| `FRONTEND_URL` | One browser origin allowed by API CORS; HTTPS required in production |
-| `DEV_API_TARGET` | Vite development proxy target; default `http://127.0.0.1:5000` |
-| `DATABASE_URL` | PostgreSQL URL for Prisma CLI configuration |
-| `JWT_SECRET` | Server-only JWT signing secret; minimum 32 characters |
-| `JWT_ACCESS_TTL_SECONDS` | Employee and administrator access-cookie lifetime, 60–3600 seconds; default 1800 (30 minutes) |
-| `LOGIN_RATE_LIMIT_WINDOW_MINUTES` | Failed-login rate-limit window; default 15 |
-| `LOGIN_RATE_LIMIT_MAX` | Failed login limit per client/window; default 10 |
-| `VIRUSTOTAL_API_KEY` | Optional backend-only key for URL/domain and file-hash reputation reports |
-| `CLAMAV_PATH` | Backend-only absolute path to the local ClamAV scanner executable |
-| `YARA_PATH` | Backend-only absolute path to the local YARA executable |
-| `YARA_RULES_PATH` | Absolute rules file/directory; development defaults to the project-owned starter rules |
+| Architecture and database | [architecture.md](docs/architecture.md), [database.md](docs/database.md) |
+| Authentication and access | [authentication.md](docs/authentication.md), [rbac-mfa.md](docs/rbac-mfa.md), [user-management.md](docs/user-management.md) |
+| Analyzers and risk | [email-analyzer.md](docs/email-analyzer.md), [url-analyzer.md](docs/url-analyzer.md), [file-analyzer.md](docs/file-analyzer.md), [risk-engine.md](docs/risk-engine.md) |
+| Incidents | [incident-engine.md](docs/incident-engine.md), [incident-management.md](docs/incident-management.md), [realtime-notifications.md](docs/realtime-notifications.md) |
+| AI and RAG | [openai-chat.md](docs/openai-chat.md), [controlled-tools.md](docs/controlled-tools.md), [pdpl-assistant.md](docs/pdpl-assistant.md), [company-policy-assistant.md](docs/company-policy-assistant.md) |
+| Awareness | [training-platform.md](docs/training-platform.md), [awareness-analytics.md](docs/awareness-analytics.md), [community-platform.md](docs/community-platform.md) |
+| Privacy | [password-security.md](docs/password-security.md), [disclaimers.md](docs/disclaimers.md), [privacy-retention.md](docs/privacy-retention.md) |
 
-Other integration variables in `.env.example` are reserved for later phases.
-Never put secrets in `VITE_*` variables;
-those values can become public browser code. Commit only placeholder examples.
+Contributors and coding agents must follow the rules in [AGENTS.md](AGENTS.md).
 
-## Privacy and retention (Phase 15A)
+## Limitations and future work
 
-See [the data inventory and operating policy](docs/privacy-retention.md).
-Database cleanup is disabled by default. `npm.cmd run retention:preview` reports
-bounded eligible counts without deleting data. Do not enable or apply retention
-without explicit operator approval. Phase 15B remains pending.
+- This is a prototype; it is not a replacement for endpoint protection, a SIEM, or a security team.
+- Bahrain PDPL answers depend on the approved source documents that have been ingested, and do not constitute legal
+  advice.
+- External checks (VirusTotal, OpenAI) depend on the availability and limits of those services.
+- Planned future work includes Microsoft 365/Outlook and Active Directory integration, SIEM integration, Docker-based
+  deployment, and advanced MITRE ATT&CK visualization.
 
-## Architecture and boundaries
+## Author
 
-See [the foundation architecture](docs/architecture.md). Follow [AGENTS.md](AGENTS.md)
-for phase scope, security, privacy, and development requirements. Database design
-is described in [Phase 2 documentation](docs/database.md); deployment belongs to
-Phase 18. Phase 0 architecture notes remain a historical foundation description.
+Developed by [**Akram Aldahyani**](https://github.com/AkramAldahyani) as a university graduation project.
 
-## Phase 8A backend
-
-Secure employee chat APIs and conservative OpenAI spending controls are documented
-in [docs/openai-chat.md](docs/openai-chat.md). Phase 8C connects the employee UI
-to these APIs. Normal tests use mocked OpenAI responses and cost $0.
-
-The [controlled tool foundation](docs/controlled-tools.md) enforces employee-owned
-read-only results. Phase 8B2A implements
-[durable human approvals and controlled email/URL execution](docs/tool-approvals.md).
-Configure the dedicated
-approval encryption key and use the documented employee REST endpoints. Phase 8B2B
-connects Responses function calling, private-input approval handoff, saved-result
-explanations and separately reserved model rounds. Phase 8C adds privacy, history,
-approval/rejection and result recovery UI. Automated tests use mocked OpenAI
-responses and no paid calls. Visual browser validation remains pending.
+<p align="center"><sub>Electricity &amp; Water Authority · EWAGuard AI</sub></p>

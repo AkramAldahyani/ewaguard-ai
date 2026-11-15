@@ -9,12 +9,23 @@ export function createAuthenticate({ database, config }) {
       const session = await authenticateSession(database, config, token);
       if (!session) return unauthorized(res);
       const { user, claims } = session;
-      req.auth = Object.freeze({ userId: user.id, sessionId: claims.jti, mfaVerified: Boolean(claims.mfa), mfaProof: claims.mfa,
-        sessionVersion: claims.version ?? 0, authenticatedAt: claims.iat, expiresAt: new Date(claims.exp * 1000).toISOString() });
+      req.auth = Object.freeze({
+        userId: user.id,
+        sessionId: claims.jti,
+        mfaVerified: Boolean(claims.mfa),
+        mfaProof: claims.mfa,
+        sessionVersion: claims.version ?? 0,
+        authenticatedAt: claims.iat,
+        expiresAt: new Date(claims.exp * 1000).toISOString(),
+      });
       req.user = Object.freeze(user);
       return next();
     } catch (error) {
-      if (error?.name === 'TokenExpiredError' || error?.name === 'JsonWebTokenError' || error?.name === 'NotBeforeError') {
+      if (
+        error?.name === 'TokenExpiredError' ||
+        error?.name === 'JsonWebTokenError' ||
+        error?.name === 'NotBeforeError'
+      ) {
         return unauthorized(res);
       }
       return next(error);

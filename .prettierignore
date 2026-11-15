@@ -1,0 +1,16 @@
+node_modules/
+dist/
+build/
+coverage/
+tmp/
+.runtime/
+package-lock.json
+backend/src/generated/
+backend/prisma/migrations/
+# RAG knowledge corpus: content hashes/chunks depend on exact text
+backend/data/
+# Test fixtures and sample inputs must stay byte-exact
+backend/tests/fixtures/
+analysis_test_files/
+# Prose documentation is not reformatted
+*.md

@@ -2,8 +2,12 @@ import { simpleParser } from 'mailparser';
 import { EMAIL_LIMITS as LIMITS, EmailAnalysisError } from './email-policy.js';
 
 const options = Object.freeze({
-  skipHtmlToText: true, skipTextToHtml: true, skipTextLinks: true,
-  skipImageLinks: true, keepCidLinks: true, keepDeliveryStatus: true,
+  skipHtmlToText: true,
+  skipTextToHtml: true,
+  skipTextLinks: true,
+  skipImageLinks: true,
+  keepCidLinks: true,
+  keepDeliveryStatus: true,
 });
 
 function assertHeaders(headers) {
@@ -13,7 +17,8 @@ function assertHeaders(headers) {
   if (lines.length > LIMITS.headerCount) throw new EmailAnalysisError('EMAIL_INPUT_TOO_LARGE');
   // Reject protocol control bytes while allowing tab and CRLF folding.
   // eslint-disable-next-line no-control-regex
-  if (/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(headers) || /\r(?!\n)/.test(headers)) throw new EmailAnalysisError('MALFORMED_EMAIL');
+  if (/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(headers) || /\r(?!\n)/.test(headers))
+    throw new EmailAnalysisError('MALFORMED_EMAIL');
   for (let index = 0; index < lines.length; index += 1) {
     if (!/^[!-9;-~]+:/.test(lines[index]) && !(index > 0 && /^[ \t]+\S/.test(lines[index]))) {
       throw new EmailAnalysisError('MALFORMED_EMAIL');
@@ -32,7 +37,8 @@ export async function parseEmailInput(input) {
   if (Object.keys(input).some((key) => !allowed.includes(key))) throw new EmailAnalysisError('INVALID_EMAIL_INPUT');
   let source;
   if (pasted) {
-    if (typeof input.body !== 'string' || (input.headers !== undefined && typeof input.headers !== 'string')) throw new EmailAnalysisError('INVALID_EMAIL_INPUT');
+    if (typeof input.body !== 'string' || (input.headers !== undefined && typeof input.headers !== 'string'))
+      throw new EmailAnalysisError('INVALID_EMAIL_INPUT');
     if (Buffer.byteLength(input.body) > LIMITS.bodyBytes) throw new EmailAnalysisError('EMAIL_INPUT_TOO_LARGE');
     if (!input.body.trim()) throw new EmailAnalysisError('EMPTY_EMAIL');
     const headers = (input.headers ?? '').replace(/(?:\r?\n)+$/, '');
@@ -50,7 +56,10 @@ export async function parseEmailInput(input) {
     const headers = raw.slice(0, separator.index);
     assertHeaders(headers);
     if (!/^(?:from|subject|date|message-id):/im.test(headers)) throw new EmailAnalysisError('MALFORMED_EMAIL');
-    if ((raw.match(/^content-type:/gim) ?? []).length > LIMITS.mimeParts || (raw.match(/^--[^\r\n]+/gm) ?? []).length > LIMITS.mimeParts * 2) {
+    if (
+      (raw.match(/^content-type:/gim) ?? []).length > LIMITS.mimeParts ||
+      (raw.match(/^--[^\r\n]+/gm) ?? []).length > LIMITS.mimeParts * 2
+    ) {
       throw new EmailAnalysisError('EMAIL_INPUT_TOO_LARGE');
     }
     // Detect truncated multipart envelopes before a lenient parse can hide it.
@@ -59,16 +68,23 @@ export async function parseEmailInput(input) {
       if (!/content-type:\s*multipart\//i.test(header)) continue;
       const boundary = /\bboundary\s*=\s*(?:"([^"\r\n]+)"|([^;\s]+))/i.exec(header.replace(/\r?\n[ \t]+/g, ' '));
       const value = boundary?.[1] ?? boundary?.[2];
-      if (!value || value.length > 70 || !raw.split(/\r?\n/).some((line) => line.trimEnd() === `--${value}--`)) throw new EmailAnalysisError('MALFORMED_EMAIL');
+      if (!value || value.length > 70 || !raw.split(/\r?\n/).some((line) => line.trimEnd() === `--${value}--`))
+        throw new EmailAnalysisError('MALFORMED_EMAIL');
     }
     source = input.eml;
   }
   let mail;
-  try { mail = await simpleParser(source, options); }
-  catch { throw new EmailAnalysisError('EMAIL_PARSE_FAILED'); }
+  try {
+    mail = await simpleParser(source, options);
+  } catch {
+    throw new EmailAnalysisError('EMAIL_PARSE_FAILED');
+  }
   const text = pasted ? input.body : (mail.text ?? '');
-  const html = pasted ? input.body : (typeof mail.html === 'string' ? mail.html : '');
-  if (Buffer.byteLength(text) + Buffer.byteLength(html) > LIMITS.decodedBodyBytes || mail.attachments.length > LIMITS.attachments) {
+  const html = pasted ? input.body : typeof mail.html === 'string' ? mail.html : '';
+  if (
+    Buffer.byteLength(text) + Buffer.byteLength(html) > LIMITS.decodedBodyBytes ||
+    mail.attachments.length > LIMITS.attachments
+  ) {
     throw new EmailAnalysisError('EMAIL_INPUT_TOO_LARGE');
   }
   if (!text.trim() && !html.trim() && !mail.attachments.length) throw new EmailAnalysisError('EMPTY_EMAIL');

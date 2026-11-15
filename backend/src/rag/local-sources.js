@@ -11,23 +11,50 @@ import { prepareCompanyExtraction } from './company-source.js';
 export const KNOWLEDGE_ROOT = fileURLToPath(new URL('../../data/knowledge-base/', import.meta.url));
 const fields = ['documentKey', 'title', 'filename', 'kind', 'version', 'classification', 'sourceUse'];
 export function validateManifest(manifest) {
-  if (!manifest || Object.keys(manifest).join() !== 'documents' || !Array.isArray(manifest.documents) ||
-      !manifest.documents.length || manifest.documents.length > 100) throw new IngestionError('INVALID_MANIFEST');
-  const identities = new Set(); const filenames = new Set();
-  return manifest.documents.map(entry => {
-    if (!entry || typeof entry !== 'object' || fields.some(key => !Object.hasOwn(entry, key)) || Object.keys(entry).some(key => !fields.includes(key)) ||
-      typeof entry.documentKey !== 'string' || !/^[a-z0-9][a-z0-9-]{0,99}$/.test(entry.documentKey) ||
-      typeof entry.title !== 'string' || !entry.title.trim() || entry.title.length > 240 || /[\p{Cc}\p{Cf}]/u.test(entry.title) ||
-      typeof entry.filename !== 'string' || !/^(?:pdpl|company-policies)\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.(pdf|docx)$/.test(entry.filename) ||
-      !['PDPL', 'COMPANY_POLICY'].includes(entry.kind) || !Number.isSafeInteger(entry.version) || entry.version < 1 || entry.version > 2147483647 ||
+  if (
+    !manifest ||
+    Object.keys(manifest).join() !== 'documents' ||
+    !Array.isArray(manifest.documents) ||
+    !manifest.documents.length ||
+    manifest.documents.length > 100
+  )
+    throw new IngestionError('INVALID_MANIFEST');
+  const identities = new Set();
+  const filenames = new Set();
+  return manifest.documents.map((entry) => {
+    if (
+      !entry ||
+      typeof entry !== 'object' ||
+      fields.some((key) => !Object.hasOwn(entry, key)) ||
+      Object.keys(entry).some((key) => !fields.includes(key)) ||
+      typeof entry.documentKey !== 'string' ||
+      !/^[a-z0-9][a-z0-9-]{0,99}$/.test(entry.documentKey) ||
+      typeof entry.title !== 'string' ||
+      !entry.title.trim() ||
+      entry.title.length > 240 ||
+      /[\p{Cc}\p{Cf}]/u.test(entry.title) ||
+      typeof entry.filename !== 'string' ||
+      !/^(?:pdpl|company-policies)\/(?:[A-Za-z0-9_-]+\/)*[A-Za-z0-9_-]+\.(pdf|docx)$/.test(entry.filename) ||
+      !['PDPL', 'COMPANY_POLICY'].includes(entry.kind) ||
+      !Number.isSafeInteger(entry.version) ||
+      entry.version < 1 ||
+      entry.version > 2147483647 ||
       !['DEMONSTRATION', 'PRODUCTION'].includes(entry.classification) ||
-      !(entry.kind === 'PDPL' ? entry.filename.startsWith('pdpl/') && entry.sourceUse === 'PUBLIC_LEGISLATION' && entry.classification === 'PRODUCTION'
-        : entry.filename.startsWith('company-policies/') && entry.sourceUse === 'DEMONSTRATION' && entry.classification === 'DEMONSTRATION'))
+      !(entry.kind === 'PDPL'
+        ? entry.filename.startsWith('pdpl/') &&
+          entry.sourceUse === 'PUBLIC_LEGISLATION' &&
+          entry.classification === 'PRODUCTION'
+        : entry.filename.startsWith('company-policies/') &&
+          entry.sourceUse === 'DEMONSTRATION' &&
+          entry.classification === 'DEMONSTRATION')
+    )
       throw new IngestionError('INVALID_MANIFEST');
     const identity = `${entry.kind}:${entry.documentKey}:${entry.version}`;
-    if (identities.has(identity) || filenames.has(entry.filename.toLowerCase())) throw new IngestionError('DUPLICATE_SOURCE');
-    identities.add(identity); filenames.add(entry.filename.toLowerCase());
-    return Object.fromEntries(fields.map(key => [key, entry[key]]));
+    if (identities.has(identity) || filenames.has(entry.filename.toLowerCase()))
+      throw new IngestionError('DUPLICATE_SOURCE');
+    identities.add(identity);
+    filenames.add(entry.filename.toLowerCase());
+    return Object.fromEntries(fields.map((key) => [key, entry[key]]));
   });
 }
 
@@ -50,13 +77,19 @@ export async function readLocalFile(root, relative, maxBytes = LIMITS.bytes) {
     }
     if (size !== stat.size) throw new IngestionError('SOURCE_CHANGED_DURING_READ');
     return buffer.subarray(0, size);
-  } finally { await handle.close(); }
+  } finally {
+    await handle.close();
+  }
 }
 
 export async function loadLocalManifest(root = KNOWLEDGE_ROOT) {
   const bytes = await readLocalFile(root, 'manifest.json', 128 * 1024);
-  try { return validateManifest(JSON.parse(bytes.toString('utf8'))); }
-  catch (error) { if (error instanceof IngestionError) throw error; throw new IngestionError('INVALID_MANIFEST'); }
+  try {
+    return validateManifest(JSON.parse(bytes.toString('utf8')));
+  } catch (error) {
+    if (error instanceof IngestionError) throw error;
+    throw new IngestionError('INVALID_MANIFEST');
+  }
 }
 
 export async function prepareSource(entry, root = KNOWLEDGE_ROOT) {
@@ -70,9 +103,26 @@ export async function prepareSource(entry, root = KNOWLEDGE_ROOT) {
   const legalSource = legal.legalSource;
   const chunks = chunkDocument(blocks);
   const legalMetadata = { ...(legalSource ? { legalSource } : {}), ...(policySource ? { policySource } : {}) };
-  const fingerprint = createHash('sha256').update(JSON.stringify({ source, contentSha256, pipeline: INGESTION_VERSION, ...legalMetadata })).digest('hex');
-  return { source, contentSha256, chunks, ingestionMetadata: { fingerprint, pipeline: INGESTION_VERSION,
-    format, sourceUse: source.sourceUse, pageCount: extraction.pageCount, warnings: extraction.warnings,
-    emptyPages: extraction.emptyPages ?? [], blockCount: blocks.length, chunkCount: chunks.length, ...legalMetadata,
-    externalProcessingPerformed: false, referenceTrust: 'UNTRUSTED' } };
+  const fingerprint = createHash('sha256')
+    .update(JSON.stringify({ source, contentSha256, pipeline: INGESTION_VERSION, ...legalMetadata }))
+    .digest('hex');
+  return {
+    source,
+    contentSha256,
+    chunks,
+    ingestionMetadata: {
+      fingerprint,
+      pipeline: INGESTION_VERSION,
+      format,
+      sourceUse: source.sourceUse,
+      pageCount: extraction.pageCount,
+      warnings: extraction.warnings,
+      emptyPages: extraction.emptyPages ?? [],
+      blockCount: blocks.length,
+      chunkCount: chunks.length,
+      ...legalMetadata,
+      externalProcessingPerformed: false,
+      referenceTrust: 'UNTRUSTED',
+    },
+  };
 }

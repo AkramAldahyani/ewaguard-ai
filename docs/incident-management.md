@@ -269,3 +269,15 @@ action verification is claimed. Manual QA before final UI sign-off:
 Phase 10B is functionally implemented, including honest unavailable history states.
 Browser visual sign-off remains pending. The existing bundle-size warning and
 in-process rate-limit deployment limitation remain. Phase 10C has not started.
+
+## Triage queue (v1.1)
+
+- `GET /api/admin/incidents` and `GET /api/incidents` accept `view` (`open`, `closed`, `all`; administrators also
+  `unassigned`, `mine`) and `sort=priority` (severity, then lifecycle stage, then longest waiting). Administrators can
+  also pass `search` (reference or number, title, or employee name). Every list response includes `total`.
+- `GET /api/admin/incidents/summary` and `GET /api/incidents/summary` return aggregate counts only (open, closed, per
+  status, open per severity, and for administrators unassigned and assigned-to-me). Employee counts are owner-scoped.
+- Starting an investigation (`UNDER_INVESTIGATION`) on an unassigned incident assigns the acting administrator in the
+  same transaction and records an `ASSIGNED` event and audit entry.
+- The administrator queue opens on the open view in priority order. Incident pages take a severity tone (critical red,
+  high orange, medium blue, low green) that is always paired with a text label and icon.

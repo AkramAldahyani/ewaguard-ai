@@ -3,13 +3,21 @@ import { LIMITS, IngestionError } from './ingestion-policy.js';
 // Never cross a known page or heading boundary. Offsets refer to extracted text,
 // not byte positions in the original file. Chunk sizes are characters, not tokens.
 export function chunkDocument(blocks, { maxChars = LIMITS.chunkChars, overlap = LIMITS.overlapChars } = {}) {
-  if (!Number.isInteger(maxChars) || maxChars < 100 || maxChars > 4000 ||
-    !Number.isInteger(overlap) || overlap < 0 || overlap >= maxChars / 2) throw new IngestionError('INVALID_CHUNK_OPTIONS');
+  if (
+    !Number.isInteger(maxChars) ||
+    maxChars < 100 ||
+    maxChars > 4000 ||
+    !Number.isInteger(overlap) ||
+    overlap < 0 ||
+    overlap >= maxChars / 2
+  )
+    throw new IngestionError('INVALID_CHUNK_OPTIONS');
   const groups = [];
   for (const [index, block] of blocks.entries()) {
     const previous = groups.at(-1);
     if (previous && block.type !== 'heading' && previous.page === block.page && previous.section === block.section) {
-      previous.text += '\n\n' + block.text; previous.lastBlock = index;
+      previous.text += '\n\n' + block.text;
+      previous.lastBlock = index;
     } else groups.push({ ...block, firstBlock: index, lastBlock: index });
   }
   const chunks = [];
@@ -26,9 +34,20 @@ export function chunkDocument(blocks, { maxChars = LIMITS.chunkChars, overlap = 
         if (/[\uD800-\uDBFF]/.test(group.text[end - 1])) end--;
       }
       const content = group.text.slice(start, end).trim();
-      if (content) chunks.push({ position: chunks.length, content,
-        metadata: { page: group.page, section: group.section, firstBlock: group.firstBlock,
-          lastBlock: group.lastBlock, startOffset: start, endOffset: end, referenceTrust: 'UNTRUSTED' } });
+      if (content)
+        chunks.push({
+          position: chunks.length,
+          content,
+          metadata: {
+            page: group.page,
+            section: group.section,
+            firstBlock: group.firstBlock,
+            lastBlock: group.lastBlock,
+            startOffset: start,
+            endOffset: end,
+            referenceTrust: 'UNTRUSTED',
+          },
+        });
       if (chunks.length > LIMITS.chunks) throw new IngestionError('CHUNK_LIMIT');
       if (end === group.text.length) break;
       start = end - overlap;

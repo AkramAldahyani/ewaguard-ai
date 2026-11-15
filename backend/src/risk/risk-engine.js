@@ -4,11 +4,18 @@ import { normalizeRiskEvidence } from './evidence-adapters.js';
 
 // Pure: callers supply a timestamp for report freshness. No clock, IO or secrets.
 export function evaluateRisk({ analyzerType, evidence, evaluatedAt, confirmedContext = {} } = {}) {
-  if (evaluatedAt !== undefined && (typeof evaluatedAt !== 'string' || !Number.isFinite(Date.parse(evaluatedAt)))) throw new TypeError('Invalid risk evaluation timestamp.');
+  if (evaluatedAt !== undefined && (typeof evaluatedAt !== 'string' || !Number.isFinite(Date.parse(evaluatedAt))))
+    throw new TypeError('Invalid risk evaluation timestamp.');
   // Only a trusted application caller may supply separately confirmed events.
   // Never derive this context from email text, analyzer fields or LLM arguments.
-  if (!confirmedContext || typeof confirmedContext !== 'object' || Array.isArray(confirmedContext) ||
-      Object.entries(confirmedContext).some(([key, value]) => key !== 'corporateCredentialsSubmittedToPhishingSite' || typeof value !== 'boolean')) {
+  if (
+    !confirmedContext ||
+    typeof confirmedContext !== 'object' ||
+    Array.isArray(confirmedContext) ||
+    Object.entries(confirmedContext).some(
+      ([key, value]) => key !== 'corporateCredentialsSubmittedToPhishingSite' || typeof value !== 'boolean',
+    )
+  ) {
     throw new TypeError('Invalid confirmed risk context.');
   }
   const n = normalizeRiskEvidence(analyzerType, evidence, evaluatedAt);
@@ -21,13 +28,25 @@ export function evaluateRisk({ analyzerType, evidence, evaluatedAt, confirmedCon
     s.contribution = Math.min(s.weight, (P.caps[s.category] ?? P.maximum) - used);
     groups.set(s.category, used + s.contribution);
   }
-  if (analyzerType === 'EMAIL' && signals.some((s) => ['EMAIL_CREDENTIAL_REQUEST', 'EMAIL_MFA_REQUEST'].includes(s.code)) && groups.size >= P.emailCombination.minimumGroups) {
-    signals.push({ code: 'EMAIL_COMBINED_PHISHING', category: 'combination', contribution: P.emailCombination.contribution });
+  if (
+    analyzerType === 'EMAIL' &&
+    signals.some((s) => ['EMAIL_CREDENTIAL_REQUEST', 'EMAIL_MFA_REQUEST'].includes(s.code)) &&
+    groups.size >= P.emailCombination.minimumGroups
+  ) {
+    signals.push({
+      code: 'EMAIL_COMBINED_PHISHING',
+      category: 'combination',
+      contribution: P.emailCombination.contribution,
+    });
   }
   const strong = new Set(signals.filter((s) => s.strong).map((s) => s.source));
   const structural = signals.filter((s) => s.category === 'structure' && s.contribution > 0);
-  const criticalEligible = confirmedContext.corporateCredentialsSubmittedToPhishingSite === true || strong.size >= P.critical.strongSources || (strong.size > 0 && structural.length >= P.critical.structuralGroups &&
-    (groups.get('structure') ?? 0) >= P.critical.structuralContribution);
+  const criticalEligible =
+    confirmedContext.corporateCredentialsSubmittedToPhishingSite === true ||
+    strong.size >= P.critical.strongSources ||
+    (strong.size > 0 &&
+      structural.length >= P.critical.structuralGroups &&
+      (groups.get('structure') ?? 0) >= P.critical.structuralContribution);
   let rawScore = signals.reduce((sum, s) => sum + s.contribution, 0);
   if (confirmedContext.corporateCredentialsSubmittedToPhishingSite) {
     const contribution = Math.max(0, P.thresholds.CRITICAL - rawScore);
@@ -38,7 +57,8 @@ export function evaluateRisk({ analyzerType, evidence, evaluatedAt, confirmedCon
   if (n.unavailable.size) n.notes.add('INSUFFICIENT_EVIDENCE');
   if (n.conflicting) n.notes.add('CONFLICTING_SECURITY_EVIDENCE');
   if (!signals.length) n.notes.add('NO_KNOWN_INDICATORS');
-  const limited = n.notes.has('COVERAGE_LIMITED') || n.notes.has('REPUTATION_STALE') || n.notes.has('REPUTATION_FRESHNESS_UNKNOWN');
+  const limited =
+    n.notes.has('COVERAGE_LIMITED') || n.notes.has('REPUTATION_STALE') || n.notes.has('REPUTATION_FRESHNESS_UNKNOWN');
   let confidence = 'LIMITED_CONFIDENCE';
   if (analyzerType === 'EMAIL') {
     if (n.available.has('EMAIL_LOCAL') && !n.unavailable.size && !limited) confidence = 'MODERATE_CONFIDENCE';
@@ -54,8 +74,17 @@ export function evaluateRisk({ analyzerType, evidence, evaluatedAt, confirmedCon
   reasons.push(...[...n.notes].sort().map((code) => reason(code, 'coverage', 0)));
   const riskLevel = riskLevelForScore(score);
   return {
-    analyzerType, score, riskLevel, confidence, version: RISK_ENGINE_VERSION, reasons,
-    evidenceCoverage: { availableSources: [...n.available].sort(), unavailableSources: [...n.unavailable].sort(), conflicting: n.conflicting },
+    analyzerType,
+    score,
+    riskLevel,
+    confidence,
+    version: RISK_ENGINE_VERSION,
+    reasons,
+    evidenceCoverage: {
+      availableSources: [...n.available].sort(),
+      unavailableSources: [...n.unavailable].sort(),
+      conflicting: n.conflicting,
+    },
     scoring: { uncappedScore: rawScore, capped: score !== rawScore, criticalEligible },
     recommendedActions: [...P.recommendations[riskLevel]],
     ...(evaluatedAt ? { evaluatedAt } : {}),
@@ -68,15 +97,36 @@ const escalationAnalyzers = ['EMAIL', 'URL'];
 // CRITICAL and the score never decreases. Only trusted application code may call this, after a separate
 // confirmation step; never derive the context from analyzed content, chat text or LLM output.
 export function escalateConfirmedRisk(snapshot, confirmedContext) {
-  if (!confirmedContext || typeof confirmedContext !== 'object' || Array.isArray(confirmedContext) ||
-      Object.keys(confirmedContext).join() !== 'corporateCredentialsSubmittedToPhishingSite' ||
-      confirmedContext.corporateCredentialsSubmittedToPhishingSite !== true) throw new TypeError('Invalid confirmed risk context.');
-  if (!snapshot || typeof snapshot !== 'object' || !escalationAnalyzers.includes(snapshot.analyzerType) ||
-      !Number.isInteger(snapshot.score) || snapshot.score < 0 || snapshot.score > P.maximum ||
-      snapshot.riskLevel !== riskLevelForScore(snapshot.score) || typeof snapshot.version !== 'string' ||
-      typeof snapshot.confidence !== 'string' || !Array.isArray(snapshot.reasonCodes) || snapshot.reasonCodes.length > P.limits.indicators ||
-      snapshot.reasonCodes.some((code) => typeof code !== 'string' || !Object.hasOwn(REASON_CODES, code))) throw new TypeError('Invalid stored risk snapshot.');
+  if (
+    !confirmedContext ||
+    typeof confirmedContext !== 'object' ||
+    Array.isArray(confirmedContext) ||
+    Object.keys(confirmedContext).join() !== 'corporateCredentialsSubmittedToPhishingSite' ||
+    confirmedContext.corporateCredentialsSubmittedToPhishingSite !== true
+  )
+    throw new TypeError('Invalid confirmed risk context.');
+  if (
+    !snapshot ||
+    typeof snapshot !== 'object' ||
+    !escalationAnalyzers.includes(snapshot.analyzerType) ||
+    !Number.isInteger(snapshot.score) ||
+    snapshot.score < 0 ||
+    snapshot.score > P.maximum ||
+    snapshot.riskLevel !== riskLevelForScore(snapshot.score) ||
+    typeof snapshot.version !== 'string' ||
+    typeof snapshot.confidence !== 'string' ||
+    !Array.isArray(snapshot.reasonCodes) ||
+    snapshot.reasonCodes.length > P.limits.indicators ||
+    snapshot.reasonCodes.some((code) => typeof code !== 'string' || !Object.hasOwn(REASON_CODES, code))
+  )
+    throw new TypeError('Invalid stored risk snapshot.');
   const score = Math.max(snapshot.score, P.thresholds.CRITICAL);
-  return { analyzerType: snapshot.analyzerType, score, riskLevel: riskLevelForScore(score), version: snapshot.version,
-    confidence: snapshot.confidence, reasonCodes: [...new Set([...snapshot.reasonCodes, 'CONFIRMED_CREDENTIAL_SUBMISSION'])].sort() };
+  return {
+    analyzerType: snapshot.analyzerType,
+    score,
+    riskLevel: riskLevelForScore(score),
+    version: snapshot.version,
+    confidence: snapshot.confidence,
+    reasonCodes: [...new Set([...snapshot.reasonCodes, 'CONFIRMED_CREDENTIAL_SUBMISSION'])].sort(),
+  };
 }

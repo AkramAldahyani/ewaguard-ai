@@ -9,7 +9,14 @@ import { retentionExpiry } from '../../privacy/retention-policy.js';
 export async function submitEmailAnalysis(database, { userId, acknowledgementId, input }, analyzer = analyzeEmail) {
   const result = await analyzer(input);
   const saved = await persistEmailAnalysis(database, { userId, acknowledgementId, result });
-  return { ...saved, incident: await completeAnalysisEscalation(database, { userId, analyzerType: 'EMAIL', analysisId: saved.analysisId }) };
+  return {
+    ...saved,
+    incident: await completeAnalysisEscalation(database, {
+      userId,
+      analyzerType: 'EMAIL',
+      analysisId: saved.analysisId,
+    }),
+  };
 }
 
 // Persistence is shared with approved execution so the result and consumption
@@ -21,7 +28,10 @@ export async function persistEmailAnalysis(database, { userId, acknowledgementId
   // One atomic insert: never store pending records or display metadata.
   const stored = await database.emailAnalysis.create({
     data: {
-      userId, acknowledgementId, status: 'COMPLETED', analyzedAt: now,
+      userId,
+      acknowledgementId,
+      status: 'COMPLETED',
+      analyzedAt: now,
       expiresAt: retentionExpiry('email', now),
       evidence: minimizeEmailEvidence(result),
       ...riskColumns(result.risk),

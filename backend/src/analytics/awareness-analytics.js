@@ -1,25 +1,38 @@
 import { awarenessFilters, AwarenessAnalyticsError } from './awareness-policy.js';
 import { MONTHLY_ELIGIBLE_EMPLOYEE } from './monthly-eligibility.js';
 
-const rate = (part, whole) => whole ? Math.round(part * 10000 / whole) / 100 : null;
-const two = (value) => value == null ? null : Math.round(Number(value) * 100) / 100;
-const id = (value) => value == null ? null : String(value);
+const rate = (part, whole) => (whole ? Math.round((part * 10000) / whole) / 100 : null);
+const two = (value) => (value == null ? null : Math.round(Number(value) * 100) / 100);
+const id = (value) => (value == null ? null : String(value));
 
 export function createAwarenessAnalytics(database) {
   return {
     async overview(query, now = new Date()) {
       const filter = awarenessFilters(query, now);
       const { start, endExclusive, programId, departmentId, completionStatus, monthlyPeriod } = filter;
-      const startDay = start.toISOString().slice(0, 10), endDay = endExclusive.toISOString().slice(0, 10);
+      const startDay = start.toISOString().slice(0, 10),
+        endDay = endExclusive.toISOString().slice(0, 10);
       const month = monthlyPeriod == null ? null : `${monthlyPeriod}-01`;
       const population = await database.$queryRaw`SELECT u."departmentId" AS id, count(*)::int AS count
         FROM users u JOIN roles r ON r.id = u."roleId" WHERE r.name = 'EMPLOYEE'
         AND u.status = 'ACTIVE' AND u."deactivatedAt" IS NULL GROUP BY u."departmentId"`;
       const departmentSize = population.find((row) => row.id === departmentId)?.count ?? 0;
-      if (departmentId && departmentSize < 5) throw new AwarenessAnalyticsError('Department analytics require at least five active employees.');
+      if (departmentId && departmentSize < 5)
+        throw new AwarenessAnalyticsError('Department analytics require at least five active employees.');
 
-      const [trainingRows, completionRows, programRows, courseRows, courseProgramRows, monthlyRows, certificateRows,
-        certificateProgramRows, trainingDepartments, monthlyDepartments, departmentNames] = await Promise.all([
+      const [
+        trainingRows,
+        completionRows,
+        programRows,
+        courseRows,
+        courseProgramRows,
+        monthlyRows,
+        certificateRows,
+        certificateProgramRows,
+        trainingDepartments,
+        monthlyDepartments,
+        departmentNames,
+      ] = await Promise.all([
         database.$queryRaw`SELECT count(*)::int AS assignments, count(DISTINCT ta."trainingId")::int AS programs,
           count(DISTINCT ta."employeeId")::int AS employees,
           count(*) FILTER (WHERE coalesce(tp.status::text, 'NOT_STARTED') = 'COMPLETED')::int AS completed,
@@ -150,66 +163,143 @@ export function createAwarenessAnalytics(database) {
           FROM eligible e LEFT JOIN best ON best."monthlyQuizId" = e."monthlyQuizId"
             AND best."employeeId" = e."employeeId" AND best.rank = 1
           GROUP BY e."departmentId" LIMIT 101`,
-        database.department.findMany({ where: { active: true }, take: 101, orderBy: [{ name: 'asc' }, { id: 'asc' }],
-          select: { id: true, name: true } }),
+        database.department.findMany({
+          where: { active: true },
+          take: 101,
+          orderBy: [{ name: 'asc' }, { id: 'asc' }],
+          select: { id: true, name: true },
+        }),
       ]);
-      const training = trainingRows[0], course = courseRows[0], certificates = certificateRows[0];
+      const training = trainingRows[0],
+        course = courseRows[0],
+        certificates = certificateRows[0];
       let previousRecordedScore = null;
       const monthly = monthlyRows.map((row) => {
-        const averageChangePoints = row.averageScore != null && previousRecordedScore != null
-          ? two(row.averageScore - previousRecordedScore) : null;
+        const averageChangePoints =
+          row.averageScore != null && previousRecordedScore != null
+            ? two(row.averageScore - previousRecordedScore)
+            : null;
         if (row.averageScore != null) previousRecordedScore = row.averageScore;
-        return { period: row.period, assigned: row.eligible, submitted: row.submitted,
+        return {
+          period: row.period,
+          assigned: row.eligible,
+          submitted: row.submitted,
           participationRatePercent: rate(row.submitted, row.eligible),
-          averageScorePercent: two(row.averageScore), averageChangePoints };
+          averageScorePercent: two(row.averageScore),
+          averageChangePoints,
+        };
       });
       const submitted = monthly.reduce((sum, row) => sum + row.submitted, 0);
-      const monthlyScoreSum = monthlyRows.reduce((sum, row) => sum + (row.averageScore == null ? 0 : row.averageScore * row.submitted), 0);
+      const monthlyScoreSum = monthlyRows.reduce(
+        (sum, row) => sum + (row.averageScore == null ? 0 : row.averageScore * row.submitted),
+        0,
+      );
       const populationMap = new Map(population.map((row) => [id(row.id), row.count]));
       const safeDepartments = departmentNames.length <= 100 && population.every((row) => row.count >= 5);
-      const eligibleDepartmentOptions = departmentNames.length <= 100
-        ? departmentNames.filter((row) => populationMap.get(row.id) >= 5).map(({ id: departmentId, name }) => ({ id: departmentId, name })) : [];
+      const eligibleDepartmentOptions =
+        departmentNames.length <= 100
+          ? departmentNames
+              .filter((row) => populationMap.get(row.id) >= 5)
+              .map(({ id: departmentId, name }) => ({ id: departmentId, name }))
+          : [];
       const trainingDepartmentMap = new Map(trainingDepartments.map((row) => [id(row.id), row]));
       const monthlyDepartmentMap = new Map(monthlyDepartments.map((row) => [id(row.id), row]));
-      const departments = safeDepartments && !departmentId && trainingDepartments.length <= 100 && monthlyDepartments.length <= 100
-        ? departmentNames.filter((row) => populationMap.get(row.id) >= 5).map((row) => {
-          const tr = trainingDepartmentMap.get(row.id), mo = monthlyDepartmentMap.get(row.id);
-          return { id: row.id, name: row.name, activeEmployeesNow: populationMap.get(row.id),
-            trainingAssignments: (tr?.assignments ?? 0) >= 5 ? tr.assignments : null,
-            completedAssignments: (tr?.assignments ?? 0) >= 5 ? tr.completed : null,
-            completionRatePercent: (tr?.assignments ?? 0) >= 5 ? rate(tr.completed, tr.assignments) : null,
-            monthlyAssigned: (mo?.eligible ?? 0) >= 5 ? mo.eligible : null,
-            monthlySubmitted: (mo?.eligible ?? 0) >= 5 ? mo.submitted : null,
-            monthlyParticipationRatePercent: (mo?.eligible ?? 0) >= 5 ? rate(mo.submitted, mo.eligible) : null,
-            monthlyAverageScorePercent: (mo?.submitted ?? 0) >= 5 ? two(mo.averageScore) : null };
-        }) : [];
+      const departments =
+        safeDepartments && !departmentId && trainingDepartments.length <= 100 && monthlyDepartments.length <= 100
+          ? departmentNames
+              .filter((row) => populationMap.get(row.id) >= 5)
+              .map((row) => {
+                const tr = trainingDepartmentMap.get(row.id),
+                  mo = monthlyDepartmentMap.get(row.id);
+                return {
+                  id: row.id,
+                  name: row.name,
+                  activeEmployeesNow: populationMap.get(row.id),
+                  trainingAssignments: (tr?.assignments ?? 0) >= 5 ? tr.assignments : null,
+                  completedAssignments: (tr?.assignments ?? 0) >= 5 ? tr.completed : null,
+                  completionRatePercent: (tr?.assignments ?? 0) >= 5 ? rate(tr.completed, tr.assignments) : null,
+                  monthlyAssigned: (mo?.eligible ?? 0) >= 5 ? mo.eligible : null,
+                  monthlySubmitted: (mo?.eligible ?? 0) >= 5 ? mo.submitted : null,
+                  monthlyParticipationRatePercent: (mo?.eligible ?? 0) >= 5 ? rate(mo.submitted, mo.eligible) : null,
+                  monthlyAverageScorePercent: (mo?.submitted ?? 0) >= 5 ? two(mo.averageScore) : null,
+                };
+              })
+          : [];
       return {
-        generatedAt: now.toISOString(), range: { period: filter.period, start: startDay,
-          end: new Date(endExclusive.getTime() - 86_400_000).toISOString().slice(0, 10), timezone: 'UTC', days: filter.days },
-        filters: { programId, departmentId, completionStatus, monthlyPeriod,
-          scopes: { programId: ['training', 'courseQuizzes', 'certificates'],
-            completionStatus: ['training'], monthlyPeriod: ['monthlyQuizzes'], departmentId: ['all'] } },
+        generatedAt: now.toISOString(),
+        range: {
+          period: filter.period,
+          start: startDay,
+          end: new Date(endExclusive.getTime() - 86_400_000).toISOString().slice(0, 10),
+          timezone: 'UTC',
+          days: filter.days,
+        },
+        filters: {
+          programId,
+          departmentId,
+          completionStatus,
+          monthlyPeriod,
+          scopes: {
+            programId: ['training', 'courseQuizzes', 'certificates'],
+            completionStatus: ['training'],
+            monthlyPeriod: ['monthlyQuizzes'],
+            departmentId: ['all'],
+          },
+        },
         filterOptions: { departments: eligibleDepartmentOptions, departmentsTruncated: departmentNames.length > 100 },
-        training: { assignedPrograms: training.programs, assignments: training.assignments,
-          assignedEmployees: training.employees, completed: training.completed, inProgress: training.inProgress,
-          notStarted: training.notStarted, completionRatePercent: rate(training.completed, training.assignments),
+        training: {
+          assignedPrograms: training.programs,
+          assignments: training.assignments,
+          assignedEmployees: training.employees,
+          completed: training.completed,
+          inProgress: training.inProgress,
+          notStarted: training.notStarted,
+          completionRatePercent: rate(training.completed, training.assignments),
           completedDuring: completionRows[0].completed,
-          byProgram: programRows.slice(0, 20).map((row) => ({ id: row.id, title: row.title, assignments: row.assignments,
-            completed: row.completed, inProgress: row.inProgress, notStarted: row.notStarted,
-            completionRatePercent: rate(row.completed, row.assignments) })), programsTruncated: programRows.length > 20 },
-        courseQuizzes: { submittedAttempts: course.attempts, uniqueParticipants: course.participants,
-          passedAttempts: course.passed, failedAttempts: course.failed,
-          passRatePercent: rate(course.passed, course.attempts), failRatePercent: rate(course.failed, course.attempts),
+          byProgram: programRows.slice(0, 20).map((row) => ({
+            id: row.id,
+            title: row.title,
+            assignments: row.assignments,
+            completed: row.completed,
+            inProgress: row.inProgress,
+            notStarted: row.notStarted,
+            completionRatePercent: rate(row.completed, row.assignments),
+          })),
+          programsTruncated: programRows.length > 20,
+        },
+        courseQuizzes: {
+          submittedAttempts: course.attempts,
+          uniqueParticipants: course.participants,
+          passedAttempts: course.passed,
+          failedAttempts: course.failed,
+          passRatePercent: rate(course.passed, course.attempts),
+          failRatePercent: rate(course.failed, course.attempts),
           averageScorePercent: two(course.averageScore),
-          byProgram: courseProgramRows.slice(0, 20).map((row) => ({ id: row.id, title: row.title,
-            submittedAttempts: row.attempts, uniqueParticipants: row.participants, passedAttempts: row.passed,
-            averageScorePercent: two(row.averageScore) })), programsTruncated: courseProgramRows.length > 20 },
-        monthlyQuizzes: { months: monthly.length, assignedAssignments: monthly.reduce((sum, row) => sum + row.assigned, 0),
-          submittedAssignments: submitted, averageBestScorePercent: submitted ? two(monthlyScoreSum / submitted) : null,
-          trend: monthly },
-        certificates: { totalIssued: certificates.total, issuedDuring: certificates.issuedDuring,
-          byProgram: certificateProgramRows.slice(0, 20).map((row) => ({ id: row.id, title: row.title,
-            totalIssued: row.total, issuedDuring: row.issuedDuring })), programsTruncated: certificateProgramRows.length > 20 },
+          byProgram: courseProgramRows.slice(0, 20).map((row) => ({
+            id: row.id,
+            title: row.title,
+            submittedAttempts: row.attempts,
+            uniqueParticipants: row.participants,
+            passedAttempts: row.passed,
+            averageScorePercent: two(row.averageScore),
+          })),
+          programsTruncated: courseProgramRows.length > 20,
+        },
+        monthlyQuizzes: {
+          months: monthly.length,
+          assignedAssignments: monthly.reduce((sum, row) => sum + row.assigned, 0),
+          submittedAssignments: submitted,
+          averageBestScorePercent: submitted ? two(monthlyScoreSum / submitted) : null,
+          trend: monthly,
+        },
+        certificates: {
+          totalIssued: certificates.total,
+          issuedDuring: certificates.issuedDuring,
+          byProgram: certificateProgramRows
+            .slice(0, 20)
+            .map((row) => ({ id: row.id, title: row.title, totalIssued: row.total, issuedDuring: row.issuedDuring })),
+          programsTruncated: certificateProgramRows.length > 20,
+        },
         departments: { suppressed: !safeDepartments, minimumGroupSize: 5, rows: departments },
       };
     },

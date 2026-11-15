@@ -11,13 +11,27 @@ export default defineConfig(({ mode }) => {
   const tunnel = process.env.DEV_FRONTEND_URL ?? env.DEV_FRONTEND_URL;
   let allowedHosts = [];
   if (tunnel) {
-    try { allowedHosts = [new URL(tunnel).hostname]; } catch { throw new Error('DEV_FRONTEND_URL must be an HTTPS origin.'); }
+    try {
+      allowedHosts = [new URL(tunnel).hostname];
+    } catch {
+      throw new Error('DEV_FRONTEND_URL must be an HTTPS origin.');
+    }
   }
   const target = process.env.DEV_API_TARGET ?? env.DEV_API_TARGET ?? 'http://127.0.0.1:5000';
   let url;
-  try { url = new URL(target); } catch { throw new Error('DEV_API_TARGET must be an HTTP(S) origin.'); }
-  if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password ||
-      url.pathname !== '/' || url.search || url.hash) {
+  try {
+    url = new URL(target);
+  } catch {
+    throw new Error('DEV_API_TARGET must be an HTTP(S) origin.');
+  }
+  if (
+    !['http:', 'https:'].includes(url.protocol) ||
+    url.username ||
+    url.password ||
+    url.pathname !== '/' ||
+    url.search ||
+    url.hash
+  ) {
     throw new Error('DEV_API_TARGET must be an HTTP(S) origin without credentials or a path.');
   }
   return {
@@ -25,7 +39,9 @@ export default defineConfig(({ mode }) => {
     server: {
       allowedHosts,
       headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' },
-      host: '127.0.0.1', port: 5173, strictPort: true,
+      host: '127.0.0.1',
+      port: 5173,
+      strictPort: true,
       proxy: { '/api/realtime': { target: url.origin, ws: true }, '/api': { target: url.origin } },
     },
     preview: { headers: { 'Cache-Control': 'no-store', 'Referrer-Policy': 'no-referrer' } },

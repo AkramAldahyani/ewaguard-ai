@@ -7,7 +7,8 @@ import { assertLocalDatabase, findFixtureUsers, purgeFixtureUsers } from '../tes
 let database;
 try {
   const args = process.argv.slice(2);
-  if (args.length > 1 || (args.length && !['--preview', '--apply'].includes(args[0]))) throw new Error('Use --preview (default) or --apply.');
+  if (args.length > 1 || (args.length && !['--preview', '--apply'].includes(args[0])))
+    throw new Error('Use --preview (default) or --apply.');
   assertLocalDatabase();
   database = createDatabaseClient();
   const apply = args[0] === '--apply';
@@ -17,4 +18,6 @@ try {
 } catch (error) {
   console.error(JSON.stringify({ event: 'test_fixture_purge', status: 'FAILED', message: error.message }));
   process.exitCode = 1;
-} finally { await database?.$disconnect(); }
+} finally {
+  await database?.$disconnect();
+}

@@ -21,24 +21,33 @@ export function evaluatePolicy(password, policy = PASSWORD_POLICY) {
   const requirements = [
     { id: 'minLength', label: `At least ${policy.minLength} characters`, met: password.length >= policy.minLength },
     { id: 'maxLength', label: `No more than ${policy.maxLength} characters`, met: password.length <= policy.maxLength },
-    ...(policy.requireUppercase ? [{ id: 'uppercase', label: 'One uppercase letter', met: /[A-Z]/.test(password) }] : []),
-    ...(policy.requireLowercase ? [{ id: 'lowercase', label: 'One lowercase letter', met: /[a-z]/.test(password) }] : []),
+    ...(policy.requireUppercase
+      ? [{ id: 'uppercase', label: 'One uppercase letter', met: /[A-Z]/.test(password) }]
+      : []),
+    ...(policy.requireLowercase
+      ? [{ id: 'lowercase', label: 'One lowercase letter', met: /[a-z]/.test(password) }]
+      : []),
     ...(policy.requireNumber ? [{ id: 'number', label: 'One number', met: /[0-9]/.test(password) }] : []),
     ...(policy.requireSymbol ? [{ id: 'symbol', label: 'One symbol', met: /[^A-Za-z0-9\s]/.test(password) }] : []),
   ];
-  return { compliant: password.length > 0 && requirements.every((item) => item.met), requirements,
-    failedRequirements: requirements.filter((item) => !item.met).map((item) => item.label) };
+  return {
+    compliant: password.length > 0 && requirements.every((item) => item.met),
+    requirements,
+    failedRequirements: requirements.filter((item) => !item.met).map((item) => item.label),
+  };
 }
 
 export function analyzePassword(password, policy = PASSWORD_POLICY) {
   if (!password) return null;
   const result = zxcvbn(password);
   const policyResult = evaluatePolicy(password, policy);
-  const recommendations = [...new Set([
-    ...policyResult.failedRequirements.map((requirement) => `Meet the policy requirement: ${requirement}.`),
-    ...(result.feedback.warning ? [result.feedback.warning] : []),
-    ...result.feedback.suggestions,
-  ])];
+  const recommendations = [
+    ...new Set([
+      ...policyResult.failedRequirements.map((requirement) => `Meet the policy requirement: ${requirement}.`),
+      ...(result.feedback.warning ? [result.feedback.warning] : []),
+      ...result.feedback.suggestions,
+    ]),
+  ];
   return {
     score: result.score,
     strength: STRENGTH_LEVELS[result.score],

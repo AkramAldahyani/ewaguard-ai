@@ -12,7 +12,9 @@ export function requireRole(...roles) {
     if (!authenticated(req, res)) return;
     if (roles.includes(req.user.role)) return next();
     console.warn(JSON.stringify({ level: 'SECURITY', event: 'authorization_denied', userId: req.user.id }));
-    return res.status(403).json({ error: { code: 'FORBIDDEN', message: 'You do not have permission to access this area.' } });
+    return res
+      .status(403)
+      .json({ error: { code: 'FORBIDDEN', message: 'You do not have permission to access this area.' } });
   };
 }
 
@@ -29,6 +31,8 @@ export function requireOwnershipOrRole(loadResource, { ownerId = (resource) => r
       }
       req.authorizedResource = resource;
       return next();
-    } catch (error) { return next(error); }
+    } catch (error) {
+      return next(error);
+    }
   };
 }

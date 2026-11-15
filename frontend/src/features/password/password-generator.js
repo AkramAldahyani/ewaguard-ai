@@ -19,7 +19,8 @@ function secureIndex(max, cryptoProvider) {
   if (!cryptoProvider?.getRandomValues) throw new Error('Secure password generation is unavailable in this browser.');
   const limit = 256 - (256 % max);
   const bytes = new Uint8Array(1);
-  do cryptoProvider.getRandomValues(bytes); while (bytes[0] >= limit);
+  do cryptoProvider.getRandomValues(bytes);
+  while (bytes[0] >= limit);
   return bytes[0] % max;
 }
 
@@ -31,7 +32,11 @@ function secureShuffle(characters, cryptoProvider) {
   return characters;
 }
 
-export function generatePassword(options = DEFAULT_GENERATOR_OPTIONS, policy = PASSWORD_POLICY, cryptoProvider = globalThis.crypto) {
+export function generatePassword(
+  options = DEFAULT_GENERATOR_OPTIONS,
+  policy = PASSWORD_POLICY,
+  cryptoProvider = globalThis.crypto,
+) {
   const length = Number(options.length);
   if (!Number.isInteger(length) || length < policy.minLength || length > policy.maxLength) {
     throw new Error(`Choose a length from ${policy.minLength} to ${policy.maxLength} characters.`);
@@ -39,8 +44,10 @@ export function generatePassword(options = DEFAULT_GENERATOR_OPTIONS, policy = P
   const enabled = Object.entries(CHARACTER_SETS).filter(([name]) => options[name]);
   if (!enabled.length) throw new Error('Select at least one character type.');
   const required = [
-    ['uppercase', policy.requireUppercase], ['lowercase', policy.requireLowercase],
-    ['numbers', policy.requireNumber], ['symbols', policy.requireSymbol],
+    ['uppercase', policy.requireUppercase],
+    ['lowercase', policy.requireLowercase],
+    ['numbers', policy.requireNumber],
+    ['symbols', policy.requireSymbol],
   ];
   if (required.some(([name, isRequired]) => isRequired && !options[name])) {
     throw new Error('Selected options must include every organization-required character type.');
@@ -51,6 +58,7 @@ export function generatePassword(options = DEFAULT_GENERATOR_OPTIONS, policy = P
   const characters = enabled.map(([, set]) => set[secureIndex(set.length, cryptoProvider)]);
   while (characters.length < length) characters.push(pool[secureIndex(pool.length, cryptoProvider)]);
   const password = secureShuffle(characters, cryptoProvider).join('');
-  if (!evaluatePolicy(password, policy).compliant) throw new Error('Secure generation could not satisfy the configured policy.');
+  if (!evaluatePolicy(password, policy).compliant)
+    throw new Error('Secure generation could not satisfy the configured policy.');
   return password;
 }

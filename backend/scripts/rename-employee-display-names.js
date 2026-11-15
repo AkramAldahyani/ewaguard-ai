@@ -35,16 +35,29 @@ try {
   const primary = employees.filter((user) => primaryEmails.has(user.email.toLowerCase()));
   const remaining = employees.filter((user) => !primaryEmails.has(user.email.toLowerCase()));
   if (primary.length !== 1) throw new Error(`Expected one employee@ewa.bh account, found ${primary.length}.`);
-  if (remaining.length > names.length) throw new Error(`Add more Arabic names before updating ${remaining.length} remaining accounts.`);
+  if (remaining.length > names.length)
+    throw new Error(`Add more Arabic names before updating ${remaining.length} remaining accounts.`);
   const changes = [
     { ...primary[0], nextFirstName: 'Akram', nextLastName: 'Aldahyani' },
     ...remaining.map((user, index) => ({ ...user, nextFirstName: names[index][0], nextLastName: names[index][1] })),
   ];
-  if (apply) await database.$transaction(changes.map((user) => database.user.update({
-    where: { id: user.id }, data: { firstName: user.nextFirstName, lastName: user.nextLastName },
-  })));
-  console.table(changes.map((user) => ({ email: user.email, previous: `${user.firstName} ${user.lastName}`,
-    next: `${user.nextFirstName} ${user.nextLastName}`, applied: apply })));
+  if (apply)
+    await database.$transaction(
+      changes.map((user) =>
+        database.user.update({
+          where: { id: user.id },
+          data: { firstName: user.nextFirstName, lastName: user.nextLastName },
+        }),
+      ),
+    );
+  console.table(
+    changes.map((user) => ({
+      email: user.email,
+      previous: `${user.firstName} ${user.lastName}`,
+      next: `${user.nextFirstName} ${user.nextLastName}`,
+      applied: apply,
+    })),
+  );
 } finally {
   await database.$disconnect();
 }

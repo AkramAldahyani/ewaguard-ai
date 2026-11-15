@@ -22,11 +22,13 @@ export async function acknowledgeDisclaimer(database, { userId, context, now = n
   return { acknowledgement, reused: false };
 }
 
-export async function verifyAcknowledgement(database, {
-  acknowledgementId, userId, context, now = new Date(), maxAgeMs = null,
-}) {
+export async function verifyAcknowledgement(
+  database,
+  { acknowledgementId, userId, context, now = new Date(), maxAgeMs = null },
+) {
   if (!acknowledgementId || !userId || !isDisclaimerContext(context)) return null;
-  if (maxAgeMs !== null && (!Number.isFinite(maxAgeMs) || maxAgeMs < 0)) throw new TypeError('Invalid acknowledgement validity window.');
+  if (maxAgeMs !== null && (!Number.isFinite(maxAgeMs) || maxAgeMs < 0))
+    throw new TypeError('Invalid acknowledgement validity window.');
   return database.disclaimerAcknowledgement.findFirst({
     where: {
       id: acknowledgementId,

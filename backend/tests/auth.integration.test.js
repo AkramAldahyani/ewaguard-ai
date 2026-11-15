@@ -16,33 +16,52 @@ test('authentication lifecycle and security boundaries', async (t) => {
   const warning = t.mock.method(console, 'warn', () => {});
   const info = t.mock.method(console, 'info', () => {});
   const database = createDatabaseClient();
-  const config = parseConfig({ NODE_ENV: 'test', JWT_SECRET: TEST_SECRET, FRONTEND_URL: ORIGIN, LOGIN_RATE_LIMIT_MAX: '100' });
+  const config = parseConfig({
+    NODE_ENV: 'test',
+    JWT_SECRET: TEST_SECRET,
+    FRONTEND_URL: ORIGIN,
+    LOGIN_RATE_LIMIT_MAX: '100',
+  });
   const role = await database.role.findUniqueOrThrow({ where: { name: 'EMPLOYEE' } });
   const department = await database.department.findUniqueOrThrow({ where: { code: 'OPS' } });
   const password = `Auth-test-${randomUUID()}!`;
-  const user = await database.user.create({ data: {
-    employeeIdentifier: `TEST-${randomUUID()}`,
-    firstName: 'Authentication', lastName: 'Fixture',
-    email: `${randomUUID()}@example.invalid`, passwordHash: await hashPassword(password),
-    status: 'ACTIVE', roleId: role.id, departmentId: department.id,
-  } });
+  const user = await database.user.create({
+    data: {
+      employeeIdentifier: `TEST-${randomUUID()}`,
+      firstName: 'Authentication',
+      lastName: 'Fixture',
+      email: `${randomUUID()}@example.invalid`,
+      passwordHash: await hashPassword(password),
+      status: 'ACTIVE',
+      roleId: role.id,
+      departmentId: department.id,
+    },
+  });
   const app = createApp(config, { database });
   const server = app.listen(0, '127.0.0.1');
   await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
   t.after(async () => {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
     await database.user.deleteMany({ where: { id: user.id } });
     await database.$disconnect();
   });
 
-  const request = (path, options = {}, cookie) => fetch(`${base}${path}`, {
-    ...options,
-    headers: { Origin: ORIGIN, ...(options.body ? { 'Content-Type': 'application/json' } : {}), ...(cookie ? { Cookie: cookie } : {}), ...options.headers },
-  });
-  const login = (email, suppliedPassword) => request('/api/auth/login', {
-    method: 'POST', body: JSON.stringify({ email, password: suppliedPassword }),
-  });
+  const request = (path, options = {}, cookie) =>
+    fetch(`${base}${path}`, {
+      ...options,
+      headers: {
+        Origin: ORIGIN,
+        ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+        ...(cookie ? { Cookie: cookie } : {}),
+        ...options.headers,
+      },
+    });
+  const login = (email, suppliedPassword) =>
+    request('/api/auth/login', {
+      method: 'POST',
+      body: JSON.stringify({ email, password: suppliedPassword }),
+    });
 
   await t.test('anonymous protected endpoint is rejected', async () => {
     const response = await request('/api/auth/me');
@@ -113,12 +132,19 @@ test('authentication lifecycle and security boundaries', async (t) => {
     const cookieName = authCookie(config).name;
     const invalid = await request('/api/auth/me', {}, `${cookieName}=invalid`);
     assert.equal(invalid.status, 401);
-    const expired = jwt.sign({}, TEST_SECRET, { algorithm: 'HS256', subject: user.id, issuer: 'ewaguard-api', audience: 'ewaguard-web', expiresIn: -1 });
+    const expired = jwt.sign({}, TEST_SECRET, {
+      algorithm: 'HS256',
+      subject: user.id,
+      issuer: 'ewaguard-api',
+      audience: 'ewaguard-web',
+      expiresIn: -1,
+    });
     assert.equal((await request('/api/auth/me', {}, `${cookieName}=${expired}`)).status, 401);
   });
   await t.test('untrusted browser origin is rejected', async () => {
     const response = await fetch(`${base}/api/auth/login`, {
-      method: 'POST', headers: { Origin: 'https://attacker.example', 'Content-Type': 'application/json' },
+      method: 'POST',
+      headers: { Origin: 'https://attacker.example', 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: user.email, password }),
     });
     assert.equal(response.status, 403);
@@ -150,13 +176,17 @@ test('authentication lifecycle and security boundaries', async (t) => {
   await t.test('persistent login and logout audit is minimized and revocation is idempotent', async () => {
     assert.equal((await request('/api/auth/logout', { method: 'POST' }, cookie)).status, 204);
     const rows = await database.auditLog.findMany({ where: { actorId: user.id, resourceType: 'AUTHENTICATION' } });
-    for (const action of ['LOGIN_SUCCEEDED', 'LOGOUT', 'SESSION_REVOKED']) assert.ok(rows.some((r) => r.action === action && r.outcome === 'SUCCESS'));
+    for (const action of ['LOGIN_SUCCEEDED', 'LOGOUT', 'SESSION_REVOKED'])
+      assert.ok(rows.some((r) => r.action === action && r.outcome === 'SUCCESS'));
     assert.equal(rows.filter((r) => r.action === 'SESSION_REVOKED').length, 1);
-    for (const value of [password, user.passwordHash, user.email, cookie, loginSession.id]) assert.equal(JSON.stringify(rows).includes(value), false);
+    for (const value of [password, user.passwordHash, user.email, cookie, loginSession.id])
+      assert.equal(JSON.stringify(rows).includes(value), false);
   });
   await t.test('audit store failure does not block login or change credential failure responses', async () => {
     const original = database.auditLog.create;
-    database.auditLog.create = async () => { throw new Error('SECRET_AUDIT_STORE'); };
+    database.auditLog.create = async () => {
+      throw new Error('SECRET_AUDIT_STORE');
+    };
     try {
       assert.equal((await login(user.email, password)).status, 200);
       const wrong = await login(user.email, 'wrong');
@@ -164,22 +194,34 @@ test('authentication lifecycle and security boundaries', async (t) => {
       assert.equal(wrong.status, 401);
       assert.deepEqual(await wrong.json(), await missing.json());
       assert.equal((await request('/api/auth/logout', { method: 'POST' }, cookie)).status, 204);
-    } finally { database.auditLog.create = original; }
+    } finally {
+      database.auditLog.create = original;
+    }
   });
 });
 
 test('login rate limiter blocks repeated failures', async (t) => {
   t.mock.method(console, 'warn', () => {});
   const database = createDatabaseClient();
-  const config = parseConfig({ NODE_ENV: 'test', JWT_SECRET: TEST_SECRET, FRONTEND_URL: ORIGIN, LOGIN_RATE_LIMIT_MAX: '2', LOGIN_RATE_LIMIT_WINDOW_MINUTES: '1' });
+  const config = parseConfig({
+    NODE_ENV: 'test',
+    JWT_SECRET: TEST_SECRET,
+    FRONTEND_URL: ORIGIN,
+    LOGIN_RATE_LIMIT_MAX: '2',
+    LOGIN_RATE_LIMIT_WINDOW_MINUTES: '1',
+  });
   const server = createApp(config, { database }).listen(0, '127.0.0.1');
   await once(server, 'listening');
   t.after(async () => {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
     await database.$disconnect();
   });
   const url = `http://127.0.0.1:${server.address().port}/api/auth/login`;
-  const options = { method: 'POST', headers: { Origin: ORIGIN, 'Content-Type': 'application/json' }, body: JSON.stringify({ email: 'nobody@example.invalid', password: 'invalid' }) };
+  const options = {
+    method: 'POST',
+    headers: { Origin: ORIGIN, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: 'nobody@example.invalid', password: 'invalid' }),
+  };
   assert.equal((await fetch(url, options)).status, 401);
   assert.equal((await fetch(url, options)).status, 401);
   const limited = await fetch(url, options);

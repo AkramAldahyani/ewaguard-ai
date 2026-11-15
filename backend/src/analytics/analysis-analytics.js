@@ -29,10 +29,15 @@ async function aggregateAnalyses(database, range) {
     return { day, count: sum(classified.filter((r) => r.day === day)) };
   });
   const recent = await recentPage(database, range, 1);
-  return { total: sum(classified), severity, byType, daily,
+  return {
+    total: sum(classified),
+    severity,
+    byType,
+    daily,
     unclassified: sum(rows.filter((r) => r.status === 'COMPLETED' && !isClassified(r))),
     failed: sum(rows.filter((r) => r.status === 'ERROR')),
-    recent: recent.items, recentPage: recent.pagination,
+    recent: recent.items,
+    recentPage: recent.pagination,
   };
 }
 
@@ -71,8 +76,13 @@ async function recentPage(database, range, requestedPage) {
     LEFT JOIN users u ON u.id = a."userId"
     ORDER BY a."analyzedAt" DESC, a.type, a.id DESC LIMIT ${pageSize} OFFSET ${(page - 1) * pageSize}`;
   return {
-    items: rows.map(({ incidentNumber, incidentCreatedAt, ...row }) => ({ ...row,
-      incidentReference: incidentNumber == null ? null : `INC-${incidentCreatedAt.getUTCFullYear()}-${String(incidentNumber).padStart(6, '0')}` })),
+    items: rows.map(({ incidentNumber, incidentCreatedAt, ...row }) => ({
+      ...row,
+      incidentReference:
+        incidentNumber == null
+          ? null
+          : `INC-${incidentCreatedAt.getUTCFullYear()}-${String(incidentNumber).padStart(6, '0')}`,
+    })),
     pagination: { page, pageSize, total, totalPages },
   };
 }

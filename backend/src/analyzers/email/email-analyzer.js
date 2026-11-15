@@ -15,7 +15,11 @@ const RULES = {
   SENDER_SUBDOMAINS: ['sender', 1, 'Many sender-domain labels'],
   DISPLAY_NAME_CLAIM: ['sender', 1, 'Display name claims a familiar brand or authority; identity is unverified'],
   DISPLAY_ADDRESS_MISMATCH: ['sender', 2, 'Display-name address differs from actual sender'],
-  BRAND_IMPERSONATION: ['sender', 1, 'A familiar brand is claimed outside its common sender domains; identity is unverified'],
+  BRAND_IMPERSONATION: [
+    'sender',
+    1,
+    'A familiar brand is claimed outside its common sender domains; identity is unverified',
+  ],
   SENDER_LOOKALIKE: ['sender', 3, 'Sender domain resembles the claimed brand outside its common domains'],
   AUTHENTICATION_CONCERN: ['authentication', 2, 'Supplied authentication headers claim failure or an error'],
   AUTHENTICATION_CONFLICT: ['authentication', 1, 'Supplied authentication claims conflict'],
@@ -46,15 +50,30 @@ const RULES = {
 };
 
 const PATTERNS = [
-  ['URGENCY', /\b(?:urgent|immediately|act now|as soon as possible|within \d+ hours?|account (?:will be |is )?(?:suspended|closed|locked))\b/i],
+  [
+    'URGENCY',
+    /\b(?:urgent|immediately|act now|as soon as possible|within \d+ hours?|account (?:will be |is )?(?:suspended|closed|locked))\b/i,
+  ],
   ['PASSWORD_RESET', /\b(?:reset (?:your |the )?password|password reset|password expir(?:es|ed|ing))\b/i],
   ['CREDENTIAL_REQUEST', /\b(?:send|share|enter|provide|confirm|verify)\b[^.!?\n]{0,65}\b(?:password|credentials)\b/i],
   ['LOGIN_REQUEST', /\b(?:log ?in|sign ?in)\b/i],
-  ['PAYMENT_REQUEST', /\b(?:wire transfer|transfer (?:the )?(?:funds|money)|pay (?:this |the |your )?invoice|payment (?:due|overdue|required)|send (?:payment|money))\b/i],
-  ['PAYMENT_REQUEST', /\b(?:dispute|cancel|reverse|refund)\b[^.!?\n]{0,80}\b(?:payment|transaction|charge|purchase)\b|\b(?:payment|transaction|charge|purchase)\b[^.!?\n]{0,80}\b(?:dispute|cancel|reverse|refund)\b/i],
+  [
+    'PAYMENT_REQUEST',
+    /\b(?:wire transfer|transfer (?:the )?(?:funds|money)|pay (?:this |the |your )?invoice|payment (?:due|overdue|required)|send (?:payment|money))\b/i,
+  ],
+  [
+    'PAYMENT_REQUEST',
+    /\b(?:dispute|cancel|reverse|refund)\b[^.!?\n]{0,80}\b(?:payment|transaction|charge|purchase)\b|\b(?:payment|transaction|charge|purchase)\b[^.!?\n]{0,80}\b(?:dispute|cancel|reverse|refund)\b/i,
+  ],
   ['GIFT_CARD', /\b(?:buy|purchase|send)\b[^.!?\n]{0,60}\bgift[ -]?cards?\b/i],
-  ['MFA_REQUEST', /\b(?:send|share|provide|enter)\b[^.!?\n]{0,65}\b(?:MFA|OTP|verification code|authentication code|one.time (?:code|password))\b/i],
-  ['BYPASS_PROCESS', /\b(?:bypass|skip|ignore)\b[^.!?\n]{0,60}\b(?:approval|verification|procedure|security|process)\b/i],
+  [
+    'MFA_REQUEST',
+    /\b(?:send|share|provide|enter)\b[^.!?\n]{0,65}\b(?:MFA|OTP|verification code|authentication code|one.time (?:code|password))\b/i,
+  ],
+  [
+    'BYPASS_PROCESS',
+    /\b(?:bypass|skip|ignore)\b[^.!?\n]{0,60}\b(?:approval|verification|procedure|security|process)\b/i,
+  ],
   ['ATTACHMENT_INVITATION', /\b(?:open (?:the |this )?attachment|enable (?:macros|content))\b/i],
 ];
 
@@ -72,7 +91,13 @@ export async function analyzeEmail(input) {
   const found = new Map();
   const add = (id) => {
     const [category, severityWeight, title] = RULES[id];
-    found.set(id, { id, category, severityWeight, title, evidence: 'Observed by a local heuristic; not independently verified.' });
+    found.set(id, {
+      id,
+      category,
+      severityWeight,
+      title,
+      evidence: 'Observed by a local heuristic; not independently verified.',
+    });
   };
   const sender = senderEvidence(mail, add);
   const authentication = authenticationEvidence(mail, add);
@@ -85,19 +110,31 @@ export async function analyzeEmail(input) {
   for (const [id, pattern] of PATTERNS) if (pattern.test(content)) add(id);
   const indicators = [...found.values()].sort((a, b) => a.id.localeCompare(b.id));
   return {
-    analyzer: 'EMAIL', analyzerVersion: '6A1.2', inputType,
-    ...sender, subject: redactEmailMetadata(mail.subject),
+    analyzer: 'EMAIL',
+    analyzerVersion: '6A1.2',
+    inputType,
+    ...sender,
+    subject: redactEmailMetadata(mail.subject),
     // Recipient addresses and Message-ID are unnecessary for threat evidence.
     recipientCounts: { to: mail.to?.value?.length ?? 0, cc: mail.cc?.value?.length ?? 0 },
     messageIdPresent: Boolean(mail.messageId),
-    authentication, urls: body.urls, attachments, indicators,
-    evidenceSummary: { indicatorCount: indicators.length, urlOriginCount: body.urls.length, attachmentCount: attachments.length },
+    authentication,
+    urls: body.urls,
+    attachments,
+    indicators,
+    evidenceSummary: {
+      indicatorCount: indicators.length,
+      urlOriginCount: body.urls.length,
+      attachmentCount: attachments.length,
+    },
     provisionalClassification: classifyEmailIndicators(indicators),
     recommendedActions: [
       'Verify unexpected requests with the sender through a trusted channel.',
       'Do not provide passwords or authentication codes in response to an email.',
       ...(body.urls.length ? ['Avoid opening unexpected links until the destination is verified.'] : []),
-      ...(attachments.length ? ['Do not open unexpected attachments; use the approved security reporting process.'] : []),
+      ...(attachments.length
+        ? ['Do not open unexpected attachments; use the approved security reporting process.']
+        : []),
       'Report suspected phishing through your organization’s approved security process.',
     ],
     limitations: [...EMAIL_LIMITATIONS],

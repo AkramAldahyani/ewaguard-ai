@@ -11,44 +11,97 @@ import { createCommentService } from '../community/comment-service.js';
 import { createReportService } from '../community/report-service.js';
 
 export function createAdminCommunityRouter({ database, config, media }) {
-  const router = Router(), service = createModerationService(database, media);
-  router.use((_req, res, next) => { res.set('Cache-Control', 'private, no-store, max-age=0'); next(); });
-  router.use(createAuthenticate({ database, config }), requireRole('IT_SECURITY_ADMIN'),
-    createTrustedOrigin(config.trustedOrigins));
-  router.use(rateLimit({ windowMs: 60000, limit: 120, keyGenerator: (req) => req.user.id,
-    message: { error: { code: 'COMMUNITY_RATE_LIMIT', message: 'Too many requests. Try again shortly.' } } }));
-  const decisionLimit = rateLimit({ windowMs: 60000, limit: 30, keyGenerator: (req) => req.user.id,
-    message: { error: { code: 'COMMUNITY_DECISION_LIMIT', message: 'Too many decisions. Try again shortly.' } } });
+  const router = Router(),
+    service = createModerationService(database, media);
+  router.use((_req, res, next) => {
+    res.set('Cache-Control', 'private, no-store, max-age=0');
+    next();
+  });
+  router.use(
+    createAuthenticate({ database, config }),
+    requireRole('IT_SECURITY_ADMIN'),
+    createTrustedOrigin(config.trustedOrigins),
+  );
+  router.use(
+    rateLimit({
+      windowMs: 60000,
+      limit: 120,
+      keyGenerator: (req) => req.user.id,
+      message: { error: { code: 'COMMUNITY_RATE_LIMIT', message: 'Too many requests. Try again shortly.' } },
+    }),
+  );
+  const decisionLimit = rateLimit({
+    windowMs: 60000,
+    limit: 30,
+    keyGenerator: (req) => req.user.id,
+    message: { error: { code: 'COMMUNITY_DECISION_LIMIT', message: 'Too many decisions. Try again shortly.' } },
+  });
   const handle = (fn) => async (req, res, next) => {
-    try { res.json(await fn(req)); } catch (error) {
-      if (error instanceof CommunityError) return res.status(error.status).json({ error: { code: error.code, message: error.message } });
-      if (error instanceof TrainingError) return res.status(error.status).json({ error: { code: 'COMMUNITY_INVALID', message: 'Invalid community request.' } });
+    try {
+      res.json(await fn(req));
+    } catch (error) {
+      if (error instanceof CommunityError)
+        return res.status(error.status).json({ error: { code: error.code, message: error.message } });
+      if (error instanceof TrainingError)
+        return res
+          .status(error.status)
+          .json({ error: { code: 'COMMUNITY_INVALID', message: 'Invalid community request.' } });
       next(error);
     }
   };
   mountCommunityMediaReads(router, media);
   const reports = createReportService(database, media);
-  router.get('/reports', handle((req) => reports.list(req.query)));
-  router.post('/reports/:id/resolve', decisionLimit, json({ limit: '8kb', inflate: false }), handle((req) => {
-    fields(req.query, []);
-    if (!req.is('application/json')) throw new CommunityError(415, 'COMMUNITY_CONTENT_TYPE', 'Use application/json.');
-    return reports.resolve(req.user, req.params.id, req.body);
-  }));
+  router.get(
+    '/reports',
+    handle((req) => reports.list(req.query)),
+  );
+  router.post(
+    '/reports/:id/resolve',
+    decisionLimit,
+    json({ limit: '8kb', inflate: false }),
+    handle((req) => {
+      fields(req.query, []);
+      if (!req.is('application/json')) throw new CommunityError(415, 'COMMUNITY_CONTENT_TYPE', 'Use application/json.');
+      return reports.resolve(req.user, req.params.id, req.body);
+    }),
+  );
   const comments = createCommentService(database);
-  router.get('/comments', handle((req) => comments.queue(req.user, req.query)));
-  router.post('/comments/:id/:action', decisionLimit, json({ limit: '8kb', inflate: false }), handle((req) => {
-    fields(req.query, []);
-    if (!req.is('application/json')) throw new CommunityError(415, 'COMMUNITY_CONTENT_TYPE', 'Use application/json.');
-    return comments.decide(req.user, req.params.id, req.params.action, req.body);
-  }));
-  router.get('/', handle((req) => service.list(req.query)));
-  router.get('/:id', handle((req) => { fields(req.query, []); return service.detail(req.params.id); }));
-  router.post('/:id/:action', decisionLimit, json({ limit: '8kb', inflate: false }), handle((req) => {
-    fields(req.query, []);
-    if (!req.is('application/json')) throw new CommunityError(415, 'COMMUNITY_CONTENT_TYPE', 'Use application/json.');
-    const decision = { approve: 'APPROVED', reject: 'REJECTED', remove: 'REMOVED' }[req.params.action];
-    if (!decision) throw new CommunityError(404, 'COMMUNITY_NOT_FOUND', 'Moderation action not found.');
-    return service.decide(req.user, req.params.id, decision, req.body);
-  }));
+  router.get(
+    '/comments',
+    handle((req) => comments.queue(req.user, req.query)),
+  );
+  router.post(
+    '/comments/:id/:action',
+    decisionLimit,
+    json({ limit: '8kb', inflate: false }),
+    handle((req) => {
+      fields(req.query, []);
+      if (!req.is('application/json')) throw new CommunityError(415, 'COMMUNITY_CONTENT_TYPE', 'Use application/json.');
+      return comments.decide(req.user, req.params.id, req.params.action, req.body);
+    }),
+  );
+  router.get(
+    '/',
+    handle((req) => service.list(req.query)),
+  );
+  router.get(
+    '/:id',
+    handle((req) => {
+      fields(req.query, []);
+      return service.detail(req.params.id);
+    }),
+  );
+  router.post(
+    '/:id/:action',
+    decisionLimit,
+    json({ limit: '8kb', inflate: false }),
+    handle((req) => {
+      fields(req.query, []);
+      if (!req.is('application/json')) throw new CommunityError(415, 'COMMUNITY_CONTENT_TYPE', 'Use application/json.');
+      const decision = { approve: 'APPROVED', reject: 'REJECTED', remove: 'REMOVED' }[req.params.action];
+      if (!decision) throw new CommunityError(404, 'COMMUNITY_NOT_FOUND', 'Moderation action not found.');
+      return service.decide(req.user, req.params.id, decision, req.body);
+    }),
+  );
   return router;
 }

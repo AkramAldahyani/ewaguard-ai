@@ -154,3 +154,18 @@ real session and socket validation. Last-admin edge cases also have an isolated
 unit fixture so tests never deactivate existing real administrators. Test account
 cleanup is scoped to fixture IDs. Authentication, MFA, notifications, incidents,
 training, quizzes, and certificates should be included in regression validation.
+
+## Invite links (self-registration)
+
+An administrator with a recent MFA sign-in can generate a shareable link from User Management → Invite Link. Anyone
+holding the link can create one **employee** account at `/register#token=…` and sign in afterwards.
+
+- Endpoints: `GET/POST /api/admin/invites`, `POST /api/admin/invites/:id/revoke`, and the public
+  `POST /api/auth/register/validate` and `POST /api/auth/register`.
+- Controls: only a SHA-256 digest of the token is stored and the link is shown once; links expire (1 hour to 7 days),
+  have a use limit (1–200), can be revoked, can be restricted to one email domain, and always create `EMPLOYEE`
+  accounts in the department chosen by the administrator. Registration uses the same password policy as account setup,
+  creates no session, is rate limited, and is audited (`REGISTRATION_INVITE_CREATED`, `REGISTRATION_INVITE_REVOKED`,
+  `USER_SELF_REGISTERED`).
+- Trade-off: the link does not verify identity. Share it only with intended people, prefer a short validity, a low use
+  limit and an email-domain restriction. Set `REGISTRATION_INVITES_ENABLED=false` to disable the feature.

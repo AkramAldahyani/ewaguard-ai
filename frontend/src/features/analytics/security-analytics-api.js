@@ -11,7 +11,8 @@ function utcDay(value) {
 export function validateSecurityRange(period, start, end) {
   if (['7d', '30d', '90d'].includes(period)) return '';
   if (period !== 'custom') return 'Choose a valid reporting period.';
-  const from = utcDay(start), through = utcDay(end);
+  const from = utcDay(start),
+    through = utcDay(end);
   if (!from || !through) return 'Enter valid start and end dates in UTC.';
   const days = (through.getTime() - from.getTime()) / dayMs + 1;
   if (days < 1) return 'End date must be on or after start date.';
@@ -22,12 +23,18 @@ export function validateSecurityRange(period, start, end) {
 export const securityAnalyticsApi = {
   overview: ({ period, start, end }, signal) => {
     const query = new URLSearchParams({ period });
-    if (period === 'custom') { query.set('start', start); query.set('end', end); }
+    if (period === 'custom') {
+      query.set('start', start);
+      query.set('end', end);
+    }
     return apiRequest(`/api/admin/analytics/security?${query}`, { signal });
   },
   analyses: ({ period, start, end }, page, signal) => {
     const query = new URLSearchParams({ period });
-    if (period === 'custom') { query.set('start', start); query.set('end', end); }
+    if (period === 'custom') {
+      query.set('start', start);
+      query.set('end', end);
+    }
     query.set('page', String(page));
     return apiRequest(`/api/admin/analytics/security/analyses?${query}`, { signal, cache: 'no-store' });
   },

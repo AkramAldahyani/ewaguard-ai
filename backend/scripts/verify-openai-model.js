@@ -6,7 +6,8 @@ console.log(JSON.stringify({ model, keyConfigured: Boolean(process.env.OPENAI_AP
 if (process.env.OPENAI_API_KEY) {
   try {
     const response = await fetch(`https://api.openai.com/v1/models/${encodeURIComponent(model)}`, {
-      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` }, signal: AbortSignal.timeout(15_000),
+      headers: { Authorization: `Bearer ${process.env.OPENAI_API_KEY}` },
+      signal: AbortSignal.timeout(15_000),
     });
     console.log(JSON.stringify({ modelAccessStatus: response.status, available: response.ok }));
     if (!response.ok) process.exitCode = 1;

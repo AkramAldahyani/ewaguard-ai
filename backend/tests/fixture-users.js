@@ -5,8 +5,10 @@ import { databaseUrl } from '../src/config/env.js';
 // test's own `UM-<uuid>` pattern. Display names are never used to identify accounts.
 export const FIXTURE_EMAIL_SUFFIX = '@example.invalid';
 export const FIXTURE_IDENTIFIER = /^UM-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export const isFixtureUser = (user) => typeof user?.email === 'string' && user.email.toLowerCase().endsWith(FIXTURE_EMAIL_SUFFIX)
-  && FIXTURE_IDENTIFIER.test(user.employeeIdentifier ?? '');
+export const isFixtureUser = (user) =>
+  typeof user?.email === 'string' &&
+  user.email.toLowerCase().endsWith(FIXTURE_EMAIL_SUFFIX) &&
+  FIXTURE_IDENTIFIER.test(user.employeeIdentifier ?? '');
 
 export function assertLocalDatabase(env = process.env) {
   const url = new URL(databaseUrl(env));
@@ -15,9 +17,23 @@ export function assertLocalDatabase(env = process.env) {
 }
 
 export async function findFixtureUsers(database, { createdBefore } = {}) {
-  const rows = await database.user.findMany({ where: { email: { endsWith: FIXTURE_EMAIL_SUFFIX, mode: 'insensitive' },
-    employeeIdentifier: { startsWith: 'UM-', mode: 'insensitive' }, ...(createdBefore ? { createdAt: { lt: createdBefore } } : {}) },
-  select: { id: true, email: true, employeeIdentifier: true, firstName: true, lastName: true, status: true, createdAt: true, role: { select: { name: true } } } });
+  const rows = await database.user.findMany({
+    where: {
+      email: { endsWith: FIXTURE_EMAIL_SUFFIX, mode: 'insensitive' },
+      employeeIdentifier: { startsWith: 'UM-', mode: 'insensitive' },
+      ...(createdBefore ? { createdAt: { lt: createdBefore } } : {}),
+    },
+    select: {
+      id: true,
+      email: true,
+      employeeIdentifier: true,
+      firstName: true,
+      lastName: true,
+      status: true,
+      createdAt: true,
+      role: { select: { name: true } },
+    },
+  });
   return rows.filter(isFixtureUser);
 }
 
@@ -31,7 +47,10 @@ async function userReferences(database, ids) {
   const found = [];
   for (const { table, column } of keys) {
     if (!/^[a-z_]+$/.test(table) || !/^[A-Za-z_]+$/.test(column)) continue;
-    const [{ total }] = await database.$queryRawUnsafe(`SELECT count(*)::int AS total FROM "${table}" WHERE "${column}"::text = ANY($1::text[])`, ids);
+    const [{ total }] = await database.$queryRawUnsafe(
+      `SELECT count(*)::int AS total FROM "${table}" WHERE "${column}"::text = ANY($1::text[])`,
+      ids,
+    );
     if (total) found.push({ table, column, total });
   }
   return found;
@@ -47,14 +66,33 @@ export async function purgeFixtureUsers(database, users, { apply = false, audit 
   const candidates = users.filter(isFixtureUser);
   const report = { removed: [], kept: [] };
   for (const user of candidates) {
-    const assignments = await database.trainingAssignment.findMany({ where: { employeeId: user.id },
-      select: { id: true, trainingId: true, attempts: { select: { id: true } }, progress: { select: { id: true, certificate: { select: { id: true } } } } } });
+    const assignments = await database.trainingAssignment.findMany({
+      where: { employeeId: user.id },
+      select: {
+        id: true,
+        trainingId: true,
+        attempts: { select: { id: true } },
+        progress: { select: { id: true, certificate: { select: { id: true } } } },
+      },
+    });
     const disposable = assignments.filter((row) => !row.attempts.length && !row.progress?.certificate);
     const blocking = (await userReferences(database, [user.id]))
-      .map((ref) => ref.table === 'training_assignments' && ref.column === 'employeeId' ? { ...ref, total: ref.total - disposable.length } : ref)
+      .map((ref) =>
+        ref.table === 'training_assignments' && ref.column === 'employeeId'
+          ? { ...ref, total: ref.total - disposable.length }
+          : ref,
+      )
       .filter((ref) => ref.total > 0 && !(ref.table === 'audit_logs' && ref.column === 'actorId'));
-    const entry = { id: user.id, role: user.role?.name, createdAt: user.createdAt, trainingAssignments: disposable.length };
-    if (blocking.length) { report.kept.push({ ...entry, blocking }); continue; }
+    const entry = {
+      id: user.id,
+      role: user.role?.name,
+      createdAt: user.createdAt,
+      trainingAssignments: disposable.length,
+    };
+    if (blocking.length) {
+      report.kept.push({ ...entry, blocking });
+      continue;
+    }
     report.removed.push(entry);
     if (!apply) continue;
     await database.$transaction(async (tx) => {
@@ -62,9 +100,20 @@ export async function purgeFixtureUsers(database, users, { apply = false, audit 
       await tx.trainingProgress.deleteMany({ where: { assignmentId: { in: assignmentIds } } });
       await tx.trainingAssignment.deleteMany({ where: { id: { in: assignmentIds } } });
       await tx.user.delete({ where: { id: user.id } });
-      if (audit) await tx.auditLog.create({ data: { action: 'FIXTURE_ACCOUNT_REMOVED', resourceType: 'USER', resourceId: user.id, outcome: 'SUCCESS',
-        metadata: { reason: 'Leftover automated-test fixture account', trainingAssignmentsRemoved: assignmentIds.length },
-        retentionUntil: new Date(Date.now() + 90 * 86_400_000) } });
+      if (audit)
+        await tx.auditLog.create({
+          data: {
+            action: 'FIXTURE_ACCOUNT_REMOVED',
+            resourceType: 'USER',
+            resourceId: user.id,
+            outcome: 'SUCCESS',
+            metadata: {
+              reason: 'Leftover automated-test fixture account',
+              trainingAssignmentsRemoved: assignmentIds.length,
+            },
+            retentionUntil: new Date(Date.now() + 90 * 86_400_000),
+          },
+        });
     });
   }
   return report;

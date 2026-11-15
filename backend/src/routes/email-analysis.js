@@ -19,13 +19,24 @@ const fail = (res, status, code, message) => res.status(status).json({ error: { 
 
 export function createEmailAnalysisRouter({ database, config, analyzer, gate = createAnalysisGate('EMAIL') }) {
   const router = Router();
-  router.use((_req, res, next) => { res.set('Cache-Control', 'no-store'); next(); });
-  router.use(createAuthenticate({ database, config }), requireRole('EMPLOYEE'), createTrustedOrigin(config.trustedOrigins), gate.limiter);
+  router.use((_req, res, next) => {
+    res.set('Cache-Control', 'no-store');
+    next();
+  });
+  router.use(
+    createAuthenticate({ database, config }),
+    requireRole('EMPLOYEE'),
+    createTrustedOrigin(config.trustedOrigins),
+    gate.limiter,
+  );
   // Bound concurrent buffered requests across both modes, including slow uploads.
   router.use((_req, res, next) => {
     let release;
-    try { release = gate.acquire(); }
-    catch (error) { return fail(res, error.status, error.code, error.message); }
+    try {
+      release = gate.acquire();
+    } catch (error) {
+      return fail(res, error.status, error.code, error.message);
+    }
     res.once('finish', release);
     res.once('close', release);
     next();
@@ -34,26 +45,57 @@ export function createEmailAnalysisRouter({ database, config, analyzer, gate = c
     try {
       const now = new Date();
       const candidate = await database.disclaimerAcknowledgement.findFirst({
-        where: { userId: req.user.id, context: 'EMAIL_ANALYSIS', version: DISCLAIMER_DEFINITION.version,
-          createdAt: { gte: new Date(now.getTime() - EMAIL_ACKNOWLEDGEMENT_MAX_AGE_MS), lte: now } },
-        orderBy: { createdAt: 'desc' }, select: { id: true },
+        where: {
+          userId: req.user.id,
+          context: 'EMAIL_ANALYSIS',
+          version: DISCLAIMER_DEFINITION.version,
+          createdAt: { gte: new Date(now.getTime() - EMAIL_ACKNOWLEDGEMENT_MAX_AGE_MS), lte: now },
+        },
+        orderBy: { createdAt: 'desc' },
+        select: { id: true },
       });
-      const acknowledgement = candidate && await verifyAcknowledgement(database, {
-        acknowledgementId: candidate.id, userId: req.user.id, context: 'EMAIL_ANALYSIS',
-        now, maxAgeMs: EMAIL_ACKNOWLEDGEMENT_MAX_AGE_MS,
-      });
-      if (!acknowledgement) return fail(res, 403, 'EMAIL_ACKNOWLEDGEMENT_REQUIRED', 'A current email analysis acknowledgement is required.');
+      const acknowledgement =
+        candidate &&
+        (await verifyAcknowledgement(database, {
+          acknowledgementId: candidate.id,
+          userId: req.user.id,
+          context: 'EMAIL_ANALYSIS',
+          now,
+          maxAgeMs: EMAIL_ACKNOWLEDGEMENT_MAX_AGE_MS,
+        }));
+      if (!acknowledgement)
+        return fail(
+          res,
+          403,
+          'EMAIL_ACKNOWLEDGEMENT_REQUIRED',
+          'A current email analysis acknowledgement is required.',
+        );
       req.emailAcknowledgementId = acknowledgement.id;
       return next();
-    } catch (error) { return next(error); }
+    } catch (error) {
+      return next(error);
+    }
   });
 
   const complete = (inputFor) => async (req, res, next) => {
     try {
       const input = inputFor(req);
-      const response = await submitOnce(database, { key: req.get('Idempotency-Key'), userId: req.user.id,
-        type: 'EMAIL', payload: input.eml ?? JSON.stringify([input.inputType, input.body, input.headers ?? '']), secret: config.jwtSecret },
-      (db) => submitEmailAnalysis(db, { userId: req.user.id, acknowledgementId: req.emailAcknowledgementId, input }, analyzer));
+      const response = await submitOnce(
+        database,
+        {
+          key: req.get('Idempotency-Key'),
+          userId: req.user.id,
+          type: 'EMAIL',
+          payload: input.eml ?? JSON.stringify([input.inputType, input.body, input.headers ?? '']),
+          secret: config.jwtSecret,
+        },
+        (db) =>
+          submitEmailAnalysis(
+            db,
+            { userId: req.user.id, acknowledgementId: req.emailAcknowledgementId, input },
+            analyzer,
+          ),
+      );
       return res.status(response.incident.state === 'PENDING' ? 202 : 201).json(response);
     } catch (error) {
       if (error instanceof EmailAnalysisError) {
@@ -67,24 +109,43 @@ export function createEmailAnalysisRouter({ database, config, analyzer, gate = c
     }
   };
 
-  router.post('/text', (req, res, next) => {
-    if (!req.is('application/json')) return fail(res, 415, 'EMAIL_CONTENT_TYPE', 'Use application/json for pasted email.');
-    return next();
-  }, json({ limit: JSON_LIMIT, strict: true, inflate: false }), complete((req) => {
-    const body = req.body;
-    if (!body || typeof body !== 'object' || Array.isArray(body) ||
+  router.post(
+    '/text',
+    (req, res, next) => {
+      if (!req.is('application/json'))
+        return fail(res, 415, 'EMAIL_CONTENT_TYPE', 'Use application/json for pasted email.');
+      return next();
+    },
+    json({ limit: JSON_LIMIT, strict: true, inflate: false }),
+    complete((req) => {
+      const body = req.body;
+      if (
+        !body ||
+        typeof body !== 'object' ||
+        Array.isArray(body) ||
         Object.keys(body).some((key) => !['body', 'headers'].includes(key)) ||
-        typeof body.body !== 'string' || (body.headers !== undefined && typeof body.headers !== 'string')) {
-      throw new EmailAnalysisError('INVALID_EMAIL_INPUT');
-    }
-    // Enforce original header bytes before the parser trims trailing line breaks.
-    if (Buffer.byteLength(body.headers ?? '') > EMAIL_LIMITS.headerBytes) throw new EmailAnalysisError('EMAIL_INPUT_TOO_LARGE');
-    return { inputType: 'PASTED', ...body };
-  }));
+        typeof body.body !== 'string' ||
+        (body.headers !== undefined && typeof body.headers !== 'string')
+      ) {
+        throw new EmailAnalysisError('INVALID_EMAIL_INPUT');
+      }
+      // Enforce original header bytes before the parser trims trailing line breaks.
+      if (Buffer.byteLength(body.headers ?? '') > EMAIL_LIMITS.headerBytes)
+        throw new EmailAnalysisError('EMAIL_INPUT_TOO_LARGE');
+      return { inputType: 'PASTED', ...body };
+    }),
+  );
 
   const upload = multer({
     storage: multer.memoryStorage(),
-    limits: { fileSize: EMAIL_LIMITS.emlBytes, files: 1, fields: 0, parts: 1, fieldNameSize: 64, fieldArrayIndexLimit: 0 },
+    limits: {
+      fileSize: EMAIL_LIMITS.emlBytes,
+      files: 1,
+      fields: 0,
+      parts: 1,
+      fieldNameSize: 64,
+      fieldArrayIndexLimit: 0,
+    },
     fileFilter: (_req, file, callback) => {
       if (!/\.eml$/i.test(file.originalname) || !MIME_TYPES.has(file.mimetype)) {
         return callback(new EmailAnalysisError('INVALID_EMAIL_INPUT'));
@@ -92,20 +153,30 @@ export function createEmailAnalysisRouter({ database, config, analyzer, gate = c
       return callback(null, true);
     },
   }).single('file');
-  router.post('/eml', (req, res, next) => {
-    if (!req.is('multipart/form-data')) return fail(res, 415, 'EMAIL_CONTENT_TYPE', 'Use multipart/form-data with one file field.');
-    upload(req, res, (error) => {
-      if (error) {
-        if (req.file?.buffer) req.file.buffer.fill(0);
-        delete req.file;
-        delete req.body;
-        return fail(res, error.code === 'LIMIT_FILE_SIZE' ? 413 : 400, 'INVALID_EMAIL_UPLOAD', 'Provide one supported .eml file of at most 1 MiB and no other fields.');
-      }
-      return next();
-    });
-  }, complete((req) => {
-    if (!req.file || Object.keys(req.body ?? {}).length) throw new EmailAnalysisError('INVALID_EMAIL_INPUT');
-    return { inputType: 'EML', eml: req.file.buffer };
-  }));
+  router.post(
+    '/eml',
+    (req, res, next) => {
+      if (!req.is('multipart/form-data'))
+        return fail(res, 415, 'EMAIL_CONTENT_TYPE', 'Use multipart/form-data with one file field.');
+      upload(req, res, (error) => {
+        if (error) {
+          if (req.file?.buffer) req.file.buffer.fill(0);
+          delete req.file;
+          delete req.body;
+          return fail(
+            res,
+            error.code === 'LIMIT_FILE_SIZE' ? 413 : 400,
+            'INVALID_EMAIL_UPLOAD',
+            'Provide one supported .eml file of at most 1 MiB and no other fields.',
+          );
+        }
+        return next();
+      });
+    },
+    complete((req) => {
+      if (!req.file || Object.keys(req.body ?? {}).length) throw new EmailAnalysisError('INVALID_EMAIL_INPUT');
+      return { inputType: 'EML', eml: req.file.buffer };
+    }),
+  );
   return router;
 }

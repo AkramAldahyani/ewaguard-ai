@@ -17,10 +17,15 @@ try {
     });
     for (const user of users) {
       const admin = user.role.name === 'IT_SECURITY_ADMIN';
-      await tx.user.update({ where: { id: user.id }, data: {
-        employeeIdentifier: user.employeeIdentifier ?? `${admin ? 'ADM' : 'EMP'}-${user.id.replaceAll('-', '').slice(0, 12).toUpperCase()}`,
-        departmentId: user.departmentId ?? (admin ? it.id : operations.id),
-      } });
+      await tx.user.update({
+        where: { id: user.id },
+        data: {
+          employeeIdentifier:
+            user.employeeIdentifier ??
+            `${admin ? 'ADM' : 'EMP'}-${user.id.replaceAll('-', '').slice(0, 12).toUpperCase()}`,
+          departmentId: user.departmentId ?? (admin ? it.id : operations.id),
+        },
+      });
     }
     return { updated: users.length };
   });

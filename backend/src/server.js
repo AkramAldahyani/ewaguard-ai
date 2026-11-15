@@ -42,7 +42,12 @@ try {
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 } catch {
-  console.error(JSON.stringify({ level: 'ERROR', event: 'invalid_configuration',
-    message: 'Check application and authentication settings against .env.example.' }));
+  console.error(
+    JSON.stringify({
+      level: 'ERROR',
+      event: 'invalid_configuration',
+      message: 'Check application and authentication settings against .env.example.',
+    }),
+  );
   process.exitCode = 1;
 }

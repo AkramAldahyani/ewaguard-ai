@@ -5,7 +5,14 @@ export function riskColumns(risk) {
 }
 
 export function riskSnapshot(risk) {
-  return { analyzerType: risk.analyzerType, score: risk.score, riskLevel: risk.riskLevel, confidence: risk.confidence,
-    version: risk.version, reasonCodes: risk.reasons.map(({ code }) => code), evaluatedAt: risk.evaluatedAt,
-    evidenceCoverage: risk.evidenceCoverage };
+  return {
+    analyzerType: risk.analyzerType,
+    score: risk.score,
+    riskLevel: risk.riskLevel,
+    confidence: risk.confidence,
+    version: risk.version,
+    reasonCodes: risk.reasons.map(({ code }) => code),
+    evaluatedAt: risk.evaluatedAt,
+    evidenceCoverage: risk.evidenceCoverage,
+  };
 }

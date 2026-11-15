@@ -5,7 +5,8 @@
 
 export const physicalSecurityCourse = {
   title: 'Physical Security',
-  description: 'Protecting our workplace and information. Learn why physical security matters, how to protect your desk and computer, how to handle badges, visitors and tailgating, how to look after devices and documents, and what to do when something looks wrong.',
+  description:
+    'Protecting our workplace and information. Learn why physical security matters, how to protect your desk and computer, how to handle badges, visitors and tailgating, how to look after devices and documents, and what to do when something looks wrong.',
   topic: 'PHYSICAL_SECURITY',
   learningObjectives: [
     'Explain why physical security matters for cybersecurity.',
@@ -16,8 +17,13 @@ export const physicalSecurityCourse = {
   ],
   estimatedMinutes: 9,
   requiresQuiz: true,
-  content: { version: 1, sections: [
-    { key: 'why-physical-security-matters', title: 'Lesson 1: Why physical security matters', body: `Cybersecurity is not only about computers and the internet. If someone can walk up to an unlocked computer, pick up a printed report or carry away a laptop, they may not need to hack anything at all.
+  content: {
+    version: 1,
+    sections: [
+      {
+        key: 'why-physical-security-matters',
+        title: 'Lesson 1: Why physical security matters',
+        body: `Cybersecurity is not only about computers and the internet. If someone can walk up to an unlocked computer, pick up a printed report or carry away a laptop, they may not need to hack anything at all.
 
 Physical security means protecting the places, equipment and paper where information lives:
 - offices, meeting rooms and restricted areas
@@ -30,8 +36,12 @@ At a fictional regional office, a cleaner's trolley props open a side door durin
 
 Small habits close these gaps. Locking a screen, challenging a propped door through the right channel, or putting papers away takes seconds, and every employee can do it.
 
-Key takeaway: Physical access can be just as dangerous as a cyberattack. Everyone shares responsibility for protecting the workplace.` },
-    { key: 'lock-screen-protect-desk', title: 'Lesson 2: Lock your screen and protect your desk', body: `An unlocked computer gives anyone who sits down your access: your email, your files and the systems you can use. Anything they do will look like it was done by you.
+Key takeaway: Physical access can be just as dangerous as a cyberattack. Everyone shares responsibility for protecting the workplace.`,
+      },
+      {
+        key: 'lock-screen-protect-desk',
+        title: 'Lesson 2: Lock your screen and protect your desk',
+        body: `An unlocked computer gives anyone who sits down your access: your email, your files and the systems you can use. Anything they do will look like it was done by you.
 
 Protect your workspace:
 - Lock your computer every time you step away, even for a minute. On Windows, press the Windows key + L.
@@ -47,8 +57,12 @@ The safer alternative: before standing up, Hassan presses Windows + L. His work 
 Tip: Make it automatic
 Lock your screen whenever you stand up, the same way you would lock your car. After a few days it becomes a habit you do without thinking.
 
-Key takeaway: Lock it when you leave it. Keep passwords off your desk and sensitive papers out of sight.` },
-    { key: 'badges-visitors-tailgating', title: 'Lesson 3: Badges, visitors and tailgating', body: `Access badges show who is allowed where. Controlled doors only work if each person uses their own badge.
+Key takeaway: Lock it when you leave it. Keep passwords off your desk and sensitive papers out of sight.`,
+      },
+      {
+        key: 'badges-visitors-tailgating',
+        title: 'Lesson 3: Badges, visitors and tailgating',
+        body: `Access badges show who is allowed where. Controlled doors only work if each person uses their own badge.
 
 Tailgating is when someone follows an authorized person through a controlled door without using their own access. It is one of the simplest ways to get into a building, and it usually relies on politeness: most people do not want to seem rude by letting a door close on someone.
 
@@ -68,8 +82,12 @@ Your job is to notice and report, not to confront. Never put yourself at risk to
 Tip: Visitors
 Follow your organization's approved visitor procedures. If you are hosting a visitor, stay responsible for them while they are on site.
 
-Key takeaway: One badge, one person. Politely decline to let others follow you through controlled doors, and report suspicious access attempts.` },
-    { key: 'devices-and-documents', title: 'Lesson 4: Protecting devices and documents', body: `Laptops, phones, USB drives and paper documents can all carry sensitive information. If they are lost, stolen or tampered with, that information can be exposed.
+Key takeaway: One badge, one person. Politely decline to let others follow you through controlled doors, and report suspicious access attempts.`,
+      },
+      {
+        key: 'devices-and-documents',
+        title: 'Lesson 4: Protecting devices and documents',
+        body: `Laptops, phones, USB drives and paper documents can all carry sensitive information. If they are lost, stolen or tampered with, that information can be exposed.
 
 Look after devices and documents:
 - Never leave a work laptop or phone unattended in a car, café or public space. Lock it away when you are not using it.
@@ -87,8 +105,12 @@ The safer response: Fatima does not plug it into any computer, not even to look 
 Watch out: Curiosity is the trap
 Never test an unknown device yourself to see what is on it. Reporting it is the helpful thing to do.
 
-Key takeaway: Keep devices and papers secure, never connect unknown devices, and report anything lost or found straight away.` },
-    { key: 'when-something-looks-suspicious', title: 'Lesson 5: What to do when something looks suspicious', body: `You do not need to be sure something is wrong before you speak up. Take safe, reasonable action and report your concern through your organization's approved security channels.
+Key takeaway: Keep devices and papers secure, never connect unknown devices, and report anything lost or found straight away.`,
+      },
+      {
+        key: 'when-something-looks-suspicious',
+        title: 'Lesson 5: What to do when something looks suspicious',
+        body: `You do not need to be sure something is wrong before you speak up. Take safe, reasonable action and report your concern through your organization's approved security channels.
 
 Common situations:
 - An unfamiliar person in a restricted area: do not confront them. Note what you saw and report it promptly.
@@ -109,8 +131,10 @@ Your physical security checklist:
 
 Key takeaway: Notice, stay safe, and report. Quick reports help protect people, equipment and information.
 
-Next, complete the short five-question quiz below to finish the course.` },
-  ] },
+Next, complete the short five-question quiz below to finish the course.`,
+      },
+    ],
+  },
 };
 
 export const physicalSecurityQuiz = {
@@ -118,40 +142,71 @@ export const physicalSecurityQuiz = {
   passingPercent: 80,
   maxAttempts: 3,
   questions: [
-    { type: 'MULTIPLE_CHOICE', points: 1,
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'You need to step away from your desk for a quick five-minute conversation down the corridor. What should you do with your computer?',
-      explanation: 'Lock it every time you step away, even briefly. On Windows, press the Windows key + L. An unlocked computer lets anyone act as you.',
+      explanation:
+        'Lock it every time you step away, even briefly. On Windows, press the Windows key + L. An unlocked computer lets anyone act as you.',
       options: [
         { text: 'Leave it unlocked, because you will only be gone for five minutes.', isCorrect: false },
         { text: 'Lock it before you leave, for example with Windows key + L.', isCorrect: true },
         { text: 'Turn the monitor off but leave the computer unlocked.', isCorrect: false },
         { text: 'Ask the person at the next desk to keep an eye on it.', isCorrect: false },
-      ] },
-    { type: 'MULTIPLE_CHOICE', points: 1,
+      ],
+    },
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'At a controlled-access door, a friendly person you do not recognize says they forgot their badge and asks to follow you in. What is the best response?',
-      explanation: 'Politely decline and direct them to reception or the approved visitor process. Do not confront them. Report it through the approved channel if they persist or something seems wrong.',
+      explanation:
+        'Politely decline and direct them to reception or the approved visitor process. Do not confront them. Report it through the approved channel if they persist or something seems wrong.',
       options: [
         { text: 'Let them in, because they seem friendly and are wearing a work jacket.', isCorrect: false },
         { text: 'Physically block the door until they leave.', isCorrect: false },
-        { text: 'Politely decline, direct them to reception or the visitor process, and report it if they persist or something seems wrong.', isCorrect: true },
+        {
+          text: 'Politely decline, direct them to reception or the visitor process, and report it if they persist or something seems wrong.',
+          isCorrect: true,
+        },
         { text: 'Lend them your badge so they can get in on their own.', isCorrect: false },
-      ] },
-    { type: 'MULTIPLE_CHOICE', points: 1,
+      ],
+    },
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'You find an unlabelled USB drive in the office car park. What should you do?',
-      explanation: 'Unknown devices can carry harmful software that runs when connected. Do not plug it in anywhere. Hand it over or report it through the approved IT or security channel.',
+      explanation:
+        'Unknown devices can carry harmful software that runs when connected. Do not plug it in anywhere. Hand it over or report it through the approved IT or security channel.',
       options: [
         { text: 'Plug it into your work computer to find out who owns it.', isCorrect: false },
         { text: 'Plug it into a home computer instead, to protect the work network.', isCorrect: false },
         { text: 'Keep it as a spare storage device.', isCorrect: false },
-        { text: 'Do not connect it to anything; hand it over or report it through the approved channel.', isCorrect: true },
-      ] },
-    { type: 'TRUE_FALSE', points: 1,
+        {
+          text: 'Do not connect it to anything; hand it over or report it through the approved channel.',
+          isCorrect: true,
+        },
+      ],
+    },
+    {
+      type: 'TRUE_FALSE',
+      points: 1,
       text: 'True or false: It is acceptable to leave confidential printed documents on a shared printer or meeting-room table if you plan to come back for them later.',
-      explanation: 'False. Unattended papers can be read, photographed or taken. Collect printouts promptly and keep confidential documents secured.',
-      options: [{ text: 'True', isCorrect: false }, { text: 'False', isCorrect: true }] },
-    { type: 'TRUE_FALSE', points: 1,
+      explanation:
+        'False. Unattended papers can be read, photographed or taken. Collect printouts promptly and keep confidential documents secured.',
+      options: [
+        { text: 'True', isCorrect: false },
+        { text: 'False', isCorrect: true },
+      ],
+    },
+    {
+      type: 'TRUE_FALSE',
+      points: 1,
       text: 'True or false: If you lose your access badge or work laptop, you should report it immediately, even if you think it might turn up later.',
       explanation: 'True. Prompt reporting lets the responsible team act before a lost badge or device can be misused.',
-      options: [{ text: 'True', isCorrect: true }, { text: 'False', isCorrect: false }] },
+      options: [
+        { text: 'True', isCorrect: true },
+        { text: 'False', isCorrect: false },
+      ],
+    },
   ],
 };

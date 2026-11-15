@@ -17,9 +17,16 @@ export async function authenticateSession(database, config, token) {
 
 export async function revokeSession(database, config, token) {
   let claims;
-  try { claims = verifyAccessToken(token, config); } catch { return null; }
+  try {
+    claims = verifyAccessToken(token, config);
+  } catch {
+    return null;
+  }
   if (!uuid.test(claims.jti ?? '') || !uuid.test(claims.sub ?? '') || !Number.isFinite(claims.exp)) return null;
-  const changed = await database.revokedSession.createMany({ data: [{ id: claims.jti, expiresAt: new Date(claims.exp * 1000) }], skipDuplicates: true });
+  const changed = await database.revokedSession.createMany({
+    data: [{ id: claims.jti, expiresAt: new Date(claims.exp * 1000) }],
+    skipDuplicates: true,
+  });
   if (changed.count) await authAudit(database, 'SESSION_REVOKED', claims.sub);
   return claims;
 }

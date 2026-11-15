@@ -7,48 +7,415 @@ import { countLabel } from '../../lib/labels.js';
 import { TrainingFeedback } from './TrainingCommon.jsx';
 
 const api = createTrainingApi(false);
-const unavailable = { NOT_REQUIRED: 'This course does not require an assessment.', COURSE_ARCHIVED: 'This course has been archived. Previous results remain available.',
-  UNPUBLISHED: 'The assessment has not been published yet.', READING_INCOMPLETE: 'Finish and acknowledge every reading section before starting the assessment.' };
+const unavailable = {
+  NOT_REQUIRED: 'This course does not require an assessment.',
+  COURSE_ARCHIVED: 'This course has been archived. Previous results remain available.',
+  UNPUBLISHED: 'The assessment has not been published yet.',
+  READING_INCOMPLETE: 'Finish and acknowledge every reading section before starting the assessment.',
+};
 
 export function EmployeeQuizPanel({ assignmentId, onCompleted }) {
-  const [data, setData] = useState(null), [attempt, setAttempt] = useState(null), [answers, setAnswers] = useState({});
-  const [position, setPosition] = useState(0), [mode, setMode] = useState('intro'), [result, setResult] = useState(null);
-  const [loading, setLoading] = useState(true), [busy, setBusy] = useState(false), [error, setError] = useState(''), [notice, setNotice] = useState('');
-  const [confirm, setConfirm] = useState(false); const busyRef = useRef(false);
-  const refresh = useCallback(async (signal) => { setLoading(true); setError(''); try { const response = await api.quiz(assignmentId, signal); if (signal?.aborted) return;
-    setData(response); if (response.reason === 'COURSE_ARCHIVED' || response.reason === 'NOT_REQUIRED') { setAttempt(null); setAnswers({}); setMode('intro'); }
-  } catch (failure) { if (failure.name !== 'AbortError') { setError(trainingError(failure)); if ([401, 403, 404].includes(failure.status)) { setData(null); setAttempt(null); setResult(null); setAnswers({}); } } }
-    finally { if (!signal?.aborted) setLoading(false); } }, [assignmentId]);
-  useEffect(() => { const controller = new AbortController(); void Promise.resolve().then(() => { if (!controller.signal.aborted) void refresh(controller.signal); }); return () => controller.abort(); }, [refresh]);
-  const quiz = data?.quiz; const questions = quiz?.questions ?? [];
-  async function start() { if (busyRef.current) return; busyRef.current = true; setBusy(true); setError(''); setNotice(''); try {
-    const response = await api.startQuiz(assignmentId); setAttempt(response.attempt); setPosition(0); setAnswers({}); setResult(null); setMode('taking');
-  } catch (failure) { if ([401, 403, 404].includes(failure.status)) { setData(null); setAttempt(null); setResult(null); }
-    else await refresh(); setError(trainingError(failure)); }
-    finally { busyRef.current = false; setBusy(false); } }
-  async function submit() { if (!attempt || busyRef.current || questions.some((q) => !answers[q.id])) return; busyRef.current = true; setBusy(true); setError(''); try {
-    const response = await api.submitQuiz(assignmentId, attempt.id, questions.map((q) => ({ questionId: q.id, selectedOptionId: answers[q.id] })));
-    setResult(response); setMode('result'); setAttempt(null); setAnswers({}); setNotice(response.attempt.passed ? 'Assessment passed. Training completion is recorded on the server.' : 'Assessment submitted. Review your results and remaining attempts.');
-    await refresh(); if (response.attempt.passed) onCompleted?.();
-  } catch (failure) { setError(trainingError(failure)); if ([401, 403, 404].includes(failure.status)) { setData(null); setAttempt(null); setResult(null); setAnswers({}); }
-    else if (failure.status === 409) { setNotice('The attempt changed. Your selected answers are still shown; refresh the assessment before retrying.'); await refresh(); setError(trainingError(failure)); } }
-    finally { busyRef.current = false; setBusy(false); } }
-  async function showResult(id) { if (busyRef.current) return; busyRef.current = true; setBusy(true); setError(''); try { const response = await api.quizResult(assignmentId, id);
-    setResult(response); setMode('result'); setAttempt(null); setAnswers({});
-  } catch (failure) { setError(trainingError(failure)); if ([401, 403, 404].includes(failure.status)) { setData(null); setResult(null); setAttempt(null); } }
-    finally { busyRef.current = false; setBusy(false); } }
-  const current = questions[position]; const activeAttempt = data?.attempts?.find((a) => a.status === 'IN_PROGRESS');
+  const [data, setData] = useState(null),
+    [attempt, setAttempt] = useState(null),
+    [answers, setAnswers] = useState({});
+  const [position, setPosition] = useState(0),
+    [mode, setMode] = useState('intro'),
+    [result, setResult] = useState(null);
+  const [loading, setLoading] = useState(true),
+    [busy, setBusy] = useState(false),
+    [error, setError] = useState(''),
+    [notice, setNotice] = useState('');
+  const [confirm, setConfirm] = useState(false);
+  const busyRef = useRef(false);
+  const refresh = useCallback(
+    async (signal) => {
+      setLoading(true);
+      setError('');
+      try {
+        const response = await api.quiz(assignmentId, signal);
+        if (signal?.aborted) return;
+        setData(response);
+        if (response.reason === 'COURSE_ARCHIVED' || response.reason === 'NOT_REQUIRED') {
+          setAttempt(null);
+          setAnswers({});
+          setMode('intro');
+        }
+      } catch (failure) {
+        if (failure.name !== 'AbortError') {
+          setError(trainingError(failure));
+          if ([401, 403, 404].includes(failure.status)) {
+            setData(null);
+            setAttempt(null);
+            setResult(null);
+            setAnswers({});
+          }
+        }
+      } finally {
+        if (!signal?.aborted) setLoading(false);
+      }
+    },
+    [assignmentId],
+  );
+  useEffect(() => {
+    const controller = new AbortController();
+    void Promise.resolve().then(() => {
+      if (!controller.signal.aborted) void refresh(controller.signal);
+    });
+    return () => controller.abort();
+  }, [refresh]);
+  const quiz = data?.quiz;
+  const questions = quiz?.questions ?? [];
+  async function start() {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    setNotice('');
+    try {
+      const response = await api.startQuiz(assignmentId);
+      setAttempt(response.attempt);
+      setPosition(0);
+      setAnswers({});
+      setResult(null);
+      setMode('taking');
+    } catch (failure) {
+      if ([401, 403, 404].includes(failure.status)) {
+        setData(null);
+        setAttempt(null);
+        setResult(null);
+      } else await refresh();
+      setError(trainingError(failure));
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+  async function submit() {
+    if (!attempt || busyRef.current || questions.some((q) => !answers[q.id])) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const response = await api.submitQuiz(
+        assignmentId,
+        attempt.id,
+        questions.map((q) => ({ questionId: q.id, selectedOptionId: answers[q.id] })),
+      );
+      setResult(response);
+      setMode('result');
+      setAttempt(null);
+      setAnswers({});
+      setNotice(
+        response.attempt.passed
+          ? 'Assessment passed. Training completion is recorded on the server.'
+          : 'Assessment submitted. Review your results and remaining attempts.',
+      );
+      await refresh();
+      if (response.attempt.passed) onCompleted?.();
+    } catch (failure) {
+      setError(trainingError(failure));
+      if ([401, 403, 404].includes(failure.status)) {
+        setData(null);
+        setAttempt(null);
+        setResult(null);
+        setAnswers({});
+      } else if (failure.status === 409) {
+        setNotice(
+          'The attempt changed. Your selected answers are still shown; refresh the assessment before retrying.',
+        );
+        await refresh();
+        setError(trainingError(failure));
+      }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+  async function showResult(id) {
+    if (busyRef.current) return;
+    busyRef.current = true;
+    setBusy(true);
+    setError('');
+    try {
+      const response = await api.quizResult(assignmentId, id);
+      setResult(response);
+      setMode('result');
+      setAttempt(null);
+      setAnswers({});
+    } catch (failure) {
+      setError(trainingError(failure));
+      if ([401, 403, 404].includes(failure.status)) {
+        setData(null);
+        setResult(null);
+        setAttempt(null);
+      }
+    } finally {
+      busyRef.current = false;
+      setBusy(false);
+    }
+  }
+  const current = questions[position];
+  const activeAttempt = data?.attempts?.find((a) => a.status === 'IN_PROGRESS');
   const passed = data?.attempts?.some((a) => a.passed);
-  return <section aria-labelledby="course-assessment-heading" className="space-y-5"><Card className="border-brand-200 p-5 sm:p-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-xs font-bold uppercase tracking-wider text-brand-700">Course assessment</p><h2 id="course-assessment-heading" className="mt-1 text-xl font-bold text-slate-950">{quiz?.title ?? 'Course quiz'}</h2></div>{quiz && <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-800">{countLabel(questions.length, 'question')}</span>}</div><p className="mt-3 text-sm leading-6 text-slate-600">Complete the reading first. Your answers are scored by the server when you submit; opening this assessment does not complete training.</p></Card>
-    <TrainingFeedback loading={loading && !data} error={error && !data ? error : ''} retry={() => refresh()} />
-    {data && <>{error && <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-800">{error} <Button variant="ghost" onClick={() => refresh()}>Refresh assessment</Button></p>}{notice && <p role="status" className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900">{notice}</p>}
-      {data.reason && <Card className="p-5 sm:p-6"><h3 className="font-bold">Assessment unavailable</h3><p className="mt-2 text-sm leading-6 text-slate-600">{unavailable[data.reason] ?? 'The assessment is unavailable. Refresh for the latest status.'}</p><Button className="mt-4" variant="secondary" onClick={() => refresh()}>Check availability</Button></Card>}
-      {quiz && mode === 'intro' && <Card className="p-5 sm:p-6"><h3 className="font-bold">Before you begin</h3><ul className="mt-3 list-inside list-disc space-y-1 text-sm text-slate-600"><li>{countLabel(questions.length, 'question')}</li>{data.passingPercent && <li>Passing score: {data.passingPercent}%</li>}<li>{countLabel(data.attemptsRemaining, 'attempt')} remaining</li><li>Answer every question before final submission.</li></ul>{passed ? <p className="mt-4 text-sm font-semibold text-success-800">You have already passed this assessment.</p> : data.attemptsRemaining > 0 || activeAttempt ? <Button className="mt-5" disabled={busy} onClick={start}>{busy ? 'Opening…' : activeAttempt ? 'Resume assessment' : 'Start assessment'}</Button> : <p className="mt-4 text-sm font-semibold text-warning-900">No attempts remain. Contact your security administrator if you need help.</p>}</Card>}
-      {quiz && mode === 'taking' && current && <Card className="p-5 sm:p-7"><p className="text-xs font-bold uppercase tracking-wide text-brand-700">Question {position + 1} of {questions.length}</p><div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100" role="progressbar" aria-label="Questions reviewed" aria-valuemin={0} aria-valuemax={questions.length} aria-valuenow={position + 1}><div className="h-full bg-brand-500" style={{ width: `${(position + 1) * 100 / questions.length}%` }} /></div><fieldset className="mt-6"><legend className="text-lg font-bold leading-7 text-slate-950">{current.text}</legend><p className="mt-1 text-xs text-slate-500">Choose one answer · {countLabel(current.points, 'point')}</p><div className="mt-5 space-y-3">{current.options.map((option) => <label key={option.id} className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 text-sm focus-within:ring-2 focus-within:ring-brand-500 ${answers[current.id] === option.id ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:bg-slate-50'}`}><input type="radio" name={`answer-${current.id}`} value={option.id} checked={answers[current.id] === option.id} onChange={() => setAnswers((old) => ({ ...old, [current.id]: option.id }))} className="accent-brand-600" />{option.text}</label>)}</div></fieldset><nav aria-label="Quiz questions" className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5"><Button variant="secondary" disabled={position === 0} onClick={() => setPosition((value) => value - 1)}>← Previous question</Button><span className="text-xs text-slate-600" aria-live="polite">{Object.keys(answers).length} of {questions.length} answered</span>{position < questions.length - 1 ? <Button variant="secondary" onClick={() => setPosition((value) => value + 1)}>Next question →</Button> : <Button onClick={() => setMode('review')}>Review answers</Button>}</nav></Card>}
-      {quiz && mode === 'review' && <Card className="p-5 sm:p-7"><h3 className="text-lg font-bold">Review your answers</h3><p className="mt-2 text-sm text-slate-600">No answer key is shown before submission. Return to any question to change your selection.</p><ol className="mt-5 space-y-3">{questions.map((q, index) => <li key={q.id} className="rounded-xl border border-slate-200 p-4"><p className="font-semibold">{index + 1}. {q.text}</p><p className="mt-1 text-sm text-slate-600">{q.options.find((o) => o.id === answers[q.id])?.text ?? 'Not answered'}</p><Button className="mt-2" size="sm" variant="ghost" onClick={() => { setPosition(index); setMode('taking'); }}>Change answer {index + 1}</Button></li>)}</ol><div className="mt-5 flex flex-wrap gap-3"><Button variant="secondary" onClick={() => setMode('taking')}>Back to questions</Button><Button disabled={busy || questions.some((q) => !answers[q.id])} onClick={() => setConfirm(true)}>{busy ? 'Submitting…' : 'Submit assessment'}</Button></div>{questions.some((q) => !answers[q.id]) && <p role="status" className="mt-3 text-sm text-warning-900">Answer every question before submission.</p>}</Card>}
-      {mode === 'result' && result && <Card className={`p-5 sm:p-7 ${result.attempt.passed ? 'border-success-300' : 'border-warning-300'}`}><p className="text-xs font-bold uppercase tracking-wide text-slate-500">Attempt {result.attempt.attemptNumber} · {formatDate(result.attempt.submittedAt)}</p><h3 className="mt-2 text-xl font-bold">{result.attempt.passed ? 'Assessment passed' : 'Assessment not passed'}</h3><p className="mt-2 text-lg font-semibold">{result.attempt.scorePercent}% · {result.attempt.earnedPoints} of {countLabel(result.attempt.possiblePoints, 'point')}</p><p className="mt-2 text-sm text-slate-600">Your result is recorded by the training server.</p><div className="mt-5 space-y-3">{result.answers.map((answer, index) => { const q = quiz?.questions.find((item) => item.id === answer.questionId); return <div key={answer.questionId} className="rounded-xl border border-slate-200 p-4"><h4 className="font-semibold">{q?.text ?? `Question ${index + 1}`}</h4><p className="mt-1 text-sm">{answer.awardedPoints > 0 ? 'Correct' : 'Incorrect'} · {countLabel(answer.awardedPoints, 'point')}</p>{q && <p className="mt-1 text-sm text-slate-600">Your answer: {q.options.find((o) => o.id === answer.selectedOptionId)?.text ?? 'Unavailable'}. Correct answer: {q.options.find((o) => o.id === answer.correctOptionId)?.text ?? 'Unavailable'}.</p>}<p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{answer.explanation}</p></div>; })}</div><Button className="mt-5" variant="secondary" onClick={() => { setMode('intro'); setResult(null); }}>Back to assessment</Button></Card>}
-      {data.attempts?.length > 0 && <Card className="p-5 sm:p-6"><h3 className="font-bold">Attempt history</h3><ul className="mt-4 space-y-3">{data.attempts.map((item) => <li key={item.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 text-sm"><span>Attempt {item.attemptNumber} · {formatDate(item.submittedAt ?? item.startedAt)} · {item.status === 'SUBMITTED' ? `${item.scorePercent}% ${item.passed ? 'Passed' : 'Not passed'}` : 'In progress'}</span>{item.status === 'SUBMITTED' && <Button size="sm" variant="secondary" disabled={busy} onClick={() => showResult(item.id)}>Review result</Button>}</li>)}</ul></Card>}
-    </>}
-    <ConfirmDialog open={confirm} onClose={() => setConfirm(false)} onConfirm={() => { setConfirm(false); void submit(); }} title="Submit your assessment?" description="Your selected answers will be graded and this attempt cannot be changed afterward." confirmLabel="Submit assessment" />
-  </section>;
+  return (
+    <section aria-labelledby="course-assessment-heading" className="space-y-5">
+      <Card className="border-brand-200 p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wider text-brand-700">Course assessment</p>
+            <h2 id="course-assessment-heading" className="mt-1 text-xl font-bold text-slate-950">
+              {quiz?.title ?? 'Course quiz'}
+            </h2>
+          </div>
+          {quiz && (
+            <span className="rounded-full bg-brand-50 px-3 py-1 text-xs font-bold text-brand-800">
+              {countLabel(questions.length, 'question')}
+            </span>
+          )}
+        </div>
+        <p className="mt-3 text-sm leading-6 text-slate-600">
+          Complete the reading first. Your answers are scored by the server when you submit; opening this assessment
+          does not complete training.
+        </p>
+      </Card>
+      <TrainingFeedback loading={loading && !data} error={error && !data ? error : ''} retry={() => refresh()} />
+      {data && (
+        <>
+          {error && (
+            <p role="alert" className="rounded-xl border border-danger-200 bg-danger-50 p-4 text-sm text-danger-800">
+              {error}{' '}
+              <Button variant="ghost" onClick={() => refresh()}>
+                Refresh assessment
+              </Button>
+            </p>
+          )}
+          {notice && (
+            <p role="status" className="rounded-xl border border-brand-200 bg-brand-50 p-4 text-sm text-brand-900">
+              {notice}
+            </p>
+          )}
+          {data.reason && (
+            <Card className="p-5 sm:p-6">
+              <h3 className="font-bold">Assessment unavailable</h3>
+              <p className="mt-2 text-sm leading-6 text-slate-600">
+                {unavailable[data.reason] ?? 'The assessment is unavailable. Refresh for the latest status.'}
+              </p>
+              <Button className="mt-4" variant="secondary" onClick={() => refresh()}>
+                Check availability
+              </Button>
+            </Card>
+          )}
+          {quiz && mode === 'intro' && (
+            <Card className="p-5 sm:p-6">
+              <h3 className="font-bold">Before you begin</h3>
+              <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-slate-600">
+                <li>{countLabel(questions.length, 'question')}</li>
+                {data.passingPercent && <li>Passing score: {data.passingPercent}%</li>}
+                <li>{countLabel(data.attemptsRemaining, 'attempt')} remaining</li>
+                <li>Answer every question before final submission.</li>
+              </ul>
+              {passed ? (
+                <p className="mt-4 text-sm font-semibold text-success-800">You have already passed this assessment.</p>
+              ) : data.attemptsRemaining > 0 || activeAttempt ? (
+                <Button className="mt-5" disabled={busy} onClick={start}>
+                  {busy ? 'Opening…' : activeAttempt ? 'Resume assessment' : 'Start assessment'}
+                </Button>
+              ) : (
+                <p className="mt-4 text-sm font-semibold text-warning-900">
+                  No attempts remain. Contact your security administrator if you need help.
+                </p>
+              )}
+            </Card>
+          )}
+          {quiz && mode === 'taking' && current && (
+            <Card className="p-5 sm:p-7">
+              <p className="text-xs font-bold uppercase tracking-wide text-brand-700">
+                Question {position + 1} of {questions.length}
+              </p>
+              <div
+                className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100"
+                role="progressbar"
+                aria-label="Questions reviewed"
+                aria-valuemin={0}
+                aria-valuemax={questions.length}
+                aria-valuenow={position + 1}
+              >
+                <div
+                  className="h-full bg-brand-500"
+                  style={{ width: `${((position + 1) * 100) / questions.length}%` }}
+                />
+              </div>
+              <fieldset className="mt-6">
+                <legend className="text-lg font-bold leading-7 text-slate-950">{current.text}</legend>
+                <p className="mt-1 text-xs text-slate-500">Choose one answer · {countLabel(current.points, 'point')}</p>
+                <div className="mt-5 space-y-3">
+                  {current.options.map((option) => (
+                    <label
+                      key={option.id}
+                      className={`flex cursor-pointer items-center gap-3 rounded-xl border p-4 text-sm focus-within:ring-2 focus-within:ring-brand-500 ${answers[current.id] === option.id ? 'border-brand-400 bg-brand-50' : 'border-slate-200 hover:bg-slate-50'}`}
+                    >
+                      <input
+                        type="radio"
+                        name={`answer-${current.id}`}
+                        value={option.id}
+                        checked={answers[current.id] === option.id}
+                        onChange={() => setAnswers((old) => ({ ...old, [current.id]: option.id }))}
+                        className="accent-brand-600"
+                      />
+                      {option.text}
+                    </label>
+                  ))}
+                </div>
+              </fieldset>
+              <nav
+                aria-label="Quiz questions"
+                className="mt-6 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-5"
+              >
+                <Button variant="secondary" disabled={position === 0} onClick={() => setPosition((value) => value - 1)}>
+                  ← Previous question
+                </Button>
+                <span className="text-xs text-slate-600" aria-live="polite">
+                  {Object.keys(answers).length} of {questions.length} answered
+                </span>
+                {position < questions.length - 1 ? (
+                  <Button variant="secondary" onClick={() => setPosition((value) => value + 1)}>
+                    Next question →
+                  </Button>
+                ) : (
+                  <Button onClick={() => setMode('review')}>Review answers</Button>
+                )}
+              </nav>
+            </Card>
+          )}
+          {quiz && mode === 'review' && (
+            <Card className="p-5 sm:p-7">
+              <h3 className="text-lg font-bold">Review your answers</h3>
+              <p className="mt-2 text-sm text-slate-600">
+                No answer key is shown before submission. Return to any question to change your selection.
+              </p>
+              <ol className="mt-5 space-y-3">
+                {questions.map((q, index) => (
+                  <li key={q.id} className="rounded-xl border border-slate-200 p-4">
+                    <p className="font-semibold">
+                      {index + 1}. {q.text}
+                    </p>
+                    <p className="mt-1 text-sm text-slate-600">
+                      {q.options.find((o) => o.id === answers[q.id])?.text ?? 'Not answered'}
+                    </p>
+                    <Button
+                      className="mt-2"
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => {
+                        setPosition(index);
+                        setMode('taking');
+                      }}
+                    >
+                      Change answer {index + 1}
+                    </Button>
+                  </li>
+                ))}
+              </ol>
+              <div className="mt-5 flex flex-wrap gap-3">
+                <Button variant="secondary" onClick={() => setMode('taking')}>
+                  Back to questions
+                </Button>
+                <Button disabled={busy || questions.some((q) => !answers[q.id])} onClick={() => setConfirm(true)}>
+                  {busy ? 'Submitting…' : 'Submit assessment'}
+                </Button>
+              </div>
+              {questions.some((q) => !answers[q.id]) && (
+                <p role="status" className="mt-3 text-sm text-warning-900">
+                  Answer every question before submission.
+                </p>
+              )}
+            </Card>
+          )}
+          {mode === 'result' && result && (
+            <Card className={`p-5 sm:p-7 ${result.attempt.passed ? 'border-success-300' : 'border-warning-300'}`}>
+              <p className="text-xs font-bold uppercase tracking-wide text-slate-500">
+                Attempt {result.attempt.attemptNumber} · {formatDate(result.attempt.submittedAt)}
+              </p>
+              <h3 className="mt-2 text-xl font-bold">
+                {result.attempt.passed ? 'Assessment passed' : 'Assessment not passed'}
+              </h3>
+              <p className="mt-2 text-lg font-semibold">
+                {result.attempt.scorePercent}% · {result.attempt.earnedPoints} of{' '}
+                {countLabel(result.attempt.possiblePoints, 'point')}
+              </p>
+              <p className="mt-2 text-sm text-slate-600">Your result is recorded by the training server.</p>
+              <div className="mt-5 space-y-3">
+                {result.answers.map((answer, index) => {
+                  const q = quiz?.questions.find((item) => item.id === answer.questionId);
+                  return (
+                    <div key={answer.questionId} className="rounded-xl border border-slate-200 p-4">
+                      <h4 className="font-semibold">{q?.text ?? `Question ${index + 1}`}</h4>
+                      <p className="mt-1 text-sm">
+                        {answer.awardedPoints > 0 ? 'Correct' : 'Incorrect'} ·{' '}
+                        {countLabel(answer.awardedPoints, 'point')}
+                      </p>
+                      {q && (
+                        <p className="mt-1 text-sm text-slate-600">
+                          Your answer: {q.options.find((o) => o.id === answer.selectedOptionId)?.text ?? 'Unavailable'}.
+                          Correct answer:{' '}
+                          {q.options.find((o) => o.id === answer.correctOptionId)?.text ?? 'Unavailable'}.
+                        </p>
+                      )}
+                      <p className="mt-2 whitespace-pre-wrap text-sm text-slate-600">{answer.explanation}</p>
+                    </div>
+                  );
+                })}
+              </div>
+              <Button
+                className="mt-5"
+                variant="secondary"
+                onClick={() => {
+                  setMode('intro');
+                  setResult(null);
+                }}
+              >
+                Back to assessment
+              </Button>
+            </Card>
+          )}
+          {data.attempts?.length > 0 && (
+            <Card className="p-5 sm:p-6">
+              <h3 className="font-bold">Attempt history</h3>
+              <ul className="mt-4 space-y-3">
+                {data.attempts.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 p-3 text-sm"
+                  >
+                    <span>
+                      Attempt {item.attemptNumber} · {formatDate(item.submittedAt ?? item.startedAt)} ·{' '}
+                      {item.status === 'SUBMITTED'
+                        ? `${item.scorePercent}% ${item.passed ? 'Passed' : 'Not passed'}`
+                        : 'In progress'}
+                    </span>
+                    {item.status === 'SUBMITTED' && (
+                      <Button size="sm" variant="secondary" disabled={busy} onClick={() => showResult(item.id)}>
+                        Review result
+                      </Button>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+        </>
+      )}
+      <ConfirmDialog
+        open={confirm}
+        onClose={() => setConfirm(false)}
+        onConfirm={() => {
+          setConfirm(false);
+          void submit();
+        }}
+        title="Submit your assessment?"
+        description="Your selected answers will be graded and this attempt cannot be changed afterward."
+        confirmLabel="Submit assessment"
+      />
+    </section>
+  );
 }

@@ -15,7 +15,8 @@ function flag(env, key) {
 }
 export function retentionPolicy(env = process.env) {
   return Object.freeze({
-    enabled: flag(env, 'RETENTION_ENABLED'), paused: flag(env, 'RETENTION_PAUSED'),
+    enabled: flag(env, 'RETENTION_ENABLED'),
+    paused: flag(env, 'RETENTION_PAUSED'),
     batchSize: integer(env, 'RETENTION_BATCH_SIZE', 100, 500),
     intervalMinutes: integer(env, 'RETENTION_INTERVAL_MINUTES', 60, 1440),
     chatDays: CHAT_RETENTION_DAYS, // Keep the existing employee notice and AI contract.
@@ -37,23 +38,53 @@ export function retentionExpiry(category, now = new Date()) {
 export function retentionCategories(now) {
   const protectedIncident = { OR: [{ legalHold: true }, { status: { notIn: ['CLOSED', 'FALSE_POSITIVE'] } }] };
   const ownerClear = { reportedIncidents: { none: protectedIncident } };
-  const analysis = { expiresAt: { lte: now }, status: 'COMPLETED', severity: { in: ['LOW', 'MEDIUM'] },
-    analyzedAt: { not: null }, incidentEvidence: { none: {} }, user: ownerClear };
+  const analysis = {
+    expiresAt: { lte: now },
+    status: 'COMPLETED',
+    severity: { in: ['LOW', 'MEDIUM'] },
+    analyzedAt: { not: null },
+    incidentEvidence: { none: {} },
+    user: ownerClear,
+  };
   return [
-    { name: 'approvalPayloads', model: 'toolApproval', where: { status: 'PENDING', expiresAt: { lte: now }, user: ownerClear },
-      data: { status: 'EXPIRED', encryptedParameters: null } },
-    { name: 'chats', model: 'chatSession', where: { expiresAt: { lte: now }, owner: ownerClear,
-      aiUsage: { none: { status: { in: ['RESERVED', 'UNKNOWN'] } } },
-      // Receipts may be needed for escalation, investigation or execution recovery.
-      // Retain sessions with any receipts until a separate reviewed disposal plan.
-      toolApprovals: { none: {} } } },
+    {
+      name: 'approvalPayloads',
+      model: 'toolApproval',
+      where: { status: 'PENDING', expiresAt: { lte: now }, user: ownerClear },
+      data: { status: 'EXPIRED', encryptedParameters: null },
+    },
+    {
+      name: 'chats',
+      model: 'chatSession',
+      where: {
+        expiresAt: { lte: now },
+        owner: ownerClear,
+        aiUsage: { none: { status: { in: ['RESERVED', 'UNKNOWN'] } } },
+        // Receipts may be needed for escalation, investigation or execution recovery.
+        // Retain sessions with any receipts until a separate reviewed disposal plan.
+        toolApprovals: { none: {} },
+      },
+    },
     { name: 'emails', model: 'emailAnalysis', where: { ...analysis, toolApprovals: { none: {} } } },
     { name: 'urls', model: 'urlAnalysis', where: { ...analysis, toolApprovals: { none: {} } } },
-    { name: 'files', model: 'fileAnalysis', where: { ...analysis, storageKey: null,
-      deletedAt: { not: null }, communityAttachment: { is: null } } },
-    { name: 'notifications', model: 'notification', where: { expiresAt: { lte: now },
-      OR: [{ incidentId: null }, { incident: { legalHold: false, status: { in: ['CLOSED', 'FALSE_POSITIVE'] },
-        retentionUntil: { lte: now } } }] } },
+    {
+      name: 'files',
+      model: 'fileAnalysis',
+      where: { ...analysis, storageKey: null, deletedAt: { not: null }, communityAttachment: { is: null } },
+    },
+    {
+      name: 'notifications',
+      model: 'notification',
+      where: {
+        expiresAt: { lte: now },
+        OR: [
+          { incidentId: null },
+          {
+            incident: { legalHold: false, status: { in: ['CLOSED', 'FALSE_POSITIVE'] }, retentionUntil: { lte: now } },
+          },
+        ],
+      },
+    },
     { name: 'revokedSessions', model: 'revokedSession', where: { expiresAt: { lte: now } } },
   ];
 }

@@ -12,13 +12,19 @@ if (existsSync(envPath)) process.loadEnvFile(envPath);
 export function parseConfig(env = process.env) {
   const nodeEnv = env.NODE_ENV ?? 'development';
   const policyDemoSetting = env.RAG_DEMONSTRATION_ENABLED ?? 'false';
-  if (!['true', 'false'].includes(policyDemoSetting)) throw new Error('RAG_DEMONSTRATION_ENABLED must be true or false.');
-  if (nodeEnv === 'production' && policyDemoSetting === 'true') throw new Error('Demonstration policy retrieval is prohibited in production.');
+  if (!['true', 'false'].includes(policyDemoSetting))
+    throw new Error('RAG_DEMONSTRATION_ENABLED must be true or false.');
+  if (nodeEnv === 'production' && policyDemoSetting === 'true')
+    throw new Error('Demonstration policy retrieval is prohibited in production.');
   const ragDemonstrationEnabled = policyDemoSetting === 'true' && nodeEnv !== 'production';
   const demoSetting = env.DEMO_ACCOUNT_SETUP_ENABLED ?? 'false';
   if (!['true', 'false'].includes(demoSetting)) throw new Error('DEMO_ACCOUNT_SETUP_ENABLED must be true or false.');
-  if (nodeEnv === 'production' && demoSetting === 'true') throw new Error('Manual account setup disclosure is prohibited in production.');
+  if (nodeEnv === 'production' && demoSetting === 'true')
+    throw new Error('Manual account setup disclosure is prohibited in production.');
   const demoAccountSetupEnabled = demoSetting === 'true' && nodeEnv !== 'production';
+  const inviteSetting = env.REGISTRATION_INVITES_ENABLED ?? 'true';
+  if (!['true', 'false'].includes(inviteSetting))
+    throw new Error('REGISTRATION_INVITES_ENABLED must be true or false.');
   if (!['development', 'test', 'production'].includes(nodeEnv)) {
     throw new Error('NODE_ENV must be development, test, or production.');
   }
@@ -37,8 +43,14 @@ export function parseConfig(env = process.env) {
   } catch {
     throw new Error('FRONTEND_URL must be a valid HTTP(S) origin.');
   }
-  if (!['http:', 'https:'].includes(origin.protocol) || origin.username || origin.password ||
-      origin.pathname !== '/' || origin.search || origin.hash) {
+  if (
+    !['http:', 'https:'].includes(origin.protocol) ||
+    origin.username ||
+    origin.password ||
+    origin.pathname !== '/' ||
+    origin.search ||
+    origin.hash
+  ) {
     throw new Error('FRONTEND_URL must be an HTTP(S) origin without credentials, path, query, or fragment.');
   }
   if (nodeEnv === 'production' && origin.protocol !== 'https:') {
@@ -48,7 +60,12 @@ export function parseConfig(env = process.env) {
   if (typeof jwtSecret !== 'string' || jwtSecret.length < 32 || jwtSecret === 'CHANGE_ME') {
     throw new Error('JWT_SECRET must contain at least 32 characters and must not use the placeholder.');
   }
-  const accessTokenTtlSeconds = positiveInteger(env.JWT_ACCESS_TTL_SECONDS ?? '1800', 'JWT_ACCESS_TTL_SECONDS', 60, 3600);
+  const accessTokenTtlSeconds = positiveInteger(
+    env.JWT_ACCESS_TTL_SECONDS ?? '1800',
+    'JWT_ACCESS_TTL_SECONDS',
+    60,
+    3600,
+  );
   const mfaEncryptionKey = env.MFA_ENCRYPTION_KEY || null;
   if (mfaEncryptionKey && !/^[a-f0-9]{64}$/i.test(mfaEncryptionKey)) {
     throw new Error('MFA_ENCRYPTION_KEY must be a dedicated 32-byte hexadecimal key.');
@@ -58,24 +75,53 @@ export function parseConfig(env = process.env) {
   if (toolApprovalEncryptionKey && !/^[a-f0-9]{64}$/i.test(toolApprovalEncryptionKey)) {
     throw new Error('TOOL_APPROVAL_ENCRYPTION_KEY must be a dedicated 32-byte hexadecimal key.');
   }
-  if (toolApprovalEncryptionKey && (toolApprovalEncryptionKey === mfaEncryptionKey || toolApprovalEncryptionKey === jwtSecret)) {
+  if (
+    toolApprovalEncryptionKey &&
+    (toolApprovalEncryptionKey === mfaEncryptionKey || toolApprovalEncryptionKey === jwtSecret)
+  ) {
     throw new Error('TOOL_APPROVAL_ENCRYPTION_KEY must not reuse an authentication key.');
   }
-  if (!mfaIssuer.trim() || mfaIssuer.length > 80 || [...mfaIssuer].some((char) => char === ':' || char.charCodeAt(0) < 32)) throw new Error('Invalid MFA issuer.');
-  const mfaChallengeTtlSeconds = positiveInteger(env.MFA_CHALLENGE_TTL_SECONDS ?? '300', 'MFA_CHALLENGE_TTL_SECONDS', 60, 600);
-  const loginRateLimitWindowMinutes = positiveInteger(env.LOGIN_RATE_LIMIT_WINDOW_MINUTES ?? '15', 'LOGIN_RATE_LIMIT_WINDOW_MINUTES', 1, 60);
+  if (
+    !mfaIssuer.trim() ||
+    mfaIssuer.length > 80 ||
+    [...mfaIssuer].some((char) => char === ':' || char.charCodeAt(0) < 32)
+  )
+    throw new Error('Invalid MFA issuer.');
+  const mfaChallengeTtlSeconds = positiveInteger(
+    env.MFA_CHALLENGE_TTL_SECONDS ?? '300',
+    'MFA_CHALLENGE_TTL_SECONDS',
+    60,
+    600,
+  );
+  const loginRateLimitWindowMinutes = positiveInteger(
+    env.LOGIN_RATE_LIMIT_WINDOW_MINUTES ?? '15',
+    'LOGIN_RATE_LIMIT_WINDOW_MINUTES',
+    1,
+    60,
+  );
   const loginRateLimitMax = positiveInteger(env.LOGIN_RATE_LIMIT_MAX ?? '10', 'LOGIN_RATE_LIMIT_MAX', 1, 100);
   const trustedOrigins = [origin.origin];
   // Explicit HTTPS tunnel origin for local development; never a wildcard.
   if (env.DEV_FRONTEND_URL) {
     let developmentOrigin;
-    try { developmentOrigin = new URL(env.DEV_FRONTEND_URL); } catch {
+    try {
+      developmentOrigin = new URL(env.DEV_FRONTEND_URL);
+    } catch {
       throw new Error('DEV_FRONTEND_URL must be an HTTPS origin.');
     }
-    if (nodeEnv !== 'development' || developmentOrigin.protocol !== 'https:' ||
-        developmentOrigin.username || developmentOrigin.password || developmentOrigin.pathname !== '/' ||
-        developmentOrigin.search || developmentOrigin.hash || developmentOrigin.hostname.includes('*')) {
-      throw new Error('DEV_FRONTEND_URL requires development mode and an exact HTTPS origin without credentials or a path.');
+    if (
+      nodeEnv !== 'development' ||
+      developmentOrigin.protocol !== 'https:' ||
+      developmentOrigin.username ||
+      developmentOrigin.password ||
+      developmentOrigin.pathname !== '/' ||
+      developmentOrigin.search ||
+      developmentOrigin.hash ||
+      developmentOrigin.hostname.includes('*')
+    ) {
+      throw new Error(
+        'DEV_FRONTEND_URL requires development mode and an exact HTTPS origin without credentials or a path.',
+      );
     }
     trustedOrigins.push(developmentOrigin.origin);
   }
@@ -89,10 +135,21 @@ export function parseConfig(env = process.env) {
   return Object.freeze({
     retention: retentionPolicy(env),
     communityMedia: mediaPolicy(env),
-    nodeEnv, port, host, frontendUrl: origin.origin, jwtSecret, demoAccountSetupEnabled, ragDemonstrationEnabled,
+    nodeEnv,
+    port,
+    host,
+    frontendUrl: origin.origin,
+    jwtSecret,
+    demoAccountSetupEnabled,
+    registrationInvitesEnabled: inviteSetting === 'true',
+    ragDemonstrationEnabled,
     trustedOrigins: Object.freeze(trustedOrigins),
-    accessTokenTtlSeconds, loginRateLimitWindowMinutes, loginRateLimitMax,
-    mfaEncryptionKey, mfaIssuer, mfaChallengeTtlSeconds,
+    accessTokenTtlSeconds,
+    loginRateLimitWindowMinutes,
+    loginRateLimitMax,
+    mfaEncryptionKey,
+    mfaIssuer,
+    mfaChallengeTtlSeconds,
     toolApprovalEncryptionKey,
     openaiApiKey: env.OPENAI_API_KEY?.trim() || null,
     openaiModel: env.OPENAI_MODEL?.trim() || 'gpt-6-luna',

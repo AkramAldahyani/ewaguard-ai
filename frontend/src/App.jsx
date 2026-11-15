@@ -14,10 +14,19 @@ import { IncidentStatisticsPage } from './features/analytics/IncidentStatisticsP
 import { AwarenessAnalyticsPage } from './features/analytics/AwarenessAnalyticsPage.jsx';
 import { FileAnalyzerPage } from './features/file/FileAnalyzerPage.jsx';
 import { UrlAnalyzerPage } from './features/url/UrlAnalyzerPage.jsx';
-import { EmployeeCertificateListPage, EmployeeCertificateDetailPage } from './features/certificates/EmployeeCertificatePages.jsx';
-import { AdminCertificateListPage, AdminCertificateDetailPage } from './features/certificates/AdminCertificatePages.jsx';
+import {
+  EmployeeCertificateListPage,
+  EmployeeCertificateDetailPage,
+} from './features/certificates/EmployeeCertificatePages.jsx';
+import {
+  AdminCertificateListPage,
+  AdminCertificateDetailPage,
+} from './features/certificates/AdminCertificatePages.jsx';
 import { AdminMonthlyDetailPage, AdminMonthlyListPage } from './features/monthly-quizzes/AdminMonthlyPages.jsx';
-import { EmployeeMonthlyDetailPage, EmployeeMonthlyListPage } from './features/monthly-quizzes/EmployeeMonthlyPages.jsx';
+import {
+  EmployeeMonthlyDetailPage,
+  EmployeeMonthlyListPage,
+} from './features/monthly-quizzes/EmployeeMonthlyPages.jsx';
 import { AdminTrainingDetailPage, AdminTrainingListPage } from './features/training/AdminTrainingPages.jsx';
 import { EmployeeTrainingDetailPage, EmployeeTrainingListPage } from './features/training/EmployeeTrainingPages.jsx';
 import { ProfilePage } from './pages/employee/WorkspacePages.jsx';
@@ -31,14 +40,28 @@ import { EmailAnalyzerPage } from './features/email/EmailAnalyzerPage.jsx';
 import { UserManagementPage } from './features/users/UserManagementPage.jsx';
 
 export default function App() {
-  return <ToastProvider><AuthProvider><AppRoutes /></AuthProvider></ToastProvider>;
+  return (
+    <ToastProvider>
+      <AuthProvider>
+        <AppRoutes />
+      </AuthProvider>
+    </ToastProvider>
+  );
 }
 
 export function AppRoutes() {
   return (
-      <Routes>
-        <Route path="login" element={<PublicOnlyRoute><LoginPage /></PublicOnlyRoute>} />
-        <Route element={<ProtectedRoute />}><Route element={<AppShell />}>
+    <Routes>
+      <Route
+        path="login"
+        element={
+          <PublicOnlyRoute>
+            <LoginPage />
+          </PublicOnlyRoute>
+        }
+      />
+      <Route element={<ProtectedRoute />}>
+        <Route element={<AppShell />}>
           <Route path="profile" element={<ProfilePage />} />
           <Route element={<ProtectedRoute roles={['EMPLOYEE']} />}>
             <Route index element={<HomePage />} />
@@ -80,7 +103,8 @@ export function AppRoutes() {
           </Route>
           <Route path="unauthorized" element={<UnauthorizedPage />} />
           <Route path="*" element={<NotFoundPage />} />
-        </Route></Route>
-      </Routes>
+        </Route>
+      </Route>
+    </Routes>
   );
 }

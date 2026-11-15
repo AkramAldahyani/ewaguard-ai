@@ -1,10 +1,30 @@
 import { CircleHelp, ShieldAlert, ShieldCheck, Siren, TriangleAlert } from 'lucide-react';
 
 export const ANALYSIS_SEVERITY_THEMES = Object.freeze({
-  LOW: Object.freeze({ level: 'LOW', label: 'Low risk', summary: 'No known threat detected by the available checks.', Icon: ShieldCheck }),
-  MEDIUM: Object.freeze({ level: 'MEDIUM', label: 'Medium risk', summary: 'The available evidence warrants caution and closer review.', Icon: ShieldAlert }),
-  HIGH: Object.freeze({ level: 'HIGH', label: 'High risk', summary: 'The available evidence indicates a likely security threat.', Icon: TriangleAlert }),
-  CRITICAL: Object.freeze({ level: 'CRITICAL', label: 'Critical risk', summary: 'The available evidence indicates a critical security situation.', Icon: Siren }),
+  LOW: Object.freeze({
+    level: 'LOW',
+    label: 'Low risk',
+    summary: 'No known threat detected by the available checks.',
+    Icon: ShieldCheck,
+  }),
+  MEDIUM: Object.freeze({
+    level: 'MEDIUM',
+    label: 'Medium risk',
+    summary: 'The available evidence warrants caution and closer review.',
+    Icon: ShieldAlert,
+  }),
+  HIGH: Object.freeze({
+    level: 'HIGH',
+    label: 'High risk',
+    summary: 'The available evidence indicates a likely security threat.',
+    Icon: TriangleAlert,
+  }),
+  CRITICAL: Object.freeze({
+    level: 'CRITICAL',
+    label: 'Critical risk',
+    summary: 'The available evidence indicates a critical security situation.',
+    Icon: Siren,
+  }),
 });
 
 export const NEUTRAL_ANALYSIS_THEME = Object.freeze({

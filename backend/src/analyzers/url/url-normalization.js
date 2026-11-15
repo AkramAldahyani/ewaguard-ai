@@ -29,8 +29,13 @@ export function assertPublicHostname(hostname) {
     if (!isPublicAddress(hostname)) throw new UrlAnalysisError('URL_TARGET_BLOCKED');
     return;
   }
-  if (!hostname.includes('.') || /(?:^|\.)(?:localhost|local|localdomain|internal|intranet|lan|home|corp|test|invalid|example|onion|alt|arpa)$/.test(hostname) ||
-      /(?:^|\.)(?:localhost|metadata|metadata\.google\.internal)(?:\.|$)/.test(hostname)) {
+  if (
+    !hostname.includes('.') ||
+    /(?:^|\.)(?:localhost|local|localdomain|internal|intranet|lan|home|corp|test|invalid|example|onion|alt|arpa)$/.test(
+      hostname,
+    ) ||
+    /(?:^|\.)(?:localhost|metadata|metadata\.google\.internal)(?:\.|$)/.test(hostname)
+  ) {
     throw new UrlAnalysisError('URL_TARGET_BLOCKED');
   }
 }
@@ -42,15 +47,33 @@ export function normalizeUrl(input) {
   const raw = input.trim();
   // WHATWG repairs backslashes, missing slashes and embedded whitespace. Reject
   // those spellings before parsing instead of silently accepting the repaired URL.
-  if (!raw || !/^https?:\/\/[^/?#]+(?:[/?#]|$)/i.test(raw) || /[\s\\\p{Cc}\p{Cf}]/u.test(raw) || /%(?![a-f\d]{2})/i.test(raw)) throw new UrlAnalysisError();
+  if (
+    !raw ||
+    !/^https?:\/\/[^/?#]+(?:[/?#]|$)/i.test(raw) ||
+    /[\s\\\p{Cc}\p{Cf}]/u.test(raw) ||
+    /%(?![a-f\d]{2})/i.test(raw)
+  )
+    throw new UrlAnalysisError();
   const authority = raw.match(/^https?:\/\/([^/?#]+)/i)[1];
   if (authority.includes('@') || authority.includes('%')) throw new UrlAnalysisError();
   let url;
-  try { url = new URL(raw); } catch { throw new UrlAnalysisError(); }
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new UrlAnalysisError();
+  }
   if (url.username || url.password || !url.hostname) throw new UrlAnalysisError();
-  const hostname = url.hostname.replace(/^\[|\]$/g, '').replace(/\.$/, '').toLowerCase();
+  const hostname = url.hostname
+    .replace(/^\[|\]$/g, '')
+    .replace(/\.$/, '')
+    .toLowerCase();
   const isIpHost = Boolean(isIP(hostname));
-  if (!isIpHost && (hostname.length > 253 || hostname.split('.').some((label) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)))) throw new UrlAnalysisError();
+  if (
+    !isIpHost &&
+    (hostname.length > 253 ||
+      hostname.split('.').some((label) => !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)))
+  )
+    throw new UrlAnalysisError();
   assertPublicHostname(hostname);
   url.hostname = isIP(hostname) === 6 ? `[${hostname}]` : hostname;
   const labels = hostname.split('.');
@@ -59,17 +82,43 @@ export function normalizeUrl(input) {
   const unicode = domainToUnicode(hostname);
   // Evaluate each label independently: a Greek label with an ASCII TLD is not
   // itself a mixed-script label.
-  const mixedScript = unicode.split('.').some((label) =>
-    [/\p{Script=Latin}/u, /\p{Script=Cyrillic}/u, /\p{Script=Greek}/u].filter((pattern) => pattern.test(label)).length > 1);
+  const mixedScript = unicode
+    .split('.')
+    .some(
+      (label) =>
+        [/\p{Script=Latin}/u, /\p{Script=Cyrillic}/u, /\p{Script=Greek}/u].filter((pattern) => pattern.test(label))
+          .length > 1,
+    );
   const keys = [...url.searchParams.keys()];
   // Keep only known parameter names: arbitrary names can themselves carry secrets.
-  const queryParameterNames = [...new Set(keys.filter((key) => /^(?:token|access_token|auth|apikey|api_key|key|session|code|password|secret|sig|signature|q|page|id|redirect|url|next|utm_source|utm_campaign)$/i.test(key)).map((key) => key.toLowerCase()))];
+  const queryParameterNames = [
+    ...new Set(
+      keys
+        .filter((key) =>
+          /^(?:token|access_token|auth|apikey|api_key|key|session|code|password|secret|sig|signature|q|page|id|redirect|url|next|utm_source|utm_campaign)$/i.test(
+            key,
+          ),
+        )
+        .map((key) => key.toLowerCase()),
+    ),
+  ];
   const normalized = {
-    protocol: url.protocol.slice(0, -1), hostname, normalizedHostname: hostname, port: url.port || (url.protocol === 'https:' ? '443' : '80'),
-    domainApproximation, domainIsApproximate: true, isIpHost, punycode: hostname.includes('xn--'), mixedScript,
-    pathname: url.pathname === '/' ? '/' : '[path omitted]', pathLength: url.pathname.length,
-    pathSegments: url.pathname.split('/').filter(Boolean).length, queryCount: keys.length, queryParameterNames,
-    sensitiveQueryNamesPresent: keys.some((key) => sensitiveName.test(key)), fragmentPresent: Boolean(url.hash),
+    protocol: url.protocol.slice(0, -1),
+    hostname,
+    normalizedHostname: hostname,
+    port: url.port || (url.protocol === 'https:' ? '443' : '80'),
+    domainApproximation,
+    domainIsApproximate: true,
+    isIpHost,
+    punycode: hostname.includes('xn--'),
+    mixedScript,
+    pathname: url.pathname === '/' ? '/' : '[path omitted]',
+    pathLength: url.pathname.length,
+    pathSegments: url.pathname.split('/').filter(Boolean).length,
+    queryCount: keys.length,
+    queryParameterNames,
+    sensitiveQueryNamesPresent: keys.some((key) => sensitiveName.test(key)),
+    fragmentPresent: Boolean(url.hash),
     redactedUrl: `${url.origin}${url.pathname === '/' ? '/' : '/[path omitted]'}${url.search ? '?[query values omitted]' : ''}${url.hash ? '#[fragment omitted]' : ''}`,
   };
   return { url, raw, normalized };

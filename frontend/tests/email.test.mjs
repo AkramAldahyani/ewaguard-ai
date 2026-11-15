@@ -9,35 +9,71 @@ import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { MemoryRouter } from 'react-router';
 import { createServer } from 'vite';
-import { createEmailFlow, validateEmailInput, emailErrorMessage, byteLength, EMAIL_INPUT_LIMITS } from '../src/features/email/email-state.js';
+import {
+  createEmailFlow,
+  validateEmailInput,
+  emailErrorMessage,
+  byteLength,
+  EMAIL_INPUT_LIMITS,
+} from '../src/features/email/email-state.js';
 import { analyzePastedEmail, analyzeEml } from '../src/features/email/email-api.js';
 import { analyzeEmail } from '../../backend/src/analyzers/email/email-analyzer.js';
 import { EMAIL_LIMITS } from '../../backend/src/analyzers/email/email-policy.js';
 
 test('employee email UI, state transitions and API contract', async (t) => {
-  const server = await createServer({ root: fileURLToPath(new URL('../', import.meta.url)), server: { middlewareMode: true, hmr: false }, appType: 'custom' });
+  const server = await createServer({
+    root: fileURLToPath(new URL('../', import.meta.url)),
+    server: { middlewareMode: true, hmr: false },
+    appType: 'custom',
+  });
   t.after(() => server.close());
   const { EmailAnalyzerPage, EmailInputForm } = await server.ssrLoadModule('/src/features/email/EmailAnalyzerPage.jsx');
   const { EmailResults } = await server.ssrLoadModule('/src/features/email/EmailResults.jsx');
   await t.test('retry receipt renders without requiring original submission details', () => {
-    const html = renderToStaticMarkup(createElement(EmailResults, { analysis: { replayed: true,
-      analysisId: 'saved-id', analyzerType: 'EMAIL', severity: 'LOW', riskScore: 0,
-      createdAt: '2026-10-19T12:00:00Z', incident: { state: 'NOT_REQUIRED' } } }));
+    const html = renderToStaticMarkup(
+      createElement(EmailResults, {
+        analysis: {
+          replayed: true,
+          analysisId: 'saved-id',
+          analyzerType: 'EMAIL',
+          severity: 'LOW',
+          riskScore: 0,
+          createdAt: '2026-10-19T12:00:00Z',
+          incident: { state: 'NOT_REQUIRED' },
+        },
+      }),
+    );
     assert.match(html, /Previously completed analysis/);
     assert.match(html, /This retry did not create another scan/);
   });
-  const render = (Component, props = {}) => renderToStaticMarkup(createElement(MemoryRouter, { initialEntries: ['/analyze/email'] }, createElement(Component, props)));
-  const eml = 'From: Help Desk <support@example.invalid>\r\nReply-To: other@elsewhere.invalid\r\nSubject: Review request\r\nAuthentication-Results: inbound.invalid; spf=pass; dkim=fail; dmarc=fail\r\nContent-Type: multipart/mixed; boundary=fixture\r\n\r\n--fixture\r\nContent-Type: text/plain\r\n\r\nUrgent: provide your password. Visit http://example.invalid/account?secret=hidden\r\n--fixture\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename="report.exe"\r\n\r\nHarmless synthetic attachment\r\n--fixture--';
+  const render = (Component, props = {}) =>
+    renderToStaticMarkup(
+      createElement(MemoryRouter, { initialEntries: ['/analyze/email'] }, createElement(Component, props)),
+    );
+  const eml =
+    'From: Help Desk <support@example.invalid>\r\nReply-To: other@elsewhere.invalid\r\nSubject: Review request\r\nAuthentication-Results: inbound.invalid; spf=pass; dkim=fail; dmarc=fail\r\nContent-Type: multipart/mixed; boundary=fixture\r\n\r\n--fixture\r\nContent-Type: text/plain\r\n\r\nUrgent: provide your password. Visit http://example.invalid/account?secret=hidden\r\n--fixture\r\nContent-Type: application/octet-stream\r\nContent-Disposition: attachment; filename="report.exe"\r\n\r\nHarmless synthetic attachment\r\n--fixture--';
   const result = await analyzeEmail({ inputType: 'EML', eml: Buffer.from(eml) });
   const analysis = { analysisId: 'test-analysis', createdAt: '2026-10-06T12:00:00Z', result };
-  analysis.result.risk = evaluateRisk({ analyzerType: 'EMAIL', evidence: analysis.result, evaluatedAt: analysis.createdAt });
+  analysis.result.risk = evaluateRisk({
+    analyzerType: 'EMAIL',
+    evidence: analysis.result,
+    evaluatedAt: analysis.createdAt,
+  });
   analysis.result.assistance = buildIncidentAssistance({ analyzerType: 'EMAIL', riskResult: analysis.result.risk });
   const valid = { mode: 'paste', body: 'A synthetic message', headers: '', file: null };
   const api = { analyzePastedEmail: async () => analysis, analyzeEml: async () => analysis };
-  const ready = (client = api) => { const flow = createEmailFlow(client); flow.acknowledge(); flow.edit('body', valid.body); return flow; };
+  const ready = (client = api) => {
+    const flow = createEmailFlow(client);
+    flow.acknowledge();
+    flow.edit('body', valid.body);
+    return flow;
+  };
 
   await t.test('HTML-only phishing regression displays authoritative HIGH and accurate evidence', async () => {
-    const output = await analyzeEmail({ inputType: 'EML', eml: await readFile(new URL('../../backend/tests/fixtures/reported-paypal-phishing.eml', import.meta.url)) });
+    const output = await analyzeEmail({
+      inputType: 'EML',
+      eml: await readFile(new URL('../../backend/tests/fixtures/reported-paypal-phishing.eml', import.meta.url)),
+    });
     output.risk = evaluateRisk({ analyzerType: 'EMAIL', evidence: output });
     output.assistance = buildIncidentAssistance({ analyzerType: 'EMAIL', riskResult: output.risk });
     const html = render(EmailResults, { analysis: { ...analysis, result: output } });
@@ -57,7 +93,11 @@ test('employee email UI, state transitions and API contract', async (t) => {
     assert.doesNotMatch(html, /type="file"|<textarea|checked=""|Preview only/);
     assert.match(html, /disabled=""[^>]*>Continue to Email Analysis/);
     let calls = 0;
-    const flow = createEmailFlow({ analyzePastedEmail: () => { calls += 1; } });
+    const flow = createEmailFlow({
+      analyzePastedEmail: () => {
+        calls += 1;
+      },
+    });
     flow.edit('body', 'Hello');
     await flow.submit();
     assert.equal(calls, 0);
@@ -72,7 +112,8 @@ test('employee email UI, state transitions and API contract', async (t) => {
     assert.match(html, /type="radio"/);
   });
   await t.test('upload mode renders keyboard-accessible picker and one-file guidance', () => {
-    const flow = ready(); flow.changeMode('eml');
+    const flow = ready();
+    flow.changeMode('eml');
     const html = render(EmailInputForm, { flow, state: flow.getSnapshot() });
     assert.match(html, /type="file"/);
     assert.match(html, /accept=".eml,message\/rfc822"/);
@@ -81,7 +122,8 @@ test('employee email UI, state transitions and API contract', async (t) => {
     assert.doesNotMatch(html, /<textarea|multiple=/);
   });
   await t.test('blank body is rejected before API invocation', async () => {
-    const flow = ready(); flow.edit('body', ' \n\t');
+    const flow = ready();
+    flow.edit('body', ' \n\t');
     await flow.submit();
     assert.equal(flow.getSnapshot().status, 'error');
     assert.match(flow.getSnapshot().error, /Enter the email body/);
@@ -91,7 +133,9 @@ test('employee email UI, state transitions and API contract', async (t) => {
     assert.equal(byteLength('é'), 2);
     assert.match(validateEmailInput({ ...valid, body: 'é'.repeat(12289) }), /24 KiB/);
     assert.equal(validateEmailInput({ ...valid, body: 'x'.repeat(24576) }), '');
-    const flow = ready(); const value = 'x'.repeat(24577); flow.edit('body', value);
+    const flow = ready();
+    const value = 'x'.repeat(24577);
+    flow.edit('body', value);
     assert.equal(flow.getSnapshot().body, value);
   });
   await t.test('header limit is enforced independently', () => {
@@ -99,24 +143,37 @@ test('employee email UI, state transitions and API contract', async (t) => {
     assert.match(validateEmailInput({ ...valid, headers: 'x'.repeat(8193) }), /8 KiB/);
   });
   await t.test('invalid, multiple and empty files are rejected', () => {
-    const flow = ready(); flow.changeMode('eml');
-    for (const files of [[new File(['text'], 'report.pdf')], [new File([], 'empty.eml')], [new File(['a'], 'a.eml'), new File(['b'], 'b.eml')]]) {
-      flow.selectFiles(files); assert.equal(flow.getSnapshot().file, null); assert.equal(flow.getSnapshot().status, 'error');
+    const flow = ready();
+    flow.changeMode('eml');
+    for (const files of [
+      [new File(['text'], 'report.pdf')],
+      [new File([], 'empty.eml')],
+      [new File(['a'], 'a.eml'), new File(['b'], 'b.eml')],
+    ]) {
+      flow.selectFiles(files);
+      assert.equal(flow.getSnapshot().file, null);
+      assert.equal(flow.getSnapshot().status, 'error');
     }
     assert.match(validateEmailInput(flow.getSnapshot()), /Choose one/);
   });
   await t.test('1 MiB file boundary enforced and selected name/size displayed', () => {
     assert.equal(EMAIL_INPUT_LIMITS.file, EMAIL_LIMITS.emlBytes);
-    const flow = ready(); flow.changeMode('eml');
+    const flow = ready();
+    flow.changeMode('eml');
     flow.selectFiles([new File(['x'.repeat(1048577)], 'large.eml')]);
     assert.match(flow.getSnapshot().error, /1 MiB/);
     flow.selectFiles([new File(['x'.repeat(1048576)], 'message.eml')]);
     const html = render(EmailInputForm, { flow, state: flow.getSnapshot() });
-    assert.match(html, /message.eml/); assert.match(html, /1024.0 KiB/); assert.match(html, /Remove file/);
+    assert.match(html, /message.eml/);
+    assert.match(html, /1024.0 KiB/);
+    assert.match(html, /Remove file/);
   });
   await t.test('API functions use correct paths, credentials and multipart boundary behavior', async (t) => {
     const calls = [];
-    t.mock.method(globalThis, 'fetch', async (path, options) => { calls.push({ path, options }); return { ok: true, status: 201, json: async () => analysis }; });
+    t.mock.method(globalThis, 'fetch', async (path, options) => {
+      calls.push({ path, options });
+      return { ok: true, status: 201, json: async () => analysis };
+    });
     await analyzePastedEmail({ body: 'hello', headers: '' });
     await analyzeEml(new File([eml], 'message.eml'));
     assert.equal(calls[0].path, '/api/analysis/email/text');
@@ -129,45 +186,97 @@ test('employee email UI, state transitions and API contract', async (t) => {
     for (const { options } of calls) assert.equal(options.credentials, 'include');
   });
   await t.test('duplicate submission blocked; loading announced and controls disabled', async () => {
-    let finish; let calls = 0;
-    const flow = ready({ analyzePastedEmail: () => { calls += 1; return new Promise((resolve) => { finish = resolve; }); } });
-    const pending = flow.submit(); await flow.submit();
+    let finish;
+    let calls = 0;
+    const flow = ready({
+      analyzePastedEmail: () => {
+        calls += 1;
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    });
+    const pending = flow.submit();
+    await flow.submit();
     await waitForSubmission(() => calls === 1);
     assert.equal(calls, 1);
     assert.equal(flow.getSnapshot().status, 'submitting');
     const html = render(EmailInputForm, { flow, state: flow.getSnapshot() });
-    assert.match(html, /aria-busy="true"/); assert.match(html, /<fieldset disabled/); assert.match(html, /Analyzing email/);
-    flow.edit('body', 'ignored'); flow.changeMode('eml');
+    assert.match(html, /aria-busy="true"/);
+    assert.match(html, /<fieldset disabled/);
+    assert.match(html, /Analyzing email/);
+    flow.edit('body', 'ignored');
+    flow.changeMode('eml');
     assert.equal(flow.getSnapshot().body, valid.body);
-    finish(analysis); await pending;
+    finish(analysis);
+    await pending;
     assert.equal(flow.getSnapshot().status, 'success');
   });
   await t.test('incident assistance renders urgency, escalation and safe next steps', () => {
     const html = render(EmailResults, { analysis });
-    for (const title of ['What should I do now?', 'Immediate actions', 'Actions to avoid', 'Escalation recommendation', analysis.result.assistance.urgency, analysis.result.assistance.escalationRecommendation.level]) assert.ok(html.includes(title));
+    for (const title of [
+      'What should I do now?',
+      'Immediate actions',
+      'Actions to avoid',
+      'Escalation recommendation',
+      analysis.result.assistance.urgency,
+      analysis.result.assistance.escalationRecommendation.level,
+    ])
+      assert.ok(html.includes(title));
     assert.match(html, /separate incident receipt/);
     assert.doesNotMatch(html, /<button[^>]*>Create Incident|href="[^"]*create-incident/);
   });
   await t.test('structured result renders all sections from real analyzer output', () => {
     const html = render(EmailResults, { analysis });
-    for (const title of ['Analysis Summary', 'Sender Information', 'Reply-To Information', 'Authentication Evidence', 'Detected Indicators', 'URLs Found', 'Attachments', 'Recommended Actions', 'Limitations']) assert.ok(html.includes(title));
+    for (const title of [
+      'Analysis Summary',
+      'Sender Information',
+      'Reply-To Information',
+      'Authentication Evidence',
+      'Detected Indicators',
+      'URLs Found',
+      'Attachments',
+      'Recommended Actions',
+      'Limitations',
+    ])
+      assert.ok(html.includes(title));
     assert.match(html, /Sender and Reply-To differ/);
     assert.match(html, /local part omitted/);
   });
   await t.test('all provisional classifications remain distinct from the final risk', () => {
-    for (const [value, label] of [['NO_STRONG_INDICATORS', 'No Strong Indicators'], ['SUSPICIOUS', 'Suspicious'], ['HIGHLY_SUSPICIOUS', 'Highly Suspicious']]) {
-      const html = render(EmailResults, { analysis: { ...analysis, result: { ...result, provisionalClassification: value } } });
-      assert.ok(html.includes(label)); assert.match(html, /broader deterministic risk evaluation/);
-      assert.match(html, /EWAGuard Risk Level/); assert.match(html, /Risk score:/);
+    for (const [value, label] of [
+      ['NO_STRONG_INDICATORS', 'No Strong Indicators'],
+      ['SUSPICIOUS', 'Suspicious'],
+      ['HIGHLY_SUSPICIOUS', 'Highly Suspicious'],
+    ]) {
+      const html = render(EmailResults, {
+        analysis: { ...analysis, result: { ...result, provisionalClassification: value } },
+      });
+      assert.ok(html.includes(label));
+      assert.match(html, /broader deterministic risk evaluation/);
+      assert.match(html, /EWAGuard Risk Level/);
+      assert.match(html, /Risk score:/);
     }
   });
   await t.test('authentication claims and unavailable/conflicting states never imply verification', () => {
     const html = render(EmailResults, { analysis });
-    assert.match(html, />spf</); assert.match(html, />dkim</); assert.match(html, />dmarc</);
-    assert.match(html, /PASS/); assert.match(html, /FAIL/); assert.match(html, /Not independently verified/);
-    const altered = { ...result, authentication: { ...result.authentication, spf: { status: 'CONFLICTING_CLAIMS', claimedResults: ['PASS', 'FAIL'] }, dkim: { status: 'UNAVAILABLE', claimedResults: [] } } };
+    assert.match(html, />spf</);
+    assert.match(html, />dkim</);
+    assert.match(html, />dmarc</);
+    assert.match(html, /PASS/);
+    assert.match(html, /FAIL/);
+    assert.match(html, /Not independently verified/);
+    const altered = {
+      ...result,
+      authentication: {
+        ...result.authentication,
+        spf: { status: 'CONFLICTING_CLAIMS', claimedResults: ['PASS', 'FAIL'] },
+        dkim: { status: 'UNAVAILABLE', claimedResults: [] },
+      },
+    };
     const states = render(EmailResults, { analysis: { ...analysis, result: altered } });
-    assert.match(states, /CONFLICTING CLAIMS/); assert.match(states, /UNAVAILABLE/);
+    assert.match(states, /CONFLICTING CLAIMS/);
+    assert.match(states, /UNAVAILABLE/);
   });
   await t.test('indicator titles and evidence notes render; internal weights stay hidden', () => {
     const html = render(EmailResults, { analysis });
@@ -183,8 +292,10 @@ test('employee email UI, state transitions and API contract', async (t) => {
   });
   await t.test('attachment metadata is NOT SCANNED with no open/download controls', () => {
     const html = render(EmailResults, { analysis });
-    assert.match(html, /report.exe/); assert.match(html, /NOT SCANNED/);
-    assert.match(html, /not malware-scanned/); assert.doesNotMatch(html, /download=|>Open<|Harmless synthetic attachment/);
+    assert.match(html, /report.exe/);
+    assert.match(html, /NOT SCANNED/);
+    assert.match(html, /not malware-scanned/);
+    assert.doesNotMatch(html, /download=|>Open<|Harmless synthetic attachment/);
   });
   await t.test('limitations and deterministic recommended actions are visible', () => {
     const html = render(EmailResults, { analysis });
@@ -193,37 +304,89 @@ test('employee email UI, state transitions and API contract', async (t) => {
   });
   await t.test('hostile display metadata is escaped; no raw HTML rendering', () => {
     const hostile = '<img src="https://hostile.invalid" onerror="alert(1)">';
-    const html = render(EmailResults, { analysis: { ...analysis, result: { ...result, subject: hostile, sender: { ...result.sender, displayName: hostile } } } });
-    assert.match(html, /&lt;img/); assert.doesNotMatch(html, /<img\b|<script\b/);
+    const html = render(EmailResults, {
+      analysis: {
+        ...analysis,
+        result: { ...result, subject: hostile, sender: { ...result.sender, displayName: hostile } },
+      },
+    });
+    assert.match(html, /&lt;img/);
+    assert.doesNotMatch(html, /<img\b|<script\b/);
   });
   await t.test('backend errors map to fixed safe messages; raw exceptions never display', async () => {
-    for (const error of [{ status: 500 }, { status: 429 }, { status: 413 }, { status: 401 }, { code: 'MALFORMED_EMAIL' }, { code: 'EMAIL_PARSE_FAILED' }, { code: 'INVALID_EMAIL_UPLOAD' }]) assert.ok(emailErrorMessage({ ...error, message: 'SECRET SQL STACK' }));
-    const flow = ready({ analyzePastedEmail: async () => { throw new Error('SECRET SQL STACK'); } });
-    await flow.submit(); assert.equal(flow.getSnapshot().status, 'error'); assert.doesNotMatch(flow.getSnapshot().error, /SECRET|SQL|STACK/);
+    for (const error of [
+      { status: 500 },
+      { status: 429 },
+      { status: 413 },
+      { status: 401 },
+      { code: 'MALFORMED_EMAIL' },
+      { code: 'EMAIL_PARSE_FAILED' },
+      { code: 'INVALID_EMAIL_UPLOAD' },
+    ])
+      assert.ok(emailErrorMessage({ ...error, message: 'SECRET SQL STACK' }));
+    const flow = ready({
+      analyzePastedEmail: async () => {
+        throw new Error('SECRET SQL STACK');
+      },
+    });
+    await flow.submit();
+    assert.equal(flow.getSnapshot().status, 'error');
+    assert.doesNotMatch(flow.getSnapshot().error, /SECRET|SQL|STACK/);
   });
   await t.test('expired acknowledgement clears content and reopens renewable disclaimer', async () => {
-    const flow = ready({ analyzePastedEmail: async () => { throw { code: 'EMAIL_ACKNOWLEDGEMENT_REQUIRED', status: 403 }; } });
+    const flow = ready({
+      analyzePastedEmail: async () => {
+        throw { code: 'EMAIL_ACKNOWLEDGEMENT_REQUIRED', status: 403 };
+      },
+    });
     await flow.submit();
     assert.equal(flow.getSnapshot().acknowledged, false);
     assert.equal(flow.getSnapshot().noticeKey, 1);
     assert.equal(flow.getSnapshot().body, '');
     assert.match(flow.getSnapshot().error, /renewed/);
-    flow.acknowledge(); assert.equal(flow.getSnapshot().acknowledged, true); assert.equal(flow.getSnapshot().error, '');
+    flow.acknowledge();
+    assert.equal(flow.getSnapshot().acknowledged, true);
+    assert.equal(flow.getSnapshot().error, '');
   });
   await t.test('success and reset clear sensitive form and result state', async () => {
-    const flow = ready(); flow.edit('headers', 'From: person@example.invalid'); await flow.submit();
-    assert.equal(flow.getSnapshot().body, ''); assert.equal(flow.getSnapshot().headers, '');
+    const flow = ready();
+    flow.edit('headers', 'From: person@example.invalid');
+    await flow.submit();
+    assert.equal(flow.getSnapshot().body, '');
+    assert.equal(flow.getSnapshot().headers, '');
     assert.equal(flow.getSnapshot().result, analysis);
-    flow.reset(); assert.equal(flow.getSnapshot().result, null); assert.equal(flow.getSnapshot().error, '');
-    flow.changeMode('eml'); flow.selectFiles([new File([eml], 'message.eml')]); await flow.submit();
-    assert.equal(flow.getSnapshot().file, null); flow.reset(); assert.equal(flow.getSnapshot().result, null);
+    flow.reset();
+    assert.equal(flow.getSnapshot().result, null);
+    assert.equal(flow.getSnapshot().error, '');
+    flow.changeMode('eml');
+    flow.selectFiles([new File([eml], 'message.eml')]);
+    await flow.submit();
+    assert.equal(flow.getSnapshot().file, null);
+    flow.reset();
+    assert.equal(flow.getSnapshot().result, null);
   });
   await t.test('reset aborts pending request and ignores late result; mode change clears drafts', async () => {
-    let finish; let signal;
-    const flow = ready({ analyzePastedEmail: (_, requestSignal) => { signal = requestSignal; return new Promise((resolve) => { finish = resolve; }); } });
-    const pending = flow.submit(); await waitForSubmission(() => signal); flow.reset(); assert.equal(signal.aborted, true);
-    finish(analysis); await pending; assert.equal(flow.getSnapshot().result, null);
-    flow.edit('body', 'sensitive draft'); flow.changeMode('eml'); assert.equal(flow.getSnapshot().body, '');
-    flow.dispose(); assert.equal(flow.getSnapshot().file, null);
+    let finish;
+    let signal;
+    const flow = ready({
+      analyzePastedEmail: (_, requestSignal) => {
+        signal = requestSignal;
+        return new Promise((resolve) => {
+          finish = resolve;
+        });
+      },
+    });
+    const pending = flow.submit();
+    await waitForSubmission(() => signal);
+    flow.reset();
+    assert.equal(signal.aborted, true);
+    finish(analysis);
+    await pending;
+    assert.equal(flow.getSnapshot().result, null);
+    flow.edit('body', 'sensitive draft');
+    flow.changeMode('eml');
+    assert.equal(flow.getSnapshot().body, '');
+    flow.dispose();
+    assert.equal(flow.getSnapshot().file, null);
   });
 });

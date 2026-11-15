@@ -6,7 +6,8 @@
 
 export const phishingAwarenessCourse = {
   title: 'Phishing Awareness',
-  description: 'Think before you click. Learn how to recognize suspicious emails and messages, identify common phishing warning signs, protect your accounts, and respond safely when you encounter a possible phishing attempt.',
+  description:
+    'Think before you click. Learn how to recognize suspicious emails and messages, identify common phishing warning signs, protect your accounts, and respond safely when you encounter a possible phishing attempt.',
   topic: 'PHISHING',
   learningObjectives: [
     'Explain phishing in simple terms.',
@@ -17,8 +18,13 @@ export const phishingAwarenessCourse = {
   ],
   estimatedMinutes: 9,
   requiresQuiz: true,
-  content: { version: 1, sections: [
-    { key: 'what-is-phishing', title: 'Lesson 1: What is phishing?', body: `Phishing is a trick. A criminal sends a fake message that pretends to come from someone you trust, such as a bank, a delivery company, an IT service desk, a manager or a colleague.
+  content: {
+    version: 1,
+    sections: [
+      {
+        key: 'what-is-phishing',
+        title: 'Lesson 1: What is phishing?',
+        body: `Phishing is a trick. A criminal sends a fake message that pretends to come from someone you trust, such as a bank, a delivery company, an IT service desk, a manager or a colleague.
 
 The goal is to get you to do something that helps the attacker:
 - type your password into a fake sign-in page
@@ -39,8 +45,12 @@ Why do criminals do this? Tricking one person is often easier than breaking into
 
 That is why everyone can be a target. You do not need to work in IT or finance. Attackers often send the same message to many people and wait for one person to respond.
 
-Key takeaway: Phishing is a fake message designed to make you act quickly. If a message is unexpected and asks you to click, sign in, open, pay or share, stop and check first.` },
-    { key: 'warning-signs', title: 'Lesson 2: Recognizing phishing warning signs', body: `Phishing messages often share the same warning signs. One sign alone does not prove a message is fake, but each one is a good reason to slow down.
+Key takeaway: Phishing is a fake message designed to make you act quickly. If a message is unexpected and asks you to click, sign in, open, pay or share, stop and check first.`,
+      },
+      {
+        key: 'warning-signs',
+        title: 'Lesson 2: Recognizing phishing warning signs',
+        body: `Phishing messages often share the same warning signs. One sign alone does not prove a message is fake, but each one is a good reason to slow down.
 
 Seven common warning signs:
 - Urgency or threats: "Your mailbox will be deleted today" or "Final notice". Pressure is meant to stop you from thinking.
@@ -67,8 +77,12 @@ Before you act on any unexpected message, ask yourself:
 4. Is it asking for a password, a code, money or confidential information?
 If any answer worries you, do not click. Verify the request or report it.
 
-Key takeaway: Slow down when a message is unexpected, urgent or asks for something sensitive. Check the sender and the real link destination before you act.` },
-    { key: 'real-world-scenario', title: 'Lesson 3: Real-world scenario', body: `Meet Layla, a fictional employee. It is 4:45 pm on a busy Thursday, and she is trying to finish a report before the weekend. A new email arrives.
+Key takeaway: Slow down when a message is unexpected, urgent or asks for something sensitive. Check the sender and the real link destination before you act.`,
+      },
+      {
+        key: 'real-world-scenario',
+        title: 'Lesson 3: Real-world scenario',
+        body: `Meet Layla, a fictional employee. It is 4:45 pm on a busy Thursday, and she is trying to finish a report before the weekend. A new email arrives.
 
 Example: The email Layla receives
 From: Microsoft 365 Security Team (security-alert@m365-account.example)
@@ -104,8 +118,12 @@ The safer response:
 4. She reports the email through her organization's approved reporting channel.
 5. She deletes it only after reporting it, or when the security team tells her to.
 
-Key takeaway: A genuine account warning can always be checked without using the link in the email. Go to the service the way you normally do.` },
-    { key: 'protect-yourself', title: 'Lesson 4: How to protect yourself', body: `A few simple habits stop most phishing attempts before they cause harm.
+Key takeaway: A genuine account warning can always be checked without using the link in the email. Go to the service the way you normally do.`,
+      },
+      {
+        key: 'protect-yourself',
+        title: 'Lesson 4: How to protect yourself',
+        body: `A few simple habits stop most phishing attempts before they cause harm.
 
 Do:
 - Sign in only through an address you type yourself, a saved bookmark or an approved app, not through links in unexpected messages.
@@ -123,8 +141,12 @@ Do not:
 Watch out: MFA helps, but it is not a shield
 Multi-factor authentication (MFA) makes a stolen password much harder to use, so always keep it turned on. But a fake sign-in page can also ask for your code, and attackers sometimes send repeated approval requests hoping you will tap "Approve". If you did not start a sign-in, deny the request and report it.
 
-Key takeaway: Use a path you trust. When in doubt, verify the request through a separate, known contact method before you act.` },
-    { key: 'what-to-do', title: 'Lesson 5: What should you do?', body: `Mistakes happen. Phishing is designed to fool careful people. What matters most is acting quickly, because early reporting gives the security team the best chance to limit harm.
+Key takeaway: Use a path you trust. When in doubt, verify the request through a separate, known contact method before you act.`,
+      },
+      {
+        key: 'what-to-do',
+        title: 'Lesson 5: What should you do?',
+        body: `Mistakes happen. Phishing is designed to fool careful people. What matters most is acting quickly, because early reporting gives the security team the best chance to limit harm.
 
 If you receive a suspicious message:
 - Do not click links, open attachments or reply.
@@ -159,8 +181,10 @@ Key takeaway: Quick recap
 - Sign in only through paths you trust, and never share passwords or verification codes.
 - If something goes wrong, report it immediately through approved channels.
 
-Next, complete the short five-question quiz below to finish the course.` },
-  ] },
+Next, complete the short five-question quiz below to finish the course.`,
+      },
+    ],
+  },
 };
 
 export const phishingAwarenessQuiz = {
@@ -168,40 +192,69 @@ export const phishingAwarenessQuiz = {
   passingPercent: 80,
   maxAttempts: 3,
   questions: [
-    { type: 'MULTIPLE_CHOICE', points: 1,
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'You receive an email from "HR Team" saying your salary payment is on hold and you must confirm your bank details within one hour. Which detail is the strongest warning sign?',
-      explanation: 'Urgent deadlines combined with requests for sensitive information are classic phishing signs. A professional layout or a familiar department name does not prove a message is genuine.',
+      explanation:
+        'Urgent deadlines combined with requests for sensitive information are classic phishing signs. A professional layout or a familiar department name does not prove a message is genuine.',
       options: [
         { text: 'The email uses a professional layout and the HR team name.', isCorrect: false },
         { text: 'It demands sensitive information within a short, threatening deadline.', isCorrect: true },
         { text: 'It was sent during working hours.', isCorrect: false },
         { text: 'It is addressed to you by name.', isCorrect: false },
-      ] },
-    { type: 'MULTIPLE_CHOICE', points: 1,
+      ],
+    },
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'An unexpected email says your Microsoft 365 account will be disabled today unless you click a link and verify your password. What is the safest response?',
-      explanation: 'Do not use the link. Check your account the way you normally do, then report the email through your approved reporting channel. Replying or "testing" the link can expose you to the attacker.',
+      explanation:
+        'Do not use the link. Check your account the way you normally do, then report the email through your approved reporting channel. Replying or "testing" the link can expose you to the attacker.',
       options: [
         { text: 'Click the link but only enter your password, not your verification code.', isCorrect: false },
         { text: 'Reply to the sender and ask whether the message is genuine.', isCorrect: false },
-        { text: 'Do not click the link. Check your account the usual way and report the email through the approved channel.', isCorrect: true },
+        {
+          text: 'Do not click the link. Check your account the usual way and report the email through the approved channel.',
+          isCorrect: true,
+        },
         { text: 'Forward the email to colleagues to ask whether they received it too.', isCorrect: false },
-      ] },
-    { type: 'MULTIPLE_CHOICE', points: 1,
+      ],
+    },
+    {
+      type: 'MULTIPLE_CHOICE',
+      points: 1,
       text: 'A message from a "colleague" asks you to review a document at https://portal.example.com.files-share.example/review. What is the real website the link would open?',
-      explanation: 'The real website name is the part just before the first single "/". Here it is files-share.example. The words "portal.example.com" at the start are decoration designed to look familiar.',
+      explanation:
+        'The real website name is the part just before the first single "/". Here it is files-share.example. The words "portal.example.com" at the start are decoration designed to look familiar.',
       options: [
         { text: 'portal.example.com', isCorrect: false },
         { text: 'example.com', isCorrect: false },
         { text: 'files-share.example', isCorrect: true },
         { text: 'It is impossible to tell without opening the link.', isCorrect: false },
-      ] },
-    { type: 'TRUE_FALSE', points: 1,
+      ],
+    },
+    {
+      type: 'TRUE_FALSE',
+      points: 1,
       text: 'True or false: If multi-factor authentication (MFA) is turned on, you cannot be affected by phishing.',
-      explanation: 'False. MFA greatly reduces risk, but fake sign-in pages can also ask for your code, and attackers may send repeated approval requests. Never share codes or approve sign-ins you did not start.',
-      options: [{ text: 'True', isCorrect: false }, { text: 'False', isCorrect: true }] },
-    { type: 'TRUE_FALSE', points: 1,
+      explanation:
+        'False. MFA greatly reduces risk, but fake sign-in pages can also ask for your code, and attackers may send repeated approval requests. Never share codes or approve sign-ins you did not start.',
+      options: [
+        { text: 'True', isCorrect: false },
+        { text: 'False', isCorrect: true },
+      ],
+    },
+    {
+      type: 'TRUE_FALSE',
+      points: 1,
       text: 'True or false: If you entered your password on a suspicious page, you should report it immediately, even if nothing bad seems to have happened yet.',
-      explanation: 'True. Attackers can use stolen passwords quickly and quietly. Prompt reporting through approved channels gives the security team the best chance to secure your account and limit harm.',
-      options: [{ text: 'True', isCorrect: true }, { text: 'False', isCorrect: false }] },
+      explanation:
+        'True. Attackers can use stolen passwords quickly and quietly. Prompt reporting through approved channels gives the security team the best chance to secure your account and limit harm.',
+      options: [
+        { text: 'True', isCorrect: true },
+        { text: 'False', isCorrect: false },
+      ],
+    },
   ],
 };

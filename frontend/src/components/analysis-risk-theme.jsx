@@ -24,11 +24,7 @@ export function AnalysisRiskPanel({
 }) {
   const level = neutral ? null : getAnalysisRiskLevel(risk);
   return (
-    <Component
-      className={`analysis-risk-panel ${className}`.trim()}
-      data-risk-theme={level || 'NEUTRAL'}
-      {...props}
-    >
+    <Component className={`analysis-risk-panel ${className}`.trim()} data-risk-theme={level || 'NEUTRAL'} {...props}>
       {children}
     </Component>
   );

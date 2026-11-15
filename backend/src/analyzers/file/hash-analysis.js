@@ -14,10 +14,15 @@ export async function analyzeFileHash(sha256, threatIntelligence) {
   const evidence = { analyzer: 'FILE', indicators: [], threatIntelligence: report };
   const risk = evaluateRisk({ analyzerType: 'FILE', evidence, evaluatedAt: new Date().toISOString() });
   const detections = report.status === 'AVAILABLE' && report.maliciousCount + report.suspiciousCount > 0;
-  const total = report.status === 'AVAILABLE'
-    ? report.maliciousCount + report.suspiciousCount + report.harmlessCount + report.undetectedCount : 0;
+  const total =
+    report.status === 'AVAILABLE'
+      ? report.maliciousCount + report.suspiciousCount + report.harmlessCount + report.undetectedCount
+      : 0;
   return {
-    lookupType: 'SHA256_REPUTATION', sha256, risk, threatIntelligence: report,
+    lookupType: 'SHA256_REPUTATION',
+    sha256,
+    risk,
+    threatIntelligence: report,
     finding: detections ? 'DETECTIONS_REPORTED' : total > 0 ? 'NO_KNOWN_DETECTION' : 'UNKNOWN',
     localScans: 'NOT_SCANNED',
   };
@@ -26,22 +31,36 @@ export async function analyzeFileHash(sha256, threatIntelligence) {
 export function hashLookupReceipt(row) {
   const result = row.evidence;
   return {
-    analysisId: row.id, createdAt: row.createdAt.toISOString(),
-    lookupType: 'SHA256_REPUTATION', sha256: row.sha256,
-    risk: result.risk, threatIntelligence: result.threatIntelligence,
-    finding: result.finding, localScans: 'NOT_SCANNED',
+    analysisId: row.id,
+    createdAt: row.createdAt.toISOString(),
+    lookupType: 'SHA256_REPUTATION',
+    sha256: row.sha256,
+    risk: result.risk,
+    threatIntelligence: result.threatIntelligence,
+    finding: result.finding,
+    localScans: 'NOT_SCANNED',
   };
 }
 
 export async function submitHashAnalysis(database, { userId, sha256 }, threatIntelligence) {
   const result = await analyzeFileHash(sha256, threatIntelligence);
   const now = new Date();
-  const row = await database.fileAnalysis.create({ data: {
-    userId, sha256, kind: 'HASH_LOOKUP', status: 'COMPLETED',
-    sizeBytes: null, detectedMime: null, extension: null,
-    clamavStatus: 'NOT_SCANNED', yaraStatus: 'NOT_SCANNED',
-    evidence: result, analyzedAt: now, expiresAt: retentionExpiry('file', now),
-    ...riskColumns(result.risk),
-  } });
+  const row = await database.fileAnalysis.create({
+    data: {
+      userId,
+      sha256,
+      kind: 'HASH_LOOKUP',
+      status: 'COMPLETED',
+      sizeBytes: null,
+      detectedMime: null,
+      extension: null,
+      clamavStatus: 'NOT_SCANNED',
+      yaraStatus: 'NOT_SCANNED',
+      evidence: result,
+      analyzedAt: now,
+      expiresAt: retentionExpiry('file', now),
+      ...riskColumns(result.risk),
+    },
+  });
   return hashLookupReceipt(row);
 }

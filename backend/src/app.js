@@ -19,7 +19,12 @@ import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
 import { createDatabaseClient } from './config/database.js';
 import { createAuthRouter } from './routes/auth.js';
-import { createAdminUsersRouter, createAccountSetupRouter } from './routes/admin-users.js';
+import {
+  createAdminUsersRouter,
+  createAccountSetupRouter,
+  createAdminInviteRouter,
+  createRegistrationRouter,
+} from './routes/admin-users.js';
 import { createDisclaimerRouter } from './routes/disclaimers.js';
 import { createEmailAnalysisRouter } from './routes/email-analysis.js';
 import { createUrlAnalysisRouter } from './routes/url-analysis.js';
@@ -47,6 +52,8 @@ export function createApp(config, dependencies = {}) {
   app.use('/api/knowledge', createKnowledgeRouter({ database, config, ...dependencies.knowledge }));
   app.use('/api/admin/users', createAdminUsersRouter({ database, config }));
   app.use('/api/auth/setup', createAccountSetupRouter({ database, config }));
+  app.use('/api/admin/invites', createAdminInviteRouter({ database, config }));
+  app.use('/api/auth/register', createRegistrationRouter({ database, config }));
   app.use('/api/admin/training', createTrainingRouter({ database, config, admin: true }));
   app.use('/api/training', createTrainingRouter({ database, config }));
   app.use('/api/admin/monthly-quizzes', createMonthlyQuizRouter({ database, config, admin: true }));
@@ -67,11 +74,26 @@ export function createApp(config, dependencies = {}) {
   app.use('/api/incidents', createIncidentRouter({ database, config }));
   app.use('/api/analysis-escalations', createAnalysisEscalationRouter({ database, config }));
   // Email has its own bounded parser after authentication and acknowledgement.
-  app.use('/api/analysis/email', createEmailAnalysisRouter({ database, config, ...dependencies.emailAnalysis, gate: gates.EMAIL }));
-  app.use('/api/analysis/url', createUrlAnalysisRouter({ database, config, threatIntelligence, ...dependencies.urlAnalysis, gate: gates.URL }));
-  app.use('/api/analysis/file', createFileAnalysisRouter({ database, config, threatIntelligence, ...dependencies.fileAnalysis }));
-  const approvalOptions = { database, config, gates, threatIntelligence,
-    emailAnalyzer: dependencies.emailAnalysis?.analyzer, urlAnalyzer: dependencies.urlAnalysis?.analyzer };
+  app.use(
+    '/api/analysis/email',
+    createEmailAnalysisRouter({ database, config, ...dependencies.emailAnalysis, gate: gates.EMAIL }),
+  );
+  app.use(
+    '/api/analysis/url',
+    createUrlAnalysisRouter({ database, config, threatIntelligence, ...dependencies.urlAnalysis, gate: gates.URL }),
+  );
+  app.use(
+    '/api/analysis/file',
+    createFileAnalysisRouter({ database, config, threatIntelligence, ...dependencies.fileAnalysis }),
+  );
+  const approvalOptions = {
+    database,
+    config,
+    gates,
+    threatIntelligence,
+    emailAnalyzer: dependencies.emailAnalysis?.analyzer,
+    urlAnalyzer: dependencies.urlAnalysis?.analyzer,
+  };
   const approvals = createApprovalService(approvalOptions);
   app.use('/api/chat', createChatRouter({ database, config, ...dependencies.chat, approvals }));
   app.use('/api/tool-approvals', createToolApprovalRouter({ ...approvalOptions, service: approvals }));

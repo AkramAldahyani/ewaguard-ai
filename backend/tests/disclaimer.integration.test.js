@@ -17,28 +17,44 @@ test('sensitive-information acknowledgement API and verification boundaries', as
   const config = parseConfig({ NODE_ENV: 'test', JWT_SECRET: SECRET, FRONTEND_URL: ORIGIN });
   const employeeRole = await database.role.findUniqueOrThrow({ where: { name: 'EMPLOYEE' } });
   const adminRole = await database.role.findUniqueOrThrow({ where: { name: 'IT_SECURITY_ADMIN' } });
-  const employee = await database.user.create({ data: {
-    email: `${randomUUID()}@example.invalid`, firstName: 'Disclaimer', lastName: 'Employee',
-    passwordHash: 'not-used-by-this-test', status: 'ACTIVE', roleId: employeeRole.id,
-  } });
+  const employee = await database.user.create({
+    data: {
+      email: `${randomUUID()}@example.invalid`,
+      firstName: 'Disclaimer',
+      lastName: 'Employee',
+      passwordHash: 'not-used-by-this-test',
+      status: 'ACTIVE',
+      roleId: employeeRole.id,
+    },
+  });
   const adminMfaEnabledAt = new Date();
-  const admin = await database.user.create({ data: {
-    email: `${randomUUID()}@example.invalid`, firstName: 'Disclaimer', lastName: 'Admin',
-    passwordHash: 'not-used-by-this-test', status: 'ACTIVE', roleId: adminRole.id,
-    mfaEnabledAt: adminMfaEnabledAt, mfaSecretEncrypted: 'test-only-not-decrypted', mfaLastCounter: 0n,
-  } });
+  const admin = await database.user.create({
+    data: {
+      email: `${randomUUID()}@example.invalid`,
+      firstName: 'Disclaimer',
+      lastName: 'Admin',
+      passwordHash: 'not-used-by-this-test',
+      status: 'ACTIVE',
+      roleId: adminRole.id,
+      mfaEnabledAt: adminMfaEnabledAt,
+      mfaSecretEncrypted: 'test-only-not-decrypted',
+      mfaLastCounter: 0n,
+    },
+  });
   const server = createApp(config, { database }).listen(0, '127.0.0.1');
   await once(server, 'listening');
   const base = `http://127.0.0.1:${server.address().port}`;
   const cookieName = authCookie(config).name;
-  const cookieFor = (userId) => `${cookieName}=${issueAccessToken(userId, config, userId === admin.id ? adminMfaEnabledAt : null)}`;
-  const request = (body, cookie) => fetch(`${base}/api/disclaimers/acknowledge`, {
-    method: 'POST',
-    headers: { Origin: ORIGIN, 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
-    body: JSON.stringify(body),
-  });
+  const cookieFor = (userId) =>
+    `${cookieName}=${issueAccessToken(userId, config, userId === admin.id ? adminMfaEnabledAt : null)}`;
+  const request = (body, cookie) =>
+    fetch(`${base}/api/disclaimers/acknowledge`, {
+      method: 'POST',
+      headers: { Origin: ORIGIN, 'Content-Type': 'application/json', ...(cookie ? { Cookie: cookie } : {}) },
+      body: JSON.stringify(body),
+    });
   t.after(async () => {
-    await new Promise((resolve, reject) => server.close((error) => error ? reject(error) : resolve()));
+    await new Promise((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
     await database.disclaimerAcknowledgement.deleteMany({ where: { userId: { in: [employee.id, admin.id] } } });
     await database.user.deleteMany({ where: { id: { in: [employee.id, admin.id] } } });
     await database.$disconnect();
@@ -84,14 +100,53 @@ test('sensitive-information acknowledgement API and verification boundaries', as
     const repeated = (await response.json()).acknowledgement;
     assert.equal(repeated.id, acknowledgement.id);
     assert.equal(repeated.reused, true);
-    assert.equal(await database.disclaimerAcknowledgement.count({ where: { userId: employee.id, context: 'EMAIL_ANALYSIS' } }), 1);
+    assert.equal(
+      await database.disclaimerAcknowledgement.count({ where: { userId: employee.id, context: 'EMAIL_ANALYSIS' } }),
+      1,
+    );
   });
 
   await t.test('verification binds acknowledgement to user, context, version, and optional age', async () => {
-    assert.ok(await verifyAcknowledgement(database, { acknowledgementId: acknowledgement.id, userId: employee.id, context: 'EMAIL_ANALYSIS' }));
-    assert.equal(await verifyAcknowledgement(database, { acknowledgementId: acknowledgement.id, userId: admin.id, context: 'EMAIL_ANALYSIS' }), null);
-    assert.equal(await verifyAcknowledgement(database, { acknowledgementId: acknowledgement.id, userId: employee.id, context: 'FILE_ANALYSIS' }), null);
-    assert.equal(await verifyAcknowledgement(database, { acknowledgementId: randomUUID(), userId: employee.id, context: 'EMAIL_ANALYSIS' }), null);
-    assert.equal(await verifyAcknowledgement(database, { acknowledgementId: acknowledgement.id, userId: employee.id, context: 'EMAIL_ANALYSIS', now: new Date(Date.now() + 1_000), maxAgeMs: 0 }), null);
+    assert.ok(
+      await verifyAcknowledgement(database, {
+        acknowledgementId: acknowledgement.id,
+        userId: employee.id,
+        context: 'EMAIL_ANALYSIS',
+      }),
+    );
+    assert.equal(
+      await verifyAcknowledgement(database, {
+        acknowledgementId: acknowledgement.id,
+        userId: admin.id,
+        context: 'EMAIL_ANALYSIS',
+      }),
+      null,
+    );
+    assert.equal(
+      await verifyAcknowledgement(database, {
+        acknowledgementId: acknowledgement.id,
+        userId: employee.id,
+        context: 'FILE_ANALYSIS',
+      }),
+      null,
+    );
+    assert.equal(
+      await verifyAcknowledgement(database, {
+        acknowledgementId: randomUUID(),
+        userId: employee.id,
+        context: 'EMAIL_ANALYSIS',
+      }),
+      null,
+    );
+    assert.equal(
+      await verifyAcknowledgement(database, {
+        acknowledgementId: acknowledgement.id,
+        userId: employee.id,
+        context: 'EMAIL_ANALYSIS',
+        now: new Date(Date.now() + 1_000),
+        maxAgeMs: 0,
+      }),
+      null,
+    );
   });
 });

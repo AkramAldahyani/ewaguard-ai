@@ -1,8 +1,10 @@
 export const DISCLAIMER_DEFINITION = Object.freeze({
   version: '1.0',
   title: 'Sensitive Information Notice',
-  summary: 'Before continuing, do not submit confidential, restricted, credential-related, or otherwise sensitive information through EWAGuard AI.',
-  restrictedGuidance: 'If the material contains sensitive or restricted EWA information, use the organization’s approved cybersecurity reporting channel instead.',
+  summary:
+    'Before continuing, do not submit confidential, restricted, credential-related, or otherwise sensitive information through EWAGuard AI.',
+  restrictedGuidance:
+    'If the material contains sensitive or restricted EWA information, use the organization’s approved cybersecurity reporting channel instead.',
   confirmation: 'I understand and confirm that the content I am submitting is appropriate for this channel.',
   prohibitedItems: Object.freeze([
     'Passwords or usernames together with passwords',

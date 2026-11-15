@@ -9,7 +9,11 @@ import { evaluateRisk } from '../../risk/risk-engine.js';
 import { riskColumns } from '../../risk/risk-persistence.js';
 import { retentionExpiry } from '../../privacy/retention-policy.js';
 
-export function createUrlAnalyzer({ resolveTarget = resolvePublicTarget, tlsInspector = inspectTls, threatIntelligence = createThreatIntelligence() } = {}) {
+export function createUrlAnalyzer({
+  resolveTarget = resolvePublicTarget,
+  tlsInspector = inspectTls,
+  threatIntelligence = createThreatIntelligence(),
+} = {}) {
   return async (input) => {
     const parsed = normalizeUrl(input);
     const localIndicators = localUrlIndicators(parsed);
@@ -22,8 +26,13 @@ export function createUrlAnalyzer({ resolveTarget = resolvePublicTarget, tlsInsp
       threatEvidence.push(await threatIntelligence.lookupDomain(parsed.normalized.hostname));
     } else threatEvidence.push({ provider: 'VIRUSTOTAL', scope: 'URL_AND_DOMAIN', status: 'SKIPPED_DNS' });
     return {
-      analyzer: 'URL', version: '6B.1', normalizedUrl: parsed.normalized, localIndicators,
-      dnsEvidence: target.evidence, tlsEvidence, threatIntelligence: threatEvidence,
+      analyzer: 'URL',
+      version: '6B.1',
+      normalizedUrl: parsed.normalized,
+      localIndicators,
+      dnsEvidence: target.evidence,
+      tlsEvidence,
+      threatIntelligence: threatEvidence,
       provisionalClassification: classifyUrl(localIndicators, tlsEvidence, threatEvidence),
       recommendations: [
         'Verify the domain spelling carefully. Use an official bookmark or manually type the known company URL.',
@@ -46,7 +55,10 @@ export function createUrlAnalyzer({ resolveTarget = resolvePublicTarget, tlsInsp
 export async function submitUrlAnalysis(database, { userId, acknowledgementId, input }, analyzer) {
   const result = await analyzer(input);
   const saved = await persistUrlAnalysis(database, { userId, acknowledgementId, result });
-  return { ...saved, incident: await completeAnalysisEscalation(database, { userId, analyzerType: 'URL', analysisId: saved.analysisId }) };
+  return {
+    ...saved,
+    incident: await completeAnalysisEscalation(database, { userId, analyzerType: 'URL', analysisId: saved.analysisId }),
+  };
 }
 
 export async function persistUrlAnalysis(database, { userId, acknowledgementId, result }) {
@@ -54,11 +66,19 @@ export async function persistUrlAnalysis(database, { userId, acknowledgementId, 
   result.risk = evaluateRisk({ analyzerType: 'URL', evidence: result, evaluatedAt: now.toISOString() });
   const assistance = buildIncidentAssistance({ analyzerType: 'URL', riskResult: result.risk });
   // Hash the minimized representation, never a raw token-bearing URL.
-  const stored = await database.urlAnalysis.create({ data: {
-    userId, acknowledgementId, status: 'COMPLETED', hostname: result.normalizedUrl.hostname,
-    urlSha256: createHash('sha256').update(result.normalizedUrl.redactedUrl).digest('hex'),
-    evidence: result, analyzedAt: now, expiresAt: retentionExpiry('url', now),
-    ...riskColumns(result.risk),
-  }, select: { id: true, createdAt: true } });
+  const stored = await database.urlAnalysis.create({
+    data: {
+      userId,
+      acknowledgementId,
+      status: 'COMPLETED',
+      hostname: result.normalizedUrl.hostname,
+      urlSha256: createHash('sha256').update(result.normalizedUrl.redactedUrl).digest('hex'),
+      evidence: result,
+      analyzedAt: now,
+      expiresAt: retentionExpiry('url', now),
+      ...riskColumns(result.risk),
+    },
+    select: { id: true, createdAt: true },
+  });
   return { analysisId: stored.id, createdAt: stored.createdAt.toISOString(), result: { ...result, assistance } };
 }

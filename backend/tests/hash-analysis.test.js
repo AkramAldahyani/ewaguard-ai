@@ -4,18 +4,41 @@ import { analyzeFileHash, normalizeSha256 } from '../src/analyzers/file/hash-ana
 import { createThreatIntelligence } from '../src/services/threat-intelligence.js';
 
 const hash = 'a'.repeat(64);
-const report = (changes = {}) => ({ provider: 'VIRUSTOTAL', scope: 'FILE_HASH', status: 'AVAILABLE',
-  maliciousCount: 0, suspiciousCount: 0, harmlessCount: 10, undetectedCount: 50,
-  lastAnalysisDate: new Date().toISOString(), ...changes });
+const report = (changes = {}) => ({
+  provider: 'VIRUSTOTAL',
+  scope: 'FILE_HASH',
+  status: 'AVAILABLE',
+  maliciousCount: 0,
+  suspiciousCount: 0,
+  harmlessCount: 10,
+  undetectedCount: 50,
+  lastAnalysisDate: new Date().toISOString(),
+  ...changes,
+});
 test('SHA-256 validation accepts uppercase and trims whitespace; rejects other input', () => {
   assert.equal(normalizeSha256(` ${hash.toUpperCase()}\n`), hash);
-  for (const input of [null, 42, {}, '', 'a'.repeat(63), 'a'.repeat(65), 'g'.repeat(64), `https://example.com/${hash}`, `${hash.slice(0, 32)} ${hash.slice(32)}`]) {
+  for (const input of [
+    null,
+    42,
+    {},
+    '',
+    'a'.repeat(63),
+    'a'.repeat(65),
+    'g'.repeat(64),
+    `https://example.com/${hash}`,
+    `${hash.slice(0, 32)} ${hash.slice(32)}`,
+  ]) {
     assert.equal(normalizeSha256(input), null);
   }
 });
 test('hash lookup uses reputation evidence and central risk without fabricating file scans', async () => {
   let seen;
-  const result = await analyzeFileHash(hash, { lookupFileHash: async (value) => { seen = value; return report({ maliciousCount: 15 }); } });
+  const result = await analyzeFileHash(hash, {
+    lookupFileHash: async (value) => {
+      seen = value;
+      return report({ maliciousCount: 15 });
+    },
+  });
   assert.equal(seen, hash);
   assert.equal(result.finding, 'DETECTIONS_REPORTED');
   assert.equal(result.risk.riskLevel, 'HIGH');
@@ -29,7 +52,15 @@ test('no detections, suspicious votes, absent reports and provider failures stay
   assert.equal((await check(report())).finding, 'NO_KNOWN_DETECTION');
   assert.equal((await check(report({ suspiciousCount: 1 }))).finding, 'DETECTIONS_REPORTED');
   assert.equal((await check(report({ harmlessCount: 0, undetectedCount: 0 }))).finding, 'UNKNOWN');
-  for (const status of ['NO_REPORT', 'NOT_CONFIGURED', 'RATE_LIMITED', 'UNAVAILABLE', 'UNAUTHORIZED', 'TIMEOUT', 'MALFORMED_RESPONSE']) {
+  for (const status of [
+    'NO_REPORT',
+    'NOT_CONFIGURED',
+    'RATE_LIMITED',
+    'UNAVAILABLE',
+    'UNAUTHORIZED',
+    'TIMEOUT',
+    'MALFORMED_RESPONSE',
+  ]) {
     const result = await check({ provider: 'VIRUSTOTAL', scope: 'FILE_HASH', status });
     assert.equal(result.finding, 'UNKNOWN');
     assert.equal(result.threatIntelligence.status, status);
@@ -38,10 +69,13 @@ test('no detections, suspicious votes, absent reports and provider failures stay
 });
 test('provider receives only a hash in a GET to its fixed host; no upload or redirect', async () => {
   const calls = [];
-  const provider = createThreatIntelligence({ apiKey: 'test-only', fetchImpl: async (url, options) => {
-    calls.push({ url, options });
-    return new Response(null, { status: 404 });
-  } });
+  const provider = createThreatIntelligence({
+    apiKey: 'test-only',
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return new Response(null, { status: 404 });
+    },
+  });
   const result = await analyzeFileHash(hash, provider);
   assert.equal(result.finding, 'UNKNOWN');
   assert.equal(calls.length, 1);
