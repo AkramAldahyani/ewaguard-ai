@@ -18,7 +18,7 @@ test('original user-supplied sample3: HIGH with matching Reply-To domain and no 
   // reconstruction below always runs, even without the local original file.
   let eml;
   try {
-    eml = await readFile(new URL('../../sample3.eml', import.meta.url));
+    eml = await readFile(new URL('../../analysis_test_files/sample3.eml', import.meta.url));
   } catch (error) {
     if (error.code === 'ENOENT') return t.skip('Original sample3.eml is not present locally');
     throw error;

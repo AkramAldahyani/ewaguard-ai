@@ -370,7 +370,7 @@ test('Phase A employee community social feed', async (t) => {
     await screen.findByText('Own submission');
     assert.equal(signal.aborted, true);
     resolveFeed(reply(page([post()])));
-    await waitFor(() => assert.equal(screen.queryByText('Recognize phishing messages'), null));
+    await waitFor(() => assert.ok(!screen.queryByText('Recognize phishing messages')));
     fireEvent.click(screen.getByRole('tab', { name: 'Latest' }));
     view.unmount();
     assert.equal(signal.aborted, true);

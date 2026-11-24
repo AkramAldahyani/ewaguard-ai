@@ -400,7 +400,11 @@ test('Phase 13C1 awareness aggregates use authorized PostgreSQL records and pres
     assert.deepEqual([certificates.totalIssued - certificatesBefore, certificates.issuedDuring], [1, 1]);
     assert.equal(departments.suppressed, true);
     assert.deepEqual(departments.rows, []);
-    assert.deepEqual(response.data.filterOptions.departments, [{ id: largeDepartment.id, name: largeDepartment.name }]);
+    // Other departments in the development database may also reach the minimum group size.
+    const offered = response.data.filterOptions.departments.filter(({ name }) =>
+      name.startsWith('Synthetic Analytics'),
+    );
+    assert.deepEqual(offered, [{ id: largeDepartment.id, name: largeDepartment.name }]);
     assert.doesNotMatch(
       JSON.stringify(response.data),
       /example.invalid|passwordHash|Synthetic explanation|isCorrect|selectedOptionId|employeeId/,

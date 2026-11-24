@@ -281,6 +281,8 @@ training and quiz scoring, certificates, community moderation, disclaimers and S
 ```bash
 npm test                                   # backend suite (uses the local PostgreSQL database)
 node --test frontend/tests/*.test.mjs      # frontend component and flow tests
+npm run test:logic                         # cross-module logic, authorization matrix and end-to-end workflows
+npm run test:all                           # everything, including the database/RAG *.integration suites
 ```
 
 Automated tests use mocked OpenAI responses and make no paid API calls. Integration tests refuse to run against a

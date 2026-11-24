@@ -29,6 +29,8 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "test": "npm run test --workspace backend",
+    "test:logic": "node --test --test-concurrency=1 --test-timeout=180000 backend/tests/logic-core.test.js backend/tests/logic-workflows.integration.test.js backend/tests/logic-timezone.integration.test.js frontend/tests/logic-models.test.mjs",
+    "test:all": "node --test --test-concurrency=1 --test-timeout=180000 backend/tests/*.test.js backend/tests/*.integration.js frontend/tests/*.test.mjs frontend/tests/*.integration.mjs",
     "test:users": "node --max-old-space-size=768 --test --test-concurrency=1 --test-timeout=60000 backend/tests/user-policy.test.js backend/tests/user-management.integration.test.js",
     "test:users:ui": "node --max-old-space-size=768 --test --test-concurrency=1 --test-timeout=60000 frontend/tests/users-ui.test.mjs",
     "test:setup:ui": "node --max-old-space-size=768 --test --test-concurrency=1 --test-timeout=60000 frontend/tests/account-setup-ui.test.mjs",

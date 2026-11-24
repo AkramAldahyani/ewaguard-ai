@@ -78,7 +78,10 @@ test('frontend flow receives real Socket.IO signals through the configured Vite 
       }
       assert.fail('Timed out waiting for loopback notification integration');
     };
-    await until(() => flow.getSnapshot().connection === 'live' && !flow.getSnapshot().loading);
+    // Signals within 150 ms are coalesced, so wait for the connection's own refresh before sending another.
+    await until(
+      () => flow.getSnapshot().connection === 'live' && !flow.getSnapshot().loading && incidentRefreshes === 1,
+    );
     assert.equal(peer.handshake.headers.origin, origin);
     assert.equal(peer.handshake.headers.cookie, 'synthetic_cookie=test-only');
     assert.deepEqual(Object.keys(peer.handshake.auth), []);

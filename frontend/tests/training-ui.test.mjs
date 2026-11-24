@@ -295,7 +295,8 @@ test('training React interaction workflows with mocked authenticated APIs', asyn
       fireEvent.click(screen.getByLabelText('Select Eligible2 Employee'));
       fireEvent.click(screen.getAllByRole('button', { name: 'Assign course' })[0]);
       await screen.findByText('Course assigned. Progress starts at Not Started.');
-      await waitFor(() => assert.equal(screen.queryByText('Eligible1 Employee'), null));
+      // Not assert.equal(element, null): its failure diff inspects the whole React tree and can exhaust memory.
+      await waitFor(() => assert.ok(!screen.queryByText('Eligible1 Employee')));
       assert.ok(screen.getByText('Eligible2 Employee'));
       assert.ok(screen.getByRole('button', { name: 'Assign selected (1)' }));
       fireEvent.click(screen.getByRole('button', { name: 'Assign selected (1)' }));

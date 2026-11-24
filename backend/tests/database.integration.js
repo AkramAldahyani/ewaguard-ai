@@ -71,15 +71,24 @@ test('PostgreSQL architecture invariants', async (t) => {
   await reject('analysis requires acknowledgement owner', () =>
     insert('email_analyses', { userId: other.id, acknowledgementId: ack.id, expiresAt }),
   );
+  const urlAck = await insert(
+    'disclaimer_acknowledgements',
+    { userId: employee.id, version: 'test-v1', context: 'URL_ANALYSIS' },
+    false,
+  );
   await reject('analysis requires acknowledgement context', () =>
-    insert('url_analyses', {
+    insert('email_analyses', { userId: employee.id, acknowledgementId: urlAck.id, expiresAt }),
+  );
+  // Migrations 20261017000100/200 made the per-submission acknowledgement optional for URL and file analysis.
+  await t.test('URL analysis no longer requires an acknowledgement', async () => {
+    const row = await insert('url_analyses', {
       userId: employee.id,
-      acknowledgementId: ack.id,
       hostname: 'example.invalid',
       urlSha256: 'a'.repeat(64),
       expiresAt,
-    }),
-  );
+    });
+    assert.equal(row.acknowledgementId, null);
+  });
   await reject('analysis risk cannot be partly populated', () =>
     client.query('UPDATE email_analyses SET "riskScore" = 50 WHERE id = $1', [email.id]),
   );
