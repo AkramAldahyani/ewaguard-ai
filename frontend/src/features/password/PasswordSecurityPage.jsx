@@ -274,7 +274,11 @@ export function PasswordSecurityPage() {
                     <span>{label}</span>
                     {PASSWORD_POLICY[
                       `require${name === 'numbers' ? 'Number' : name === 'symbols' ? 'Symbol' : `${name[0].toUpperCase()}${name.slice(1)}`}`
-                    ] && <span className="ml-auto text-xs font-semibold text-brand-700">Required</span>}
+                    ] && (
+                      <span className="ml-auto shrink-0 whitespace-nowrap text-xs font-semibold text-brand-700">
+                        Required
+                      </span>
+                    )}
                   </label>
                 ))}
               </div>
