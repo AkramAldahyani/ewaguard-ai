@@ -67,8 +67,12 @@ deferred to Phase 15.
 Failed logins are limited per client with a memory-backed limiter (10 failures per
 15 minutes by default); successful logins do not consume the failure budget. This
 works for the current single-process prototype. A multi-instance deployment must
-use a shared trusted store and configure Express proxy trust only for its known
-reverse proxy.
+use a shared trusted store.
+
+Behind a reverse proxy on the same host, set `TRUSTED_PROXY=loopback` so each client
+has its own limit. The proxy must set or append `X-Forwarded-For` itself. The default
+(`none`) ignores forwarded headers; keep it for direct access and for Vite, which
+forwards client-supplied headers unchanged. Clients behind one NAT still share a limit.
 
 ## Frontend behavior
 

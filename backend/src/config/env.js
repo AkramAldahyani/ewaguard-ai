@@ -100,6 +100,9 @@ export function parseConfig(env = process.env) {
     60,
   );
   const loginRateLimitMax = positiveInteger(env.LOGIN_RATE_LIMIT_MAX ?? '10', 'LOGIN_RATE_LIMIT_MAX', 1, 100);
+  // Explicit opt-in: the development Vite proxy is also loopback but forwards client headers unchanged.
+  const trustedProxy = env.TRUSTED_PROXY || 'none';
+  if (!['none', 'loopback'].includes(trustedProxy)) throw new Error('TRUSTED_PROXY must be none or loopback.');
   const trustedOrigins = [origin.origin];
   // Explicit HTTPS tunnel origin for local development; never a wildcard.
   if (env.DEV_FRONTEND_URL) {
@@ -144,6 +147,7 @@ export function parseConfig(env = process.env) {
     registrationInvitesEnabled: inviteSetting === 'true',
     ragDemonstrationEnabled,
     trustedOrigins: Object.freeze(trustedOrigins),
+    trustedProxy,
     accessTokenTtlSeconds,
     loginRateLimitWindowMinutes,
     loginRateLimitMax,

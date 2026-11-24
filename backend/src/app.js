@@ -46,6 +46,9 @@ export function createApp(config, dependencies = {}) {
   const gates = { EMAIL: createAnalysisGate('EMAIL'), URL: createAnalysisGate('URL') };
   app.locals.database = database;
   app.disable('x-powered-by');
+  // Address-based limits need the real client address. Only a same-host reverse proxy may supply it;
+  // forwarded headers from any other peer stay ignored so they cannot be used to evade a limit.
+  if (config.trustedProxy === 'loopback') app.set('trust proxy', 'loopback');
   app.use(helmet());
   app.use(
     cors({

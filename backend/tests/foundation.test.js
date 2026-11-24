@@ -75,6 +75,8 @@ test('configuration accepts defaults and rejects invalid deployment settings', (
     { JWT_SECRET: 'short' },
     { JWT_SECRET: validSecret, JWT_ACCESS_TTL_SECONDS: '59' },
     { JWT_SECRET: validSecret, LOGIN_RATE_LIMIT_MAX: '0' },
+    { TRUSTED_PROXY: 'true' },
+    { TRUSTED_PROXY: '0.0.0.0/0' },
   ])
     assert.throws(() => parseConfig(configEnv(env)));
   assert.equal(
