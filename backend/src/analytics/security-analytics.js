@@ -67,7 +67,8 @@ export function createSecurityAnalytics(database) {
           database.incident.groupBy({ by: ['type'], where, _count: { _all: true } }),
           database.incident.groupBy({ by: ['detectionSource'], where, _count: { _all: true } }),
           database.incident.count({ where: { ...where, assigneeId: { not: null } } }),
-          database.$queryRaw`SELECT to_char(date_trunc('day', "createdAt" AT TIME ZONE 'UTC'), 'YYYY-MM-DD') AS day,
+          // UTC day in any session time zone; see aggregateAnalyses in analysis-analytics.js.
+          database.$queryRaw`SELECT to_char("createdAt" AT TIME ZONE current_setting('TimeZone'), 'YYYY-MM-DD') AS day,
           count(*)::int AS count FROM incidents WHERE "createdAt" >= ${range.start} AND "createdAt" < ${range.endExclusive}
           GROUP BY 1 ORDER BY 1`,
           // Resolution time uses the recorded resolvedAt. It counts incidents resolved now and incidents closed after

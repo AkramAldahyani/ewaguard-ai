@@ -32,6 +32,20 @@ const skeleton = (value) =>
     .replace(/[\u0441]/g, 'c')
     .replace(/[\u0443]/g, 'y');
 
+// True when a hostname outside a brand's common domains uses the brand name or a lookalike spelling of it. Names are
+// compared as whole labels or hyphen tokens, so "pineapple" is not "apple". Longer, distinctive names also match at
+// the end of a token ("securepaypal.com").
+export function brandInHostname(value) {
+  const hostname = normalizeDomain(value);
+  if (!hostname) return false;
+  const tokens = domainToUnicode(hostname).split(/[.-]/);
+  return brands.some(
+    ([brand, commonDomains]) =>
+      !commonDomains.some((known) => hostname === known || hostname.endsWith(`.${known}`)) &&
+      tokens.some((token) => skeleton(token) === skeleton(brand) || (brand !== 'apple' && token.endsWith(brand))),
+  );
+}
+
 export function brandDomainEvidence(domain, claimedIdentity) {
   const hostname = normalizeDomain(domain);
   if (!hostname) return { brandClaim: false, lookalike: false };

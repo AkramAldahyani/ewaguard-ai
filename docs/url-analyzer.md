@@ -109,7 +109,8 @@ login/account/reset path keywords, URL shorteners, sensitive parameter names,
 and unusual ports. Each result includes a fixed ID, explanation, source, and
 small internal weight. These checks can produce false positives and negatives.
 Domain extraction uses a documented small common-suffix approximation, not a full
-Public Suffix List or an authoritative brand/domain ownership database.
+Public Suffix List or an authoritative brand/domain ownership database. Brand names are
+compared as whole labels or hyphen tokens, including lookalike spellings such as `paypa1`.
 
 The reproducible local rubric excludes sensitive parameter names from suspicion
 weights. Most signals have weight 1; IP hosts, shorteners, mixed scripts, and brand

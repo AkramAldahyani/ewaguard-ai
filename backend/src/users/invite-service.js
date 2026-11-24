@@ -179,11 +179,12 @@ export function createInviteService(database, config = {}) {
       if (!domainMatches(candidate)) wrongDomain(candidate);
       const passwordHash = await hashPassword(input.password);
       return database.$transaction(async (tx) => {
+        // Serialize with administrator directory changes so identity uniqueness is checked consistently. Take this
+        // before the invite row, in the same order as revoke(): the opposite order deadlocks.
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(194731, 1)`;
         await tx.$queryRaw`SELECT id FROM registration_invites WHERE id = ${candidate.id}::uuid FOR UPDATE`;
         const invite = await usable(tx, input.token);
         if (!domainMatches(invite)) wrongDomain(invite);
-        // Serialize with administrator directory changes so identity uniqueness is checked consistently.
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(194731, 1)`;
         if (
           await tx.user.findFirst({
             where: { email: { equals: input.email, mode: 'insensitive' } },

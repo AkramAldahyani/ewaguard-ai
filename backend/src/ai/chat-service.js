@@ -106,9 +106,13 @@ export function createChatService({ database, provider, approvals, config, embed
           orderBy: { sequence: 'desc' },
           take: CHAT_LIMITS.contextMessages,
         });
+        // Employee text stays fail-closed. An assistant reply may legitimately contain a link or a drafted "Subject:"
+        // line, and it already came from this provider, so it must not make the conversation unusable.
         if (
           history.some(
-            (item) => item.content.length > 8000 || containsSecret(item.content) || containsAnalysisInput(item.content),
+            (item) =>
+              item.role === 'USER' &&
+              (item.content.length > 8000 || containsSecret(item.content) || containsAnalysisInput(item.content)),
           )
         )
           throw new ChatError(
@@ -116,7 +120,11 @@ export function createChatService({ database, provider, approvals, config, embed
             'CHAT_SENSITIVE_HISTORY',
             'Start a new conversation; this history cannot be transmitted.',
           );
-        const messages = history.reverse().map((item) => ({ role: item.role.toLowerCase(), content: item.content }));
+        // A stored reply that is oversized or resembles a credential is left out of the context, never re-sent.
+        const messages = history
+          .reverse()
+          .filter((item) => item.role === 'USER' || (item.content.length <= 8000 && !containsSecret(item.content)))
+          .map((item) => ({ role: item.role.toLowerCase(), content: item.content }));
         messages.push({ role: 'user', content });
         if (privateInput)
           messages.push({

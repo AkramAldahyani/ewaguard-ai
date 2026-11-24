@@ -27,7 +27,7 @@ export function createUrlAnalyzer({
     } else threatEvidence.push({ provider: 'VIRUSTOTAL', scope: 'URL_AND_DOMAIN', status: 'SKIPPED_DNS' });
     return {
       analyzer: 'URL',
-      version: '6B.1',
+      version: '6B.2',
       normalizedUrl: parsed.normalized,
       localIndicators,
       dnsEvidence: target.evidence,

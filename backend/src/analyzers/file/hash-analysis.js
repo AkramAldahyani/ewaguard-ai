@@ -11,7 +11,8 @@ export function normalizeSha256(value) {
 // Hash-only records never invent metadata or local scanning evidence.
 export async function analyzeFileHash(sha256, threatIntelligence) {
   const report = await threatIntelligence.lookupFileHash(sha256);
-  const evidence = { analyzer: 'FILE', indicators: [], threatIntelligence: report };
+  // No indicators field: an empty list would claim the file itself was inspected locally.
+  const evidence = { analyzer: 'FILE', threatIntelligence: report };
   const risk = evaluateRisk({ analyzerType: 'FILE', evidence, evaluatedAt: new Date().toISOString() });
   const detections = report.status === 'AVAILABLE' && report.maliciousCount + report.suspiciousCount > 0;
   const total =

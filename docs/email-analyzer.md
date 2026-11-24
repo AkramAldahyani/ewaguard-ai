@@ -183,7 +183,8 @@ are transient only and are not returned by the analyzer.
 ## Bounds and error contract
 
 `email-policy.js` defines byte limits: pasted body 24 KiB, headers 8 KiB, EML 1 MiB,
-decoded text plus HTML 2 MiB. It also bounds header lines (100), Content-Type
+decoded text plus HTML 2 MiB. An exported EML carries relay and provider headers, so its
+header section may be up to 64 KiB and 1,000 lines. Other bounds: pasted header lines (100), Content-Type
 declarations (100), MIME delimiter lines (200), attachments (20), URL candidates
 (200), URL length (2,048 characters), and returned unique origins (50).
 
@@ -213,9 +214,14 @@ Content checks cover urgency/account threats, password reset, credential/login
 requests, payments/wire transfers, gift cards, MFA-code requests, process bypass,
 and attachment/macro invitations. These transparent English-language patterns can
 match legitimate or negated statements and miss paraphrases or other languages.
+Phrases are matched after removing invisible characters and folding line wraps, so text
+wrapped by a mail client or split in HTML source is still found. Blank lines, list items
+and quoted lines in plain text keep sentences apart.
 
 URL evidence covers HTTP, IP hosts, punycode, many hostname labels, embedded credentials,
-unsupported schemes, and URL-label/destination mismatch. No URL is visited, including
+unsupported schemes, and URL-label/destination mismatch. Link text counts as a claimed
+destination when it is a URL or a bare hostname with a common top-level domain; `www.` and
+subdomains of the claimed host are not a mismatch. Telephone links are ignored. No URL is visited, including
 private addresses. Only canonical origins are returned; credentials, paths, query
 parameters, fragments and link labels are omitted. Duplicate origins are collapsed.
 An extraction-limit indicator makes incomplete URL coverage explicit. Hidden CSS,

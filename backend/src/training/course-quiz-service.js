@@ -348,7 +348,9 @@ export function createCourseQuizService(database) {
         quiz: available && ready ? employeeQuiz(quiz) : null,
         passingPercent: available ? quiz.passingPercent : null,
         attempts: attempts.map(attemptSummary),
-        attemptsRemaining: quiz ? Math.max(0, quiz.maxAttempts - attempts.length) : 0,
+        // start() refuses another attempt after a pass, so none remain to offer.
+        attemptsRemaining:
+          quiz && !attempts.some((attempt) => attempt.passed) ? Math.max(0, quiz.maxAttempts - attempts.length) : 0,
       };
     },
     async start(user, id, body) {

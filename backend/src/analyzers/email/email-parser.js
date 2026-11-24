@@ -10,11 +10,11 @@ const options = Object.freeze({
   keepDeliveryStatus: true,
 });
 
-function assertHeaders(headers) {
-  if (Buffer.byteLength(headers) > LIMITS.headerBytes) throw new EmailAnalysisError('EMAIL_INPUT_TOO_LARGE');
+function assertHeaders(headers, maxBytes = LIMITS.headerBytes, maxLines = LIMITS.headerCount) {
+  if (Buffer.byteLength(headers) > maxBytes) throw new EmailAnalysisError('EMAIL_INPUT_TOO_LARGE');
   if (!headers) return;
   const lines = headers.split(/\r?\n/);
-  if (lines.length > LIMITS.headerCount) throw new EmailAnalysisError('EMAIL_INPUT_TOO_LARGE');
+  if (lines.length > maxLines) throw new EmailAnalysisError('EMAIL_INPUT_TOO_LARGE');
   // Reject protocol control bytes while allowing tab and CRLF folding.
   // eslint-disable-next-line no-control-regex
   if (/[\x00-\x08\x0b\x0c\x0e-\x1f]/.test(headers) || /\r(?!\n)/.test(headers))
@@ -54,7 +54,7 @@ export async function parseEmailInput(input) {
     const separator = /\r?\n\r?\n/.exec(raw);
     if (!separator) throw new EmailAnalysisError('MALFORMED_EMAIL');
     const headers = raw.slice(0, separator.index);
-    assertHeaders(headers);
+    assertHeaders(headers, LIMITS.emlHeaderBytes, LIMITS.emlHeaderCount);
     if (!/^(?:from|subject|date|message-id):/im.test(headers)) throw new EmailAnalysisError('MALFORMED_EMAIL');
     if (
       (raw.match(/^content-type:/gim) ?? []).length > LIMITS.mimeParts ||

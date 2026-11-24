@@ -1,4 +1,4 @@
-import { isShortener } from '../domain-indicators.js';
+import { brandInHostname, isShortener } from '../domain-indicators.js';
 
 export function localUrlIndicators({ url, raw, normalized: n }) {
   let decodedPath = url.pathname;
@@ -51,10 +51,9 @@ export function localUrlIndicators({ url, raw, normalized: n }) {
   add(n.queryCount > 12, 'MANY_PARAMETERS', 'The URL has an unusually large number of query parameters.');
   add(isShortener(n.hostname), 'SHORTENER', 'A URL shortener hides the eventual destination.', 2);
   add(
-    /(?:paypal|microsoft|google|apple|amazon)[.-]/i.test(n.hostname) &&
-      !['paypal.com', 'microsoft.com', 'google.com', 'apple.com', 'amazon.com'].includes(n.domainApproximation),
+    !n.isIpHost && brandInHostname(n.hostname),
     'BRAND_PATTERN',
-    'A familiar brand appears outside its common domain; ownership is not verified.',
+    'A familiar brand, or a lookalike spelling of one, appears outside its common domain; ownership is not verified.',
     2,
   );
   add(!['80', '443'].includes(n.port), 'UNUSUAL_PORT', 'An unusual network port is specified.');

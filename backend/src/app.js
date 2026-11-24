@@ -47,7 +47,13 @@ export function createApp(config, dependencies = {}) {
   app.locals.database = database;
   app.disable('x-powered-by');
   app.use(helmet());
-  app.use(cors({ origin: config.trustedOrigins, credentials: true, methods: ['GET', 'POST', 'HEAD', 'OPTIONS'] }));
+  app.use(
+    cors({
+      origin: config.trustedOrigins,
+      credentials: true,
+      methods: ['GET', 'POST', 'PUT', 'DELETE', 'HEAD', 'OPTIONS'],
+    }),
+  );
   app.use(cookieParser());
   app.use('/api/knowledge', createKnowledgeRouter({ database, config, ...dependencies.knowledge }));
   app.use('/api/admin/users', createAdminUsersRouter({ database, config }));

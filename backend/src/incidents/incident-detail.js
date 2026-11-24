@@ -38,6 +38,9 @@ const scannerStates = ['NOT_SCANNED', 'UNAVAILABLE', 'ERROR', 'NO_KNOWN_DETECTIO
 const providerStates = [
   'AVAILABLE',
   'NOT_CONFIGURED',
+  'NO_REPORT',
+  'NOT_APPLICABLE',
+  'UNAUTHORIZED',
   'NOT_FOUND',
   'RATE_LIMITED',
   'UNAVAILABLE',

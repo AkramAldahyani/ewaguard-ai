@@ -69,6 +69,7 @@ export function chatError(error) {
 // without risking a duplicate, and no recovery receipt is needed.
 const REJECTED_BEFORE_STORAGE = [
   'CHAT_SENSITIVE_INPUT',
+  'CHAT_SENSITIVE_HISTORY',
   'CHAT_INVALID_MESSAGE',
   'CHAT_MESSAGE_TOO_LONG',
   'CHAT_DAILY_LIMIT',

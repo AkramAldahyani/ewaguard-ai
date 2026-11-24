@@ -75,11 +75,18 @@ export function functionCalls(response) {
   return calls;
 }
 
+// Advice such as "check whether the sender is legitimate" or "never assume a link is safe" raises the question; it
+// does not assert safety. Clause boundaries end a hedge, so "not sure, but this file is safe" is still a claim.
+const HEDGED_SAFETY = [
+  /(?:\b(?:whether|unsure|uncertain)|(?:\b(?:not|never)|n['’]t) (?:sure|certain|assume|trust|believe|mean|prove))\b(?:(?!\b(?:but|then|so|because|since)\b)[^.!?;,:\n]){0,60}\b(?:is|are)\s+(?:safe|legitimate)\b/gi,
+  /\bif\s+(?:the|a|an|this|that|it|they|your|any)\s+(?:(?!(?:this|that|it|they|but|then|so)\b)[\w-]+\s+){0,2}(?:is|are)\s+(?:safe|legitimate)\b/gi,
+];
 export function validateGroundedText(text, results, options = {}) {
-  const claims = text.replace(
+  let claims = text.replace(
     /\b(?:do not|does not|don['’]t|doesn['’]t|cannot|can['’]t|never)\b(?:(?!\bbut\b)[^.!?;\n]){0,100}\b(?:guarantee|promise|claim)\b(?:(?!\bbut\b)[^.!?;\n]){0,100}\b(?:safe|legitimate)\b/gi,
     'no safety guarantee',
   );
+  for (const pattern of HEDGED_SAFETY) claims = claims.replace(pattern, 'unverified');
   if (
     /\b(?:is|are|completely|definitely|100%)\s+(?:safe|legitimate)\b|\b(?:created|opened|filed)\s+(?:an?\s+)?(?:security\s+)?incident\b/i.test(
       claims,
@@ -91,7 +98,8 @@ export function validateGroundedText(text, results, options = {}) {
   const legal = results.find((r) => r.data?.kind === 'PDPL');
   if (legal) return formatPdplAnswer(text, legal, options);
   if (!results.length) return text;
-  const levels = new Set(results.map((r) => r.data.risk.riskLevel));
+  // A linked incident's severity can exceed the analysis risk after a reported credential exposure.
+  const levels = new Set(results.flatMap((r) => [r.data.risk.riskLevel, r.data.incident?.severity]));
   const scores = new Set(results.map((r) => String(r.data.risk.score)));
   for (const match of text.matchAll(/\b(LOW|MEDIUM|HIGH|CRITICAL)\b/gi))
     if (!levels.has(match[1].toUpperCase())) invalid();

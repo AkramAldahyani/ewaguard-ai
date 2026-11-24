@@ -130,6 +130,38 @@ export function authenticationEvidence(mail, add) {
   return evidence;
 }
 
+// Hostname a link's visible text claims to open, or null for ordinary words. Scheme-less text counts only with a
+// common top-level domain, so a file name such as "report.pdf" is not read as a destination.
+const BARE_HOSTNAME =
+  /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+(?:com|net|org|edu|gov|info|biz|io|app|online|site|bh|sa|ae|qa|kw|om|uk)(?:[/?#:]|$)/i;
+function claimedHostname(label) {
+  const value = label.trim();
+  if (/\s/.test(value)) return null;
+  try {
+    const url = new URL(/^www\./i.test(value) || BARE_HOSTNAME.test(value) ? `https://${value}` : value);
+    return ['https:', 'http:'].includes(url.protocol) ? url.hostname : null;
+  } catch {
+    return null;
+  }
+}
+// A destination on the claimed host, or on a subdomain of it, has the same owner.
+function destinationDiffers(claimed, actual) {
+  const [from, to] = [claimed, actual].map((hostname) => hostname.replace(/^www\./, ''));
+  return to !== from && !to.endsWith(`.${from}`);
+}
+
+// Text used only for phrase matching. Mail clients wrap plain text and HTML ignores source line breaks, so a phrase
+// split over two lines must still match. Blank lines, list items and quoted lines keep plain-text sentences apart.
+function phraseText(text, htmlText, isHtml) {
+  const visible = (value) => value.replace(/[\u00ad\u200b-\u200d\u2060\ufeff]/g, '').replace(/\r\n?/g, '\n');
+  const fold = (value) =>
+    visible(value)
+      .replace(/[^\S\n]+/g, ' ')
+      .replace(/ ?\n ?/g, '\n')
+      .replace(/([^\n])\n(?!\n|[-*•>]|\d+[.)])/g, '$1 ');
+  return `${fold(text)}\n\n${isHtml ? visible(htmlText).replace(/\s+/g, ' ') : fold(htmlText)}`;
+}
+
 export function bodyEvidence(text, html, add) {
   const candidates = [];
   let candidateCount = 0,
@@ -174,7 +206,7 @@ export function bodyEvidence(text, html, add) {
   const urls = [],
     seen = new Set();
   for (const { value, label } of candidates) {
-    if (!value || value.startsWith('#') || /^(?:mailto|cid):/i.test(value)) continue;
+    if (!value || value.startsWith('#') || /^(?:mailto|cid|tel):/i.test(value)) continue;
     if (value.length > LIMITS.urlLength) {
       add('URL_LIMIT');
       continue;
@@ -196,13 +228,8 @@ export function bodyEvidence(text, html, add) {
     if (url.hostname.split('.').length > 5) add('URL_SUBDOMAINS');
     if (url.protocol === 'http:') add('URL_HTTP');
     if (isShortener(url.hostname)) add('URL_SHORTENER');
-    try {
-      const displayed = new URL(/^www\./i.test(label.trim()) ? `https://${label.trim()}` : label.trim());
-      if (['https:', 'http:'].includes(displayed.protocol) && displayed.hostname !== url.hostname)
-        add('URL_LABEL_MISMATCH');
-    } catch {
-      /* Ordinary link text is not a claimed destination. */
-    }
+    const claimed = claimedHostname(label);
+    if (claimed && destinationDiffers(claimed, url.hostname)) add('URL_LABEL_MISMATCH');
     // Canonical origin only. Never return credentials, paths, queries or fragments.
     const origin = redact(url.origin, 300);
     if (seen.has(origin)) continue;
@@ -214,7 +241,7 @@ export function bodyEvidence(text, html, add) {
     urls.push({ origin, detailsOmitted: true, networkStatus: 'NOT_CHECKED' });
   }
   if (candidateCount > LIMITS.urlCandidates) add('URL_LIMIT');
-  return { text: combined, urls };
+  return { text: combined, phrases: phraseText(text, htmlText, /<[a-z][^>]*>/i.test(html)), urls };
 }
 
 export function attachmentEvidence(attachments, add) {

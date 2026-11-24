@@ -4,6 +4,9 @@ export const EMAIL_LIMITS = Object.freeze({
   emlBytes: 1024 * 1024,
   decodedBodyBytes: 2 * 1024 * 1024,
   headerCount: 100,
+  // Exported messages carry relay, ARC and provider headers that routinely exceed what people paste by hand.
+  emlHeaderBytes: 64 * 1024,
+  emlHeaderCount: 1000,
   mimeParts: 100,
   attachments: 20,
   urls: 50,

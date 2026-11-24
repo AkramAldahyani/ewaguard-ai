@@ -103,7 +103,7 @@ export async function analyzeEmail(input) {
   const authentication = authenticationEvidence(mail, add);
   const body = bodyEvidence(text, html, add);
   const attachments = attachmentEvidence(mail.attachments, add);
-  const content = `${mail.subject ?? ''}\n${body.text}`;
+  const content = `${mail.subject ?? ''}\n\n${body.phrases}`;
   const brand = brandDomainEvidence(sender.sender.domain, `${mail.from?.value?.[0]?.name ?? ''}\n${content}`);
   if (brand.brandClaim) add('BRAND_IMPERSONATION');
   if (brand.lookalike) add('SENDER_LOOKALIKE');
@@ -111,7 +111,7 @@ export async function analyzeEmail(input) {
   const indicators = [...found.values()].sort((a, b) => a.id.localeCompare(b.id));
   return {
     analyzer: 'EMAIL',
-    analyzerVersion: '6A1.2',
+    analyzerVersion: '6A1.3',
     inputType,
     ...sender,
     subject: redactEmailMetadata(mail.subject),

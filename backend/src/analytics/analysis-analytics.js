@@ -6,6 +6,8 @@ export async function analysisOverview(database, range) {
   return database.$transaction((tx) => aggregateAnalyses(tx, range), { isolationLevel: 'RepeatableRead' });
 }
 
+// The Prisma pg adapter sends UTC clock values without an offset, so PostgreSQL stores them relative to the session
+// time zone. Converting back through that same zone yields the UTC day whatever the database session is set to.
 async function aggregateAnalyses(database, range) {
   const rows = await database.$queryRaw`
     WITH analyses AS (
@@ -15,7 +17,7 @@ async function aggregateAnalyses(database, range) {
       UNION ALL SELECT CASE WHEN kind = 'HASH_LOOKUP' THEN 'FILE_HASH' ELSE 'FILE' END,
         status, severity, COALESCE("analyzedAt", "createdAt"), "analyzedAt" IS NOT NULL FROM file_analyses
     )
-    SELECT type, status::text, severity::text, finalized, to_char(recorded AT TIME ZONE 'UTC', 'YYYY-MM-DD') AS day,
+    SELECT type, status::text, severity::text, finalized, to_char(recorded AT TIME ZONE current_setting('TimeZone'), 'YYYY-MM-DD') AS day,
       count(*)::int AS count FROM analyses
     WHERE recorded >= ${range.start} AND recorded < ${range.endExclusive}
     GROUP BY type, status, severity, finalized, day`;
