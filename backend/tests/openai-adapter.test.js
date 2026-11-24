@@ -66,7 +66,7 @@ test('missing key, unknown model and expired pricing fail closed', async () => {
     { input: modelPricing('gpt-6-luna').inputMicrosPerToken, output: modelPricing('gpt-6-luna').outputMicrosPerToken },
     { input: 0.125, output: 0.5 },
   );
-  assert.throws(() => modelPricing('gpt-6-luna', new Date('2027-01-01')), { code: 'AI_PRICING_UNAVAILABLE' });
+  assert.throws(() => modelPricing('gpt-6-luna', new Date('2027-01-10T00:00:00Z')), { code: 'AI_PRICING_UNAVAILABLE' });
 });
 test('provider errors mapped without raw provider error text or keys', async () => {
   for (const [error, code] of [
