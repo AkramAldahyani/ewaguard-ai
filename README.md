@@ -20,6 +20,7 @@
 
 <p align="center">
   <a href="#overview">Overview</a> ·
+  <a href="#screenshots">Screenshots</a> ·
   <a href="#features">Features</a> ·
   <a href="#architecture">Architecture</a> ·
   <a href="#getting-started">Getting started</a> ·
@@ -51,6 +52,30 @@ score and severity; the AI explains the result in plain language and coordinates
 > [!NOTE]
 > EWAGuard AI is a university graduation project and enterprise prototype. It does not replace endpoint protection,
 > a SIEM, a SOC, or legal advice, and it never claims that an email, URL or file is guaranteed safe.
+
+## Screenshots
+
+<p align="center">
+  <img src="docs/screenshots/landing-page.png" alt="EWAGuard AI landing page with the secure sign-in form" width="100%">
+  <br><sub><strong>Landing page:</strong> secure sign-in for employees and administrators</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/employee-home.png" alt="Employee home page with quick access to the security tools" width="100%">
+  <br><sub><strong>Employee home:</strong> security tools, guidance and learning in one place</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/incident-investigation.png" alt="Administrator investigation workspace for a critical incident" width="100%">
+  <br><sub><strong>Investigation workspace:</strong> a critical incident with its risk score, lifecycle and next steps</sub>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/awareness-training.png" alt="Employee training page with course progress" width="100%">
+  <br><sub><strong>Awareness training:</strong> assigned courses with saved progress</sub>
+</p>
+
+<p align="center"><sub>Screenshots use demonstration data.</sub></p>
 
 ## Features
 
