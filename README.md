@@ -294,8 +294,8 @@ Security has priority over convenience throughout the project. Highlights:
 - **Moderation and review:** community posts and AI-drafted training content require administrator approval before
   publication.
 
-See [RBAC and MFA](docs/rbac-mfa.md), [privacy and retention](docs/privacy-retention.md) and
-[controlled tools](docs/controlled-tools.md) for details.
+See [sign-in and access control](docs/authentication-and-access.md), [privacy and retention](docs/privacy-and-retention.md) and
+[AI tools and approvals](docs/ai-tools-and-approvals.md) for details.
 
 ## Testing
 
@@ -315,15 +315,17 @@ non-local database.
 
 ## Documentation
 
+Start with the [documentation index](docs/README.md), which lists every guide in reading order with a glossary.
+
 | Topic | Document |
 | --- | --- |
 | Architecture and database | [architecture.md](docs/architecture.md), [database.md](docs/database.md) |
-| Authentication and access | [authentication.md](docs/authentication.md), [rbac-mfa.md](docs/rbac-mfa.md), [user-management.md](docs/user-management.md) |
+| Access | [authentication-and-access.md](docs/authentication-and-access.md), [user-management.md](docs/user-management.md), [portals-and-dashboard.md](docs/portals-and-dashboard.md) |
 | Analyzers and risk | [email-analyzer.md](docs/email-analyzer.md), [url-analyzer.md](docs/url-analyzer.md), [file-analyzer.md](docs/file-analyzer.md), [risk-engine.md](docs/risk-engine.md) |
-| Incidents | [incident-engine.md](docs/incident-engine.md), [incident-management.md](docs/incident-management.md), [realtime-notifications.md](docs/realtime-notifications.md) |
-| AI and RAG | [openai-chat.md](docs/openai-chat.md), [controlled-tools.md](docs/controlled-tools.md), [pdpl-assistant.md](docs/pdpl-assistant.md), [company-policy-assistant.md](docs/company-policy-assistant.md) |
-| Awareness | [training-platform.md](docs/training-platform.md), [awareness-analytics.md](docs/awareness-analytics.md), [community-platform.md](docs/community-platform.md) |
-| Privacy | [password-security.md](docs/password-security.md), [disclaimers.md](docs/disclaimers.md), [privacy-retention.md](docs/privacy-retention.md) |
+| Incidents | [incidents.md](docs/incidents.md), [notifications.md](docs/notifications.md) |
+| AI and RAG | [ai-assistant.md](docs/ai-assistant.md), [ai-tools-and-approvals.md](docs/ai-tools-and-approvals.md), [knowledge-base.md](docs/knowledge-base.md) |
+| Awareness | [training-and-quizzes.md](docs/training-and-quizzes.md), [training-courses.md](docs/training-courses.md), [community.md](docs/community.md), [analytics.md](docs/analytics.md) |
+| Privacy and quality | [password-security.md](docs/password-security.md), [disclaimers.md](docs/disclaimers.md), [privacy-and-retention.md](docs/privacy-and-retention.md), [testing-and-qa.md](docs/testing-and-qa.md) |
 
 Contributors and coding agents must follow the rules in [AGENTS.md](AGENTS.md).
 

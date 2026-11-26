@@ -1,163 +1,84 @@
-# Phase 2 database architecture
+# Database
 
-## Current local status
+## In short
 
-The relational migration was accepted by PostgreSQL 18.6 in `ewaguard_ai`.
-It creates 32 application tables. Prisma Client generation and real database
-constraint tests pass. The two roles and four development departments are seeded.
-No accounts are seeded and no authentication/feature API is implemented here.
+All data lives in one PostgreSQL database (`ewaguard_ai` locally). The backend
+talks to it through **Prisma**. The schema is in `backend/prisma/schema.prisma`
+and every change is a reviewed SQL migration in `backend/prisma/migrations/`.
 
-**Phase 2B complete:** pgvector 0.8.7 is installed and enabled in `ewaguard_ai`.
-Both migrations are applied, including `20261003000200_pgvector`. Real database
-tests verify `document_chunks.embedding` as `vector(1536)`, its cosine HNSW index,
-vector storage/ranking, dimension rejection and required embedding-model metadata.
-Synthetic test fixtures are rolled back. The existing relational migration and
-database were preserved without resets, drops or recreation.
+The database does more than store data: it also enforces many rules itself
+(for example "a certificate needs a passed quiz"), so a bug in the application
+cannot easily create impossible records.
 
-## Entities and relationships
+## What is stored
 
-| Domain | Tables and ownership |
-| --- | --- |
-| Organization | `roles`, `departments`, `users`: one role and optional department per user; role names are restricted to EMPLOYEE and IT_SECURITY_ADMIN. |
-| Conversations | `chat_sessions` belong to one owner; `chat_messages` belong to a session with unique sequence numbers and explicit expiry. No direct admin conversation relationship exists. |
-| Analysis | `email_analyses`, `url_analyses`, `file_analyses`: owner, disclaimer reference, structured minimized evidence, nullable deterministic risk result and rule version. |
-| Incidents | `incidents`, `incident_evidence`, `incident_events`, `incident_comments`: reporter, department snapshot reference, optional assignee, preserved investigation history. |
-| Notifications | `notifications`: one recipient, optional incident reference, read/delivery/expiry timestamps. No broadcast recipient. |
-| Knowledge | `knowledge_documents`, `document_chunks`: unified versioned pipeline with PDPL/COMPANY_POLICY discriminator, approval, activity and indexing state. |
-| Training | `training_programs`, `training_assignments`, `training_progress`: one assignment per employee/program and one progress record per assignment. Department assignment is expanded to individual assignments; the department reference preserves assignment context. |
-| Quiz definitions | `quizzes`, `training_quizzes`, `monthly_quizzes`, `quiz_questions`, `quiz_options`: common grading structure with separate course and calendar-month bindings. |
-| Quiz participation | `monthly_quiz_assignments`, `quiz_attempts`, `quiz_answers`: course attempts reference training assignments; monthly attempts reference monthly assignments. Historical thresholds, points, scores and results are retained. |
-| Certificates | `certificates`: unique public UUID and unique qualifying progress record. Employee and training derive through progress → assignment; completion result derives through progress → qualifying attempt. Names/title/score are issuance snapshots. No PDF binary. |
-| Community | `community_posts`, `community_post_attachments`, `post_moderation_actions`: author, default PENDING_REVIEW state, moderator history, optional training link. Attachments reference the same file analysis table. |
-| Accountability | `disclaimer_acknowledgements`, `audit_logs`: minimal acknowledgement metadata and structured, allow-listed audit metadata. |
+| Area | Tables | Plain explanation |
+| --- | --- | --- |
+| People | `roles`, `departments`, `users` | Each user has one role (EMPLOYEE or IT_SECURITY_ADMIN) and usually a department. Passwords are stored only as bcrypt hashes; MFA secrets are encrypted. |
+| Sessions | `revoked_sessions` | IDs of logged-out sessions, so a copied token stops working. |
+| Invites | `registration_invites` | Shareable sign-up links (only a hash of each link is stored). |
+| Chat | `chat_sessions`, `chat_messages` | An employee's private conversations with the AI, with a 30-day access window. |
+| AI usage | `ai_usage`, `tool_approvals` | Spending records for every AI call, and encrypted "please confirm this analysis" requests. |
+| Analyses | `email_analyses`, `url_analyses`, `file_analyses` | Results of each analysis: a minimized evidence summary, the risk score and level. No raw email body, full URL or file content is kept. |
+| Incidents | `incidents`, `incident_evidence`, `incident_events`, `incident_comments` | Security cases, a frozen copy of their evidence, a timeline of changes and investigation notes. |
+| Notifications | `notifications` | Messages for one recipient each (no "send to everyone" rows). |
+| Knowledge base | `knowledge_documents`, `document_chunks` | PDPL and sample policy documents, split into chunks with embeddings for search. |
+| Training | `training_programs`, `training_assignments`, `training_progress` | Courses, who is assigned, and how far each person has got. |
+| Quizzes | `quizzes`, `training_quizzes`, `monthly_quizzes`, `quiz_questions`, `quiz_options`, `quiz_attempts`, `quiz_answers`, `monthly_quiz_assignments` | Course quizzes and monthly quizzes share one question/answer structure. |
+| Certificates | `certificates` | One per legitimately completed course, with a unique ID. The PDF is generated on demand, not stored. |
+| Community | `community_posts`, attachments, likes, saves, comments, reports, moderation actions | Posts and everything around them. |
+| Accountability | `disclaimer_acknowledgements`, `audit_logs` | Who accepted which notice and when; a log of important actions. |
 
-Separate `pdpl_documents` and `company_documents` tables would duplicate approval,
-versioning and indexing logic. The document kind distinguishes both collections;
-later retrieval must filter `kind`, `status = APPROVED`, `active = true`, and
-`indexingStatus = INDEXED`. Approval alone does not grant access. There is no
-redundant security report table: analysis evidence and incident evidence already
-serve that purpose.
+PDPL and company-policy documents share one table with a `kind` field instead of
+two separate tables, so approval and indexing logic is not duplicated.
 
-## Data conventions and constraints
+## Naming conventions
 
-Prisma model names are singular PascalCase and map to snake_case table names.
-Fields use camelCase. UUIDs are generated by Prisma; SQL callers must supply them.
-Incident numbers also have a database sequence (gaps are normal). Times use
-`timestamptz(3)`; monthly periods use a date constrained to the first day of a month.
-Mutable records have Prisma-managed `updatedAt`; raw SQL writers must set it.
+- Prisma models are singular PascalCase (`IncidentEvent`) and map to snake_case tables (`incident_events`).
+- IDs are UUIDs. Incident numbers come from a database sequence, so gaps are normal.
+- Times are stored as `timestamptz`. Monthly quiz periods are stored as the first day of the month.
+- Emails are trimmed and lowercased before saving, so uniqueness works regardless of letter case.
 
-Enums describe account status, LOW/MEDIUM/HIGH/CRITICAL severity, incident statuses,
-scan availability/detection, document approval/indexing, training progress,
-quiz kind/publication/question type, content origin, attempt state, notification
-type, moderation state/category and disclaimer context. No enum means "safe".
-Invited users may have no password hash; ACTIVE accounts require one. Email must
-already be trimmed and lowercased, making the unique email constraint effective
-against case variants. Bcrypt hashing belongs to Phase 3A.
+## Rules the database enforces
 
-The relational SQL migration contains checks/triggers Prisma cannot express:
+These are written as SQL checks and triggers in the migrations, because Prisma
+cannot express them:
 
-- Score/percentage/point bounds, SHA-256 shape, positive duration/version, calendar windows.
-- Complete risk tuples: score, severity and rule version are all present or all absent.
-- Matching disclaimer user/context for analyses and community submissions.
-- Approved active knowledge; reviewed published training; approved quiz publication.
-- Exactly one course/monthly assignment per attempt, matching employee and quiz.
-- Answers must belong to the attempt's quiz and selected question; awarded points
-  cannot exceed question points. Submitted result percentages agree with points.
-- Quiz approval requires questions, exactly one correct option per question, at
-  least two options (exactly two for true/false), and review metadata for AI questions.
-- Published/attempted questions and options, submitted answers/results, and
-  important historical relationship identities cannot be rewritten.
-- Completed training requires explicit material completion, start/completion times
-  and 100% progress; quiz-required training also requires its own passing attempt.
-- Certificates require matching completed progress and result snapshots.
+- Scores, percentages and points stay within valid ranges; SHA-256 values have the right shape.
+- A risk result is all-or-nothing: score, severity and rule version are either all present or all missing.
+- An analysis or community post must use an acknowledgement belonging to the same user and the right context.
+- Only approved, active knowledge documents and reviewed, published courses can be used.
+- A quiz attempt belongs to exactly one course or monthly assignment for the same employee.
+- Answers must belong to the attempt's quiz, and awarded points cannot exceed the question's points.
+- A quiz can only be approved if every question has exactly one correct option (exactly two options for true/false).
+- Published or attempted questions and submitted answers cannot be rewritten.
+- A course can only be COMPLETED with all material done, and, if it has a quiz, a passing attempt.
+- A certificate must match a completed progress record.
 
-These are consistency checks, **not application authorization or proof that an
-employee read material**. Later services must enforce roles/ownership, approved
-state transitions, assignment validity, publication windows, attempt limits,
-server-side scoring and permitted completion events. They must not accept client
-scores/completion flags or serialize Prisma question/option records directly to
-employees. The database user can read correct-answer fields; RBAC and explicit
-response projections remain required in later phases.
+These checks protect consistency. They are **not** a replacement for the
+application's role and ownership checks.
 
-Question/option edits require an editable unpublished quiz. Once published or
-attempted, create a new version. Historical course/quiz snapshots must be retained
-when later authoring services implement revision workflows. Frozen results are
-not updated in place to make analytics appear better.
+## Deleting data
 
-## History, indexes and deletion
+- Accounts are **deactivated or soft-deleted**, not erased, because incidents, results and audit records refer to them.
+- Most important history (incidents, results, certificates, moderation) uses **RESTRICT**: the database refuses to delete a record that other records depend on.
+- **Cascade** deletion is used only where it is safe: a chat session's messages, a user's own notifications, a document's chunks.
+- When an analysis is removed, the incident keeps its frozen evidence copy (the link becomes empty, not broken).
+- Audit logs survive account deletion (the actor field becomes empty).
 
-Incidents retain reporter/department/assignee references, minimized evidence
-snapshots, event records, comments with explicit security-team/reporter visibility,
-resolution timestamps and optional legal hold/retention metadata. Sources can be
-purged while incident evidence keeps a minimized snapshot: nullable source FKs use
-SET NULL. There is no whole-conversation incident link granting blanket access.
+See [privacy and retention](privacy-and-retention.md) for the cleanup rules.
 
-RESTRICT is the default for users with operational records, incidents and their
-history, training/quiz results, certificates and moderation records. Account
-deactivation is preferred to casual deletion. Cascades are limited to private
-session messages/session ownership, recipient notifications, and document chunks.
-Audit actor deletion uses SET NULL so the event remains. These rules do not grant
-permission to purge records; later retention services must check legal hold,
-retention and authorization and use deliberate ordered deletions/redaction.
+## Vector search (pgvector)
 
-Indexes cover foreign-key access, owner/date lists, incident status/severity,
-department incident trends, recipient unread lists, knowledge approval filters,
-quiz membership/order, employee attempt history, community moderation queues and
-audit resource/action/date queries. Unique constraints prevent duplicate role
-names, account identifiers/emails, document versions, assignments, question/option
-ordering, attempt numbers, answers and certificate identifiers.
+- `document_chunks.embedding` is a `vector(1536)` column with a cosine **HNSW** index.
+- Prisma cannot model this column or index, so vector reads and writes use parameterized SQL.
+- **Important:** `prisma migrate diff` will suggest dropping `document_chunks_embedding_hnsw`. This is a known Prisma limitation. **Do not apply that drop, and never use `prisma db push`**; it would also lose the SQL checks and triggers.
 
-## Vector strategy
+### Installing pgvector on Windows (PostgreSQL 18)
 
-Prisma 7.10 represents the nullable column as `Unsupported("vector(1536)")?`.
-The vector SQL migration enables `vector`, adds the column and a cosine HNSW
-index, and requires embedding-model metadata for populated vectors. Nullable
-vectors allow ingestion before embedding; never substitute zero/fabricated vectors.
-1536 is an explicit storage dimension, not a claim that an embedding model has
-already been integrated. Phase 9A must choose/configure a compatible model and
-re-index through a migration if dimensions change. Model/dimension consistency
-must be enforced by the embedding service.
-
-Prisma omits unsupported vector values from its normal typed client API. Future
-vector reads/writes must use parameterized SQL and cast vectors when returning
-them. Never interpolate user SQL. See the
-[Prisma extension guidance](https://www.prisma.io/docs/postgres/database/postgres-extensions).
-
-Prisma 7.10 does not model this HNSW index in `schema.prisma`. Consequently, a
-database-to-datamodel `prisma migrate diff` proposes dropping
-`document_chunks_embedding_hnsw`, even though both tracked migrations are applied.
-This is a known SQL-managed-index limitation, not a missing migration. Do not
-execute that generated DROP INDEX or use `db push`; preserve the HNSW definition
-when reviewing future migrations. The vector integration test checks its presence.
-
-For a new Windows PostgreSQL 18 installation, install pgvector built for the same
-PostgreSQL major version and architecture, following the
-[official Windows instructions](https://github.com/pgvector/pgvector#windows).
-This requires PostgreSQL extension files on the database server (including
-`vector.control`, extension SQL and the library), not an npm package.
-
-Phase 2B installed Microsoft's signed Visual Studio 2022 Build Tools in
-`C:\BuildTools`, with MSVC x64/x86 tools and Windows SDK 10.0.22621. The installer
-completed with exit code 0. pgvector v0.8.7 was built from the official Git source
-at commit `f37c13f68b57d2c3472b2214fbcff699d6d34876` against the existing PostgreSQL
-18.6 x64 headers/libraries. Build source is in
-`C:\Users\Dell\AppData\Local\Temp\ewaguard-pgvector-v0.8.7` (temporary, not required
-at runtime). The compiled and installed DLL SHA-256 values matched:
-`682ADAAE96A464BDB168A6EDC370CAF82DC80905E07DC113959EB9D9F1ADAB42`.
-
-Files installed under `C:\Program Files\PostgreSQL\18`:
-
-- `lib\vector.dll`
-- `share\extension\vector.control`
-- `share\extension\vector--*.sql`
-- `include\server\extension\vector\` headers
-
-The standard build command was `nmake /F Makefile.win`. Normal-user installation
-was denied by Windows; administrator elevation then copied the exact DLL,
-control, SQL and header outputs specified by `Makefile.win`. No PostgreSQL service
-restart or database recreation was needed. To reproduce on another installation,
-open an **administrator x64 Native Tools Command Prompt** and use a fresh source
-directory (do not overwrite an existing source checkout):
+pgvector is a PostgreSQL server extension, not an npm package. It must be built
+for the same PostgreSQL version. In an **administrator x64 Native Tools Command
+Prompt** (Visual Studio Build Tools installed):
 
 ```bat
 set "PGROOT=C:\Program Files\PostgreSQL\18"
@@ -168,68 +89,40 @@ nmake /F Makefile.win
 nmake /F Makefile.win install
 ```
 
-Then run from the repository root using the ignored local `.env`:
+This installs `vector.dll` and the extension files under `C:\Program Files\PostgreSQL\18`.
+No database restart is needed. Check it with
+`SELECT extversion FROM pg_extension WHERE extname = 'vector';`.
 
-```powershell
-npm.cmd run db:migrate
-npm.cmd run db:status
-npm.cmd run test:vector
+## Everyday commands
+
+Run from the repository root (the real connection URL lives only in `.env`):
+
+```bash
+npm run prisma:format     # tidy the schema file
+npm run prisma:validate   # check the schema
+npm run prisma:generate   # regenerate the Prisma client
+npm run db:migrate        # apply pending migrations (safe, never resets)
+npm run db:status         # show which migrations are applied
+npm run db:seed           # add the two roles and four departments (no accounts)
+npm run test:database     # database rule tests
+npm run test:vector       # pgvector tests
 ```
 
-`CREATE EXTENSION IF NOT EXISTS vector;` succeeded in `ewaguard_ai` before the
-pending migration was applied. `SELECT extversion FROM pg_extension WHERE
-extname = 'vector';` returned `0.8.7`. Migration status is clean. Future installations
-must verify the extension, embedding column/HNSW index and run the vector tests.
-Do not run migrate reset. If a deployment attempt fails before extension installation, inspect its
-transaction rollback and use Prisma's failed-migration resolution workflow before
-retrying; never mark unapplied SQL as applied.
+- The seed refuses to run in production and creates no user accounts.
+- Never run `prisma migrate reset` on a database that holds real data.
+- If a migration fails part-way, use Prisma's failed-migration resolution steps; never mark unapplied SQL as applied.
+- Production should use a database account with fewer privileges than the account that runs migrations.
 
-## Local commands and seed
+## Known quirk: timestamps
 
-Keep the real connection URL only in ignored `.env`. `.env.example` contains
-placeholders. The current local connection uses the installer-created PostgreSQL
-account; production needs a least-privileged runtime account separate from the
-migration owner. The application currently does not create a database connection
-when serving liveness. The client factory is used by database tooling only.
+With the current Prisma PostgreSQL adapter and a non-UTC database session time
+zone, stored timestamps can appear shifted when read with raw SQL or `psql`.
+Prisma reads correct them. Day-based reports use the session time zone to stay
+correct. Changing the session to UTC would require a migration that adjusts all
+existing timestamps at the same time.
 
-```powershell
-npm.cmd run prisma:format
-npm.cmd run prisma:validate
-npm.cmd run prisma:generate
-npm.cmd run db:migrate
-npm.cmd run db:seed
-npm.cmd run test:database
-npm.cmd run test:vector
-```
+## Privacy rules for stored data
 
-`db:migrate` applies both migrations on hosts with pgvector. Both are applied on
-this host. A new host must install pgvector first. The relational migration was generated
-with `prisma migrate diff --from-empty --to-schema ... --script`, reviewed and
-extended with SQL invariants, then applied through `prisma migrate deploy`.
-Do not replace it with schema-only push: that loses checks/triggers/indexes.
-
-Seed is idempotent, refuses `NODE_ENV=production`, and upserts EMPLOYEE,
-IT_SECURITY_ADMIN, IT, Finance, HR and Operations. It creates no users or login
-credentials. Integration fixtures use `example.invalid`, stay inside a rolled-back
-transaction, and require a local `ewaguard_ai` database. The standalone integration
-suite is opt-in so ordinary foundation tests do not require PostgreSQL.
-
-The Prisma 7 generated client is TypeScript with explicit `.ts` imports; the
-existing Node 24 runtime executes it with native type stripping. Handwritten
-application code remains JavaScript. Generated output is ignored by Git.
-
-## Privacy boundaries
-
-No password-analysis/generation table, JWT value, API secret, plaintext MFA secret,
-raw email body/header payload or original uploaded binary is stored. Future MFA
-storage belongs to its reviewed authentication phase. File references are opaque
-storage keys; upload processing/scanners are not implemented here. Scanner states
-default to NOT_SCANNED. URLs store a hostname/hash rather than credential-bearing
-full URLs. Chat content must be minimized/redacted before storage, owner-authorized,
-and assigned expiry; system prompts and raw tool payloads do not belong there.
-
-Free text and JSON cannot themselves prevent secrets from being inserted. Later
-validators, redaction, retention jobs and restricted API projections must enforce
-these contracts. Audit metadata must be allow-listed and must never copy request
-bodies, prompts, tokens or password inputs. Neither schema relations nor the local
-superuser connection provide employee RBAC; no production security claim is made.
+- No plaintext passwords, JWTs, API keys or unencrypted MFA secrets.
+- No raw email bodies or headers, no full URLs with paths or query strings, no uploaded file bytes or original filenames.
+- Audit metadata is limited to an allow-list of small fields and never copies request bodies, prompts or tokens.

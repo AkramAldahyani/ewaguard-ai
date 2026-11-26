@@ -1,77 +1,146 @@
-# Phase 0 architecture
+# Architecture
 
-This document records foundation decisions. Current Phase 10A analysis-to-incident
-orchestration is documented in [Incident Engine](incident-engine.md); authentication,
-analyzers and database services described in later phase documents are operational.
+## In short
 
-The repository uses npm workspaces and one root lockfile. All application code is
-JavaScript with ES modules. Dependencies are assigned to the workspace that uses them.
+EWAGuard AI is a web application with three main parts:
+
+1. **Frontend**: a React website that employees and administrators use in the browser.
+2. **Backend**: a Node.js / Express server that does all the real work and enforces all security rules.
+3. **Database**: PostgreSQL, which stores accounts, analyses, incidents, training, community posts and audit records. The pgvector extension adds document search.
+
+Some features also use outside services: OpenAI (AI chat and document embeddings)
+and VirusTotal (reputation lookups). ClamAV and YARA run locally on the server.
+
+## The core principle
+
+> **Security tools detect. The risk engine evaluates. AI explains and coordinates.**
+
+```text
+Employee submits an email, link or file
+        ↓
+Security analysis (parsers, ClamAV, YARA, DNS/TLS checks, VirusTotal)
+        ↓
+Structured evidence (a list of facts, no opinions)
+        ↓
+Risk engine (fixed rules → score 0–100 and LOW / MEDIUM / HIGH / CRITICAL)
+        ↓
+Guidance ("what should I do now?")
+        ↓
+HIGH or CRITICAL → incident created → administrators alerted
+        ↓
+AI assistant can explain the saved result (it cannot change it)
+```
+
+The AI is never the malware detector and never decides the risk level.
+
+## Technology and why it was chosen
+
+| Layer | Technology | Purpose |
+| --- | --- | --- |
+| Frontend | React, React Router, Tailwind CSS, Vite | Pages, navigation, styling and the development server |
+| Backend | Node.js, Express (JavaScript, ES modules) | REST API, security checks and business rules |
+| Database | PostgreSQL + Prisma ORM | Reliable storage with relations and constraints |
+| Document search | pgvector | Stores embeddings for the PDPL and policy knowledge base |
+| Login | JWT in an HTTP-only cookie, bcrypt, TOTP (otpauth) | Sessions, password storage and administrator MFA |
+| Real-time | Socket.IO | Pushes "refresh now" signals for notifications and incidents |
+| AI | OpenAI Responses API with function calling | Chat answers and controlled tool use |
+| Email parsing | MailParser, htmlparser2 | Reads `.eml` files and pasted emails safely |
+| Uploads | Multer | Receives files in memory with size limits |
+| Malware checks | ClamAV, YARA | Local scanning of uploaded files |
+| Passwords | zxcvbn, Web Crypto API | Strength checking and secure generation in the browser |
+| Certificates | PDFKit | Builds certificate PDFs on demand |
+| Images | sharp | Cleans and re-encodes community images |
+
+## Folder map
 
 ```text
 frontend/
-  src/                  React shell, Router routes, Tailwind entry stylesheet
-  vite.config.js        Build and local /api proxy
+  src/
+    pages/          Top-level pages (home, login, profile, not found)
+    features/       One folder per feature (email, url, file, chat, incidents,
+                    training, monthly-quizzes, certificates, community, analytics,
+                    users, notifications, password, setup, audit, dashboard)
+    components/     Shared UI pieces (buttons, cards, risk badges, layout parts)
+    layouts/        The application shell (sidebar, header, notification bell)
+    context/        Shared React state (the logged-in user)
+    services/       The API client used by every feature
+  tests/            Frontend tests (Node test runner + Vite)
+
 backend/
   src/
-    config/             Environment loading and validation
-    routes/             REST route handlers (health only)
-    middleware/         Consistent safe API error responses
-    app.js              Express composition without opening a network port
-    server.js           Startup and graceful shutdown
-  prisma/               PostgreSQL datasource; no models yet
-  prisma.config.js      Prisma CLI paths and validated connection URL
-  tests/                Node test runner and real loopback HTTP tests
-docs/                   Short foundation decisions
+    app.js          Builds the Express app and mounts every route
+    server.js       Starts the server, Socket.IO and background workers
+    config/         Reads and validates environment variables
+    routes/         One file per API area (auth, analysis, incidents, ...)
+    middleware/     Authentication, role checks, trusted-origin checks
+    auth/           Login, sessions, MFA, audit of sign-in events
+    analyzers/      email/, url/, file/ analyzers and shared helpers
+    risk/           The deterministic risk engine
+    assistance/     "What should I do now?" guidance
+    incidents/      Automatic incident creation and investigation logic
+    notifications/  Notification storage and the Socket.IO dispatcher
+    ai/             OpenAI adapter, chat service, tool registry and approvals
+    rag/            Knowledge-base ingestion, indexing and retrieval
+    training/       Courses, course quizzes, monthly quizzes, provisioning
+    certificates/   Certificate issuance and PDF generation
+    community/      Posts, comments, images, reports and moderation
+    analytics/      Security and awareness statistics
+    dashboard/      Administrator dashboard summary
+    users/          User management and invite links
+    privacy/        Retention policy and cleanup worker
+    disclaimers/    Sensitive-information acknowledgements
+  prisma/           Database schema, migrations and seed scripts
+  scripts/          Operator command-line tools (provisioning, retention, checks)
+  security/yara/    The project's own YARA rules
+  data/             Knowledge-base source documents (PDPL PDF, sample policies)
+  tests/            Backend tests
+
+shared/             Code used by both frontend and backend
+                    (disclaimer text, allowed file types)
+docs/               These guides
 ```
 
-Add services, controllers, and feature directories when their phases need them.
-The health endpoint does not require an artificial controller/service split.
+## How a request travels
 
-## Responsibility boundaries
+Example: an employee submits a suspicious link.
 
-React handles rendering and React Router handles navigation. Tailwind supplies
-styling utilities; the actual design system is deferred to Phase 1. Express provides
-REST endpoints, security headers, a 32 KiB JSON body limit, one allowed browser
-origin, and generic error responses. CORS is not authentication or authorization.
-The current API contains no protected resources or feature endpoints.
+1. The React page sends `POST /api/analysis/url` with the session cookie.
+2. **Authentication middleware** checks the cookie's token and reloads the account from the database (active? which role?).
+3. **Role check**: only employees may use analyzers.
+4. **Trusted-origin check**: the request must come from the EWAGuard website itself.
+5. **Rate limit**: too many requests are refused with HTTP 429.
+6. The **URL analyzer** collects evidence (structure, DNS, TLS, VirusTotal).
+7. The **risk engine** scores the evidence.
+8. The result is **saved** in one database transaction.
+9. If the level is HIGH or CRITICAL, the **incident engine** creates an incident and notifications.
+10. The response goes back to the page, which shows the score, reasons and advice.
 
-Prisma has a PostgreSQL provider and CLI configuration only. There are no tables,
-migrations, seeds, generated client, or database connection at runtime. Adding an
-unused database client or a dummy table would misrepresent Phase 0. Phase 2 will
-define the schema, migration, and client configuration.
+Every protected route follows the same pattern: authenticate, check the role,
+check ownership of the record, validate the input, then do the work.
 
-Future modules must preserve: **security tools detect; the risk engine evaluates;
-AI explains and coordinates.** No AI or security classification runs in Phase 0.
+## Important boundaries
 
-## Docker preparation
+- **The backend is the only authority.** Hidden buttons in the frontend are for convenience only; every rule is checked again on the server.
+- **Secrets stay on the server.** API keys and encryption keys come from environment variables (`.env`), never from frontend code.
+- **Errors are generic.** Users see a short code and message, never stack traces, SQL or file paths.
+- **External services can fail safely.** If OpenAI, VirusTotal, ClamAV or YARA are unavailable, results say `UNAVAILABLE`. Nothing is invented.
 
-Separate frontend/backend workspaces, injected environment configuration, an
-explicit bind address, shutdown handling, and `.dockerignore` prepare for containers.
-The root directory will be the Docker build context because workspaces share the
-root lockfile. Runtime configuration must be injected, never baked into an image.
-No Dockerfiles, Compose services, or deployed infrastructure are implemented yet.
+## Running and deploying
 
-In deployment, a web server/reverse proxy must serve `frontend/dist`, provide SPA
-fallback for frontend routes, and forward `/api` to the backend. Vite's development
-proxy is not a production server; `vite preview` does not provide the API proxy.
-TLS termination and trusted-proxy configuration require deliberate deployment setup.
+- Development: `npm run dev` starts the backend and the Vite frontend together. Vite forwards `/api` (including the Socket.IO connection) to the backend.
+- Production build: `npm run build` creates `frontend/dist`.
+- In production, a web server or reverse proxy must:
+  - serve `frontend/dist` and send unknown paths to `index.html` (single-page app);
+  - forward `/api` and the WebSocket upgrade at `/api/realtime` to the backend;
+  - provide HTTPS.
+- `vite preview` is not a production server and does not forward the API.
+- If a reverse proxy sits on the same host, set `TRUSTED_PROXY=loopback` so each client gets its own login rate limit.
+- There are no Dockerfiles yet. The repository root would be the build context because both workspaces share one lockfile. Configuration must be injected at runtime, never baked into an image.
 
-## Dependency configuration references
+## Dependency notes
 
-- [Vite guide](https://vite.dev/guide/)
-- [Tailwind Vite integration](https://tailwindcss.com/docs/installation/using-vite)
-- [Prisma configuration reference](https://www.prisma.io/docs/orm/v7/reference/prisma-config-reference)
-
-Prisma 7 uses its config file for the connection URL. A stable 7.x version is used;
-the registry's Prisma 8 release candidate is not part of this foundation.
-
-Root npm overrides pin two Prisma tooling dependencies to patched versions:
-`deepmerge-ts` 8.0.2 and `mysql2` 3.24.5. These address
-[recursive merge exhaustion](https://github.com/advisories/GHSA-ggr8-5vv4-36mx),
-[MySQL authentication downgrade](https://github.com/advisories/GHSA-3f6p-5ww8-9rcr),
-and [compressed protocol exhaustion](https://github.com/advisories/GHSA-rgwj-5xj2-c3m3).
-MySQL is not an application database; that package is a transitive Prisma CLI
-dependency. The deepmerge major release changes Map merging and TypeScript types;
-this project's CLI configuration uses plain objects. Format/validation are checked
-with the override. Recheck migration/client compatibility in Phase 2 and remove
-overrides when Prisma incorporates patched dependencies.
+The root `package.json` pins a few transitive Prisma tooling packages
+(`deepmerge-ts`, `mysql2`, `shell-quote`) to patched versions to fix known
+security advisories. MySQL is not used by the application; it is only a
+dependency of the Prisma command-line tool. Remove these overrides once Prisma
+ships the fixed versions itself.

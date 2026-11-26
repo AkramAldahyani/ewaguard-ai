@@ -1,54 +1,56 @@
-# Phase 5A — Password security
+# Password security
 
-The employee-only `/password-security` route provides local password-strength
-analysis and secure password generation. It uses the existing authenticated
-employee route guard. There is no password API, database model, audit event,
-telemetry event, or administrator view.
+## In short
 
-## Analysis architecture
+The **Password Security** page (`/password-security`, employees only) has two tools:
 
-`password-policy.js` is the single policy source. Development defaults require
-14–128 characters with uppercase, lowercase, number, and symbol characters.
-`evaluatePolicy` accepts an alternate policy object so later approved company
-policy integration can replace these values without duplicating validation logic.
+1. **Strength checker**: tells you how strong a password is and how to improve it.
+2. **Password generator**: creates a strong random password.
 
-`analyzePassword` runs zxcvbn locally and combines its 0–4 score, approximate
-slow-hash resistance, warning, and suggestions with the deterministic policy
-result. The UI maps scores to Very weak through Very strong and always describes
-guessing time as an estimate rather than a guarantee. Empty input is not analyzed.
+Both run **entirely in your browser**. A password typed or generated here is
+never sent to the server, never stored in the database, never logged, never sent
+to OpenAI and never shown to administrators. This is a strict project rule.
 
-## Generation architecture
+## Strength checker
 
-`password-generator.js` uses `crypto.getRandomValues`. It performs rejection
-sampling before mapping bytes to characters, avoiding modulo bias, and uses the
-same source for a Fisher–Yates shuffle. One character from each enabled set is
-included before filling the remainder. Ambiguous letters and digits are omitted.
-Generation fails closed if Web Crypto is unavailable, options omit a required
-policy set, or the requested length is invalid. `Math.random` is never used.
+- Uses **zxcvbn**, a well-known open-source library, locally in the browser.
+- Combines zxcvbn's 0–4 score, warnings and suggestions with the company policy check.
+- The score is shown as Very weak → Very strong. The "time to guess" is described as an **estimate**, never a guarantee.
+- Empty input is not analyzed.
 
-The current controls expose a 14–64 character range while the policy accepts up
-to 128. All four character-set options are configurable; disabling an
-organization-required set produces a clear error instead of a noncompliant value.
+Default policy (in `frontend/src/features/password/password-policy.js`):
 
-## Privacy boundary
+| Rule | Default |
+| --- | --- |
+| Length | 14–128 characters |
+| Must include | uppercase, lowercase, number, symbol |
 
-Analyzed and generated values live only in React component state for the mounted
-page. Reset clears both values and visibility state. Route change, logout, refresh,
-or tab closure destroys the mounted state. There is no automatic persistence;
-localStorage and sessionStorage are not used. The module contains no fetch,
-logging, analytics, error-reporting, OpenAI, or backend integration. Clipboard use
-occurs only after the employee selects Copy and includes guidance to clear the
-clipboard after saving the password.
+The policy is one object, so an approved company policy can replace it without
+changing the checking code.
 
-The UI advises against testing a password already used for a real account. Browser
-extensions, device compromise, operating-system clipboard history, and memory
-forensics are outside this application boundary, so the application does not claim
-secure erasure of immutable JavaScript strings.
+## Password generator
 
-## Tests
+- Uses the browser's **Web Crypto API** (`crypto.getRandomValues`), which is cryptographically secure. `Math.random()` is never used.
+- Avoids "modulo bias" by rejecting random bytes that would make some characters more likely than others.
+- Guarantees at least one character from each selected set, then shuffles securely (Fisher–Yates).
+- Leaves out look-alike characters (for example `O` and `0`).
+- Length can be set from 14 to 64.
+- If secure randomness is unavailable, or the options cannot meet the policy, it shows an error instead of producing a weak password.
+- The AI never generates passwords.
 
-`npm run test:password` verifies weak/strong differentiation, policy evaluation,
-policy replacement, generated length and required sets, Web Crypto use, failed
-generation without secure randomness, and absence of observable network, storage,
-or console side effects. It also statically rejects weak-randomness, transport,
-storage, and logging APIs in the password module source.
+## Privacy details
+
+- Values live only in the page's memory. Reset, leaving the page, logging out, refreshing or closing the tab clears them.
+- No `localStorage`, `sessionStorage`, network request, analytics or logging is used by this module.
+- Copy to clipboard happens only when the user clicks **Copy**, with a reminder to clear the clipboard afterwards.
+- The page advises not to test a password you actually use.
+- Browser extensions, a compromised device or clipboard history are outside the application's control.
+
+Note: account passwords chosen during account setup or registration are a
+different flow. They are sent to the server once, hashed with bcrypt and must
+score at least 3 in zxcvbn (see [user management](user-management.md)).
+
+## Code and tests
+
+- `frontend/src/features/password/` (policy, analyzer, generator, page)
+- `npm run test:password` checks strength results, policy rules, generator length and character sets, use of Web Crypto, failure without secure randomness, and that the module makes no network, storage or console calls.

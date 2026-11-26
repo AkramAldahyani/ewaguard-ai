@@ -1,287 +1,135 @@
-# Phase 6A1 — Email parsing and evidence
+# Email analyzer
 
-> Phase 7A integration: completed submissions now include server-computed
-> `result.risk` and persist score, severity, model version and confidence/reasons.
-> Analyzer-local findings below remain unchanged. See [Central Risk Engine](risk-engine.md).
-> References to excluded final risk describe the original Phase 6 scope.
+## In short
 
+At **Analyze Email** (`/analyze/email`) an employee can paste a suspicious email
+(body and optional headers) or upload an `.eml` file. The server reads it safely,
+collects warning signs, and the [risk engine](risk-engine.md) gives a score and
+level with advice. HIGH or CRITICAL results automatically create an
+[incident](incidents.md).
 
-Phase 6A1 implements the internal parsing/evidence library. Phase 6A2 adds
-authenticated submission APIs and minimized persistence. Phase 6A3 connects the
-employee portal at `/analyze/email`. No history endpoint, AI, malware scanner,
-central risk engine, or incident creation is added.
+The email is **never opened in a browser**, links are **never visited** and
+attachments are **never opened**. Only a minimized summary is saved.
 
-## Phase 6A3 employee experience
+## Step by step
 
-The existing EMPLOYEE-protected route opens with the mandatory Sensitive Information
-Notice and an unchecked acknowledgement. Only a successful acknowledgement API
-response unlocks the form. Native, keyboard-operable radio controls select
-**Paste Email** or **Upload .eml**. The shared API client sends credentialed JSON
-or multipart requests; it lets the browser generate multipart boundaries and
-preserves the existing session-expiry handling.
+1. The employee accepts the [sensitive-information notice](disclaimers.md) (required, valid 15 minutes).
+2. They choose **Paste Email** or **Upload .eml** and submit.
+3. The server checks: signed in, employee role, trusted origin, rate limit (30 per minute), and the acknowledgement.
+4. The input is parsed with **MailParser**; HTML is read with **htmlparser2** as plain tokens (nothing is executed).
+5. The analyzer collects evidence (see below) and gives a provisional finding.
+6. The risk engine produces the final score, level, confidence, reasons and advice.
+7. A minimized record is saved, and an incident is created if the level is HIGH or CRITICAL.
+8. The page shows the result. Links are shown as plain, non-clickable text.
 
-Paste mode has a required message body and optional raw headers, with UTF-8 byte
-counters and a body character counter. Limits match the backend: 24 KiB body,
-8 KiB headers. Input is never silently truncated. Upload mode supports a normal
-keyboard-accessible picker and drag/drop of exactly one nonempty `.eml`, up to
-1 MiB, with filename, size and removal controls. The browser never reads its
-contents or opens attachments. Frontend checks are UX only; API validation is
-authoritative. Switching modes clears the previous draft.
+## What it checks
 
-The page transitions through idle, validating, submitting, success and error.
-Duplicate submissions are synchronously blocked, controls are disabled while
-submitting, and a live status announces "Analyzing email" without claiming malware
-scanning. A result receives focus and displays:
+**Sender and identity**
+- Missing, malformed, duplicate or multiple `From` addresses
+- `Reply-To` that differs from the sender (different domain or different mailbox)
+- Display names claiming a brand or authority ("PayPal", "IT Support") while the address does not match
+- **Look-alike sender domains** (for example `paypa1` imitating PayPal), when the email also claims that brand
+- International (IDN) domains and unusually many domain parts
+- `Return-Path` is shown for information only and never saved
 
-- Analysis identity, time, subject when available and readable provisional finding.
-- Minimized sender and Reply-To metadata and mismatch evidence.
-- SPF/DKIM/DMARC header claims, including unavailable and conflicting claims,
-  explicitly not independently verified.
-- Indicator categories, titles and evidence notes, without internal weights or regexes.
-- URL origins as non-clickable text, with no previews, favicon requests or domain contact.
-- Attachment names, types, sizes and categories marked **NOT SCANNED**, without
-  open/download actions.
-- Backend-provided deterministic recommendations and visible limitations.
+**Content**
+- Urgency and account threats
+- Password reset, login or credential requests
+- Requests for MFA codes
+- Payments, wire transfers, gift cards and payment-dispute lures
+- Requests to bypass normal process
+- Invitations to open attachments or enable macros
 
-The labels No Strong Indicators, Suspicious and Highly Suspicious are analyzer-local
-findings. They are never mapped to LOW/MEDIUM/HIGH/CRITICAL or represented as a final
-risk score. The UI explicitly explains that final evaluation will use the future
-EWAGuard risk engine. No strong indicators does not guarantee safety. URL reputation
-checking is not included, attachments are not malware-scanned, supplied authentication
-headers may be forged and heuristic checks can miss sophisticated phishing.
+These are simple English-language patterns. They can match innocent text and miss
+clever or non-English wording. Text is normalized first (invisible characters
+removed, wrapped lines joined) so line breaks do not hide phrases.
 
-When the backend requires a renewed acknowledgement (15-minute validity), the page
-clears transient content, explains the renewal requirement and reopens an unchecked
-notice. The employee can acknowledge and resubmit without reloading. Failed
-submissions use fixed, user-friendly messages rather than backend exception text.
-Session expiry follows the existing login redirect. Network/server errors allow retry;
-the UI does not claim a failed submission was stored.
+**Links**
+- Plain HTTP, IP-address hosts, punycode, very long hostnames, embedded credentials, unusual schemes, URL shorteners
+- Link text that shows one address but points to another
+- Only the scheme and host (the "origin") are kept. Paths, query strings and fragments are dropped.
 
-Raw body, headers and file references are cleared on success, reset, mode change,
-acknowledgement expiry and page disposal. Analyze Another Email and Clear Result
-clear the displayed result and errors as well. Requests are aborted on reset/disposal;
-late responses cannot repopulate the page. Aborting a request does not undo an insert
-already completed by the server. The page uses no browser storage, analytics or
-content logging. Normal retry errors keep the draft until retry, clear or navigation.
-Only minimized evidence is stored by the backend; raw uploads are not persisted.
-Transient JavaScript strings cannot be securely erased.
+**Authentication headers (SPF / DKIM / DMARC)**
+- Read from `Authentication-Results` and `Received-SPF` when present.
+- Reported as `HEADER_CLAIM`, `CONFLICTING_CLAIMS` or `UNAVAILABLE`. They are **always marked unverified**, because anyone can forge headers in a pasted or uploaded email.
+- A "pass" never lowers the risk.
 
-Labels, field hints, native mode selection, semantic headings, status/error
-announcements and focus movement support keyboard and assistive-technology use.
-Responsive grids stack on smaller screens and long metadata wraps. The page uses
-the existing design system and reduced-motion styles; no email HTML is injected.
+**Attachments**
+- Name (redacted), claimed type, size and category: executables/scripts, macro-capable files, archives, double extensions, hidden text-direction characters.
+- Every attachment is marked **NOT SCANNED**. Email attachments are not run through ClamAV or YARA; use the [file analyzer](file-analyzer.md) for that.
+- Email links are not looked up on VirusTotal ("NOT CHECKED"); use the [URL analyzer](url-analyzer.md).
 
-`npm run test:email:ui` covers rendered components, the actual page state controller,
-API-client contracts, UTF-8 boundaries, safe results, error mapping, renewal,
-duplicate prevention, reset and stale responses. Portal tests retain employee/admin
-route coverage. Browser automation was unavailable in the Phase 6A3 environment;
-visual layout, actual keyboard interaction and browser-console checks remain
-unverified. A live application HTTP smoke run through the Vite proxy used the real
-frontend client/controller, login, acknowledgement, both modes, benign/suspicious
-messages, malformed/oversized rejection, stored evidence inspection, expiry renewal,
-reset and logout. All disposable database records were removed afterward.
+## Provisional finding vs final risk
 
-## Phase 6A2 API contracts
+The analyzer gives its own quick label: **No Strong Indicators**, **Suspicious**
+or **Highly Suspicious**. This is shown separately and is **not** the final
+result. The final LOW / MEDIUM / HIGH / CRITICAL level always comes from the risk
+engine (current model **1.1**).
 
-- `POST /api/analysis/email/text`: `Content-Type: application/json`, body
-  `{ "body": "Message text", "headers": "From: person@example.invalid" }`.
-  Body is required and nonblank; headers are optional. Only these two string
-  fields are accepted. Unknown fields (including userId, inputType, acknowledgementId
-  and version), invalid types and arrays fail with 400.
-- `POST /api/analysis/email/eml`: `multipart/form-data` with exactly one file
-  field named `file`. No text fields or extra files are accepted.
-- Success: HTTP 201 with `{ analysisId, createdAt, result }`; `result` is the
-  Phase 6A1 display result below, not a database row. All email responses use
-  `Cache-Control: no-store`. No retrieval endpoint is provided in this phase.
+Because email evidence comes from unverifiable content, an email on its own
+cannot reach CRITICAL. It can become CRITICAL only when the employee **confirms
+they entered their credentials** (see [incidents](incidents.md#reporting-entered-credentials)).
 
-Both endpoints reuse the authentication cookie, current DB account status/role,
-EMPLOYEE RBAC and trusted-origin middleware. Administrators (including fully
-MFA-authenticated administrators) cannot submit. The server finds a current-version
-EMAIL_ANALYSIS acknowledgement belonging to the employee and rechecks it with the
-Phase 5B `verifyAcknowledgement` service. Its age must be at most 15 minutes;
-future timestamps are rejected. First use `POST /api/disclaimers/acknowledge` with
-`{ "context": "EMAIL_ANALYSIS" }`. No client-supplied acknowledgement ID or version
-is accepted. The validity window is a named server policy constant.
+## Limits
 
-Order: authentication → role → trusted origin → submission limit → concurrency
-limit → acknowledgement verification → bounded input parsing/validation → analyzer
-→ minimized projection → atomic database insert → safe response.
+| Item | Limit |
+| --- | --- |
+| Pasted body / headers | 24 KiB / 8 KiB (UTF-8 bytes) |
+| `.eml` file | 1 MiB, one file |
+| `.eml` header section | 64 KiB and 1,000 lines |
+| Decoded text + HTML | 2 MiB |
+| Attachments / URLs examined | 20 / 200 |
+| Concurrent analyses | 4 per server; extra requests get 503 |
 
-Pasted limits remain 24 KiB body and 8 KiB headers, measured as UTF-8 bytes. This
-route alone permits a JSON envelope up to 197,632 bytes (sixfold JSON escaping plus
-1 KiB overhead); all other JSON routes retain 32 KiB. Compressed email JSON is
-rejected. EML is limited to exactly 1,048,576 bytes, with RFC822/MIME complexity
-bounds from 6A1. Multer memory storage is used only on the EML route, after access
-and acknowledgement checks. File count, field count and part count are bounded.
-The original filename is used only to check `.eml` (case-insensitive), never as a
-path or persisted metadata. Allowed claimed MIME types are `message/rfc822`,
-`application/octet-stream`, and `text/plain` for common client fallbacks. Regardless
-of MIME, the existing RFC822 shape validation and MailParser processing must pass.
-Renamed arbitrary content fails those checks; a deliberately RFC822-shaped file
-can pass. This is not perfect type detection or malware scanning.
+Input is never silently cut short: oversized input is rejected.
 
-The shared limiter permits **30 submissions per employee per minute**, counting
-invalid attempts after authorization. Both modes share the budget. At most four
-email requests may buffer/analyze concurrently per app instance; additional work
-gets 503. Rate-limited work gets 429 with Retry-After. Limits use process-local
-state like the existing limiters; multiple replicas would need a shared limiter
-and deployment-level connection/time/body limits.
+## What is saved
 
-Errors use the existing `{ error: { code, message } }` format: 401 anonymous or
-inactive session; 403 wrong role/origin/missing current acknowledgement; 400 invalid
-input, malformed JSON/EML or parser rejection; 413 oversized content; 415 unsupported
-content type/encoding; 429 rate limit; 503 busy; 500 unexpected or persistence failure.
-Neither error bodies nor operational logs contain raw input or exception details.
-No successful response is returned unless the database insert succeeds.
+One database insert with: owner, acknowledgement, indicator codes, provisional
+finding, input mode, unverified authentication states, counts, attachment
+categories and sizes, and the risk result. Records expire after 30 days by
+default (see [privacy and retention](privacy-and-retention.md)).
 
-## Phase 6A2 storage and privacy
+**Not saved:** the body, headers, subject, addresses, links, attachment names or
+bytes. The displayed result additionally hides likely secrets (labeled
+passwords, tokens, keys) and masks email address local parts.
 
-The existing `email_analyses` model is reused without schema changes or migrations.
-A single atomic `create` assigns the authenticated employee and server-verified
-acknowledgement, COMPLETED status, timestamps, and `minimizeEmailEvidence(result)`
-in `evidence`. That projection includes analyzer/version, PASTED/EML input mode,
-provisional classification, indicator IDs, unverified authentication states,
-counts and attachment categories/sizes for future deterministic risk evaluation.
-Sender/reply-to domains remain null. Phase 7A fills final risk fields and adds a minimized risk snapshot to evidence. Display results are
-returned only in the response; they are not stored.
+## API
 
-No raw body, headers, EML, HTML, attachment bytes, subject, address, URL, attachment
-filename or submitted free text enters persistence. This excludes secret/password
-strings without relying on best-effort redaction. No new content logging is added;
-existing authorization and generic error logs retain only fixed categories/IDs.
-Upload buffers are cleared after processing; JavaScript strings and parser copies
-remain transient and cannot be reliably erased. No upload is written to disk.
+| Method | Endpoint | Body |
+| --- | --- | --- |
+| POST | `/api/analysis/email/text` | JSON `{ "body": "...", "headers": "..." }` |
+| POST | `/api/analysis/email/eml` | multipart with one field named `file` |
 
-Records receive `expiresAt` 30 days after analysis. This is expiry metadata only:
-there is no automatic cleanup scheduler in this phase. Operators must enforce
-retention through the deployment's cleanup process, including backups. Existing
-acknowledgement foreign keys and ownership/context triggers remain in effect.
-The pgvector HNSW index is unchanged.
+Success: HTTP 201 `{ analysisId, createdAt, result }`. The page also sends an
+`Idempotency-Key` so a retry after a network error returns the saved result
+instead of analyzing twice. Errors use `{ error: { code, message } }`: 400 bad
+input, 401 not signed in, 403 wrong role/origin or missing acknowledgement, 413
+too large, 415 wrong type, 429 too many requests, 503 busy.
 
-`npm run test:email:api` performs real PostgreSQL and loopback HTTP integration
-checks, including employee login, acknowledgement, both submissions, stored row
-inspection, malformed/admin rejection and logout. Fixtures and analysis rows are
-deleted afterward. Parser/write failures use explicit injected test dependencies;
-ordinary parsing, auth and persistence tests use the real implementations.
+## Example: a real phishing email
 
-## Internal contract
+A reported PayPal-style phishing email first scored **19 / LOW** under the original
+model. Investigation found missing checks: no look-alike sender detection, no
+email shortener rule, PayPal missing from the brand list and no payment-dispute
+pattern. After the fixes (model 1.1) the same kind of email scores **67 / HIGH**:
 
-Call `analyzeEmail` from `backend/src/analyzers/email/email-analyzer.js` with one mode:
+| Evidence | Points |
+| --- | ---: |
+| Sender domain imitating the claimed brand | 25 |
+| Reported authentication failure | 15 |
+| Payment-dispute instruction | 15 |
+| URL shortener | 8 |
+| Urgency | 4 |
+| **Total** | **67 → HIGH** |
 
-```js
-await analyzeEmail({ inputType: 'PASTED', body: 'Message text', headers: 'From: user@example.invalid' });
-await analyzeEmail({ inputType: 'EML', eml: Buffer.from(rawRfc822Message) });
-```
+A sanitized reconstruction of this email is a permanent test
+(`backend/tests/fixtures/reported-paypal-phishing.eml`). Older saved results keep
+their original model version and are not rescored.
 
-Extra fields, mixed modes, wrong types and empty messages are rejected. Pasted body
-remains separate from parsed headers: a supplied base64/MIME header cannot reinterpret
-ordinary pasted text. MIME messages use MailParser. HTML is tokenized with htmlparser2
-to extract text and anchor destinations; no browser is involved and nothing is executed.
-Both plain text and HTML alternatives contribute evidence. Bodies and attachment bytes
-are transient only and are not returned by the analyzer.
+## Code and tests
 
-## Bounds and error contract
-
-`email-policy.js` defines byte limits: pasted body 24 KiB, headers 8 KiB, EML 1 MiB,
-decoded text plus HTML 2 MiB. An exported EML carries relay and provider headers, so its
-header section may be up to 64 KiB and 1,000 lines. Other bounds: pasted header lines (100), Content-Type
-declarations (100), MIME delimiter lines (200), attachments (20), URL candidates
-(200), URL length (2,048 characters), and returned unique origins (50).
-
-Oversized inputs are rejected before MailParser; decoded size and attachment count
-are checked afterward. HTML-to-text generation, text-to-HTML generation, automatic
-linkification and CID-to-data-URL conversion are disabled in MailParser. It buffers
-attachments within the bounded input; no archives or attached messages are opened.
-Inputs with malformed headers or missing multipart closing boundaries are rejected.
-MailParser remains lenient about some other damaged MIME. This is deliberately a
-bounded supported subset, not a full RFC validator or a malware sandbox.
-
-Failures use `EmailAnalysisError` with fixed codes/messages: INVALID_EMAIL_INPUT,
-EMAIL_INPUT_TOO_LARGE, MALFORMED_EMAIL, EMPTY_EMAIL, EMAIL_PARSE_FAILED. Original
-parser exceptions and submitted content are not included. The limits are resource
-controls, not a hard CPU deadline. Phase 6A2 also bounds request concurrency and
-rate, with a route-specific JSON cap compatible with these decoded limits.
-
-## Evidence and provisional findings
-
-Sender checks cover unavailable or malformed addresses, duplicate/multiple From,
-Reply-To differences, brand/authority display-name claims, display-address mismatch,
-internationalized domains and numerous domain labels. Display-name claims are only
-possible impersonation signals. Local-part comparison is conservative and may flag
-legitimate aliases.
-
-Content checks cover urgency/account threats, password reset, credential/login
-requests, payments/wire transfers, gift cards, MFA-code requests, process bypass,
-and attachment/macro invitations. These transparent English-language patterns can
-match legitimate or negated statements and miss paraphrases or other languages.
-Phrases are matched after removing invisible characters and folding line wraps, so text
-wrapped by a mail client or split in HTML source is still found. Blank lines, list items
-and quoted lines in plain text keep sentences apart.
-
-URL evidence covers HTTP, IP hosts, punycode, many hostname labels, embedded credentials,
-unsupported schemes, and URL-label/destination mismatch. Link text counts as a claimed
-destination when it is a URL or a bare hostname with a common top-level domain; `www.` and
-subdomains of the claimed host are not a mismatch. Telephone links are ignored. No URL is visited, including
-private addresses. Only canonical origins are returned; credentials, paths, query
-parameters, fragments and link labels are omitted. Duplicate origins are collapsed.
-An extraction-limit indicator makes incomplete URL coverage explicit. Hidden CSS,
-images, obfuscation, relative links and complex browser rendering are not analyzed.
-
-Each indicator carries a stable ID, category, fixed explanation and local weight.
-`NO_STRONG_INDICATORS` is the default. Any weight >= 2, or sum >= 3, gives SUSPICIOUS.
-A sum >= 7 across at least two positive-weight categories gives HIGHLY_SUSPICIOUS.
-An urgency word alone does not produce SUSPICIOUS. Repeated instances of a rule do
-not multiply its weight. Thresholds are provisional heuristics, not empirically
-calibrated accuracy claims. No LOW/MEDIUM/HIGH/CRITICAL severity, risk score, incident
-or escalation is produced. Rules are versioned `6A1.1` for later Risk Engine use.
-
-## Authentication and attachment limitations
-
-Authentication-Results and Received-SPF can supply claimed SPF/DKIM/DMARC results.
-Comments and quoted strings are excluded before extracting method=result clauses.
-Multiple differing values are CONFLICTING_CLAIMS; absent/unparseable results are
-UNAVAILABLE. A single recognized result has status HEADER_CLAIM and a separate
-claimedResults array. `verified` is always false. All submitted headers can be
-forged; no trusted inbound mail-server boundary exists. DKIM-Signature and ARC
-presence are booleans and never imply a successful verification.
-
-Attachment metadata includes redacted filename, claimed content type, extension,
-decoded size and category. Executables/scripts, macro-capable files, archives,
-double extensions and text-direction controls produce indicators. Extensions and
-MIME types are untrusted metadata, not file-content detection. Every attachment
-reports NOT_SCANNED; ClamAV/YARA and secure general file analysis belong to 6C.
-
-## Privacy and persistence handoff
-
-The returned result has redacted display names/subjects/filenames, masked address
-local parts, recipient counts and a Message-ID presence flag. It excludes the raw
-message, headers, recipients, Message-ID value, body excerpts and attachment bytes.
-Display redaction recognizes labeled credentials, bearer tokens, some key formats,
-private-key blocks and long token-like strings. It removes control/bidi characters.
-It can miss short, unlabeled or obfuscated secrets and can over-redact ordinary text.
-Treat even redacted display results as sensitive; never log or blindly persist them.
-
-`minimizeEmailEvidence(analyzerResult)` is the separate allow-listed persistence
-projection for 6A2: fixed indicator IDs, provisional finding, input type, unverified
-authentication states, counts and attachment categories/sizes. It omits **all**
-submitted free text, including sender domains, origins, filenames, and subject.
-It takes trusted analyzer output, never an arbitrary client-provided result.
-Phase 6A2 persists this projection only. Immutable JavaScript strings cannot be securely erased.
-
-## Phase status
-
-6A1, 6A2 and 6A3 are implemented. The separate [Phase 6B URL analyzer](url-analyzer.md)
-is implemented; email URL enrichment remains deferred. The separate
-[Phase 6C file analyzer](file-analyzer.md) is implemented; email attachments remain NOT_SCANNED.
-
-## Validation and references
-
-`npm run test:email` exercises benign/suspicious synthetic messages, authentication
-claims, safe MIME attachments, HTML links, privacy projection and rejection paths.
-It is also included in `npm test`. Fixtures contain harmless text, never malware.
-
-MailParser API and its HTML-safety limitations:
-[official MailParser documentation](https://nodemailer.com/extras/mailparser).
-
-Upload middleware: [official Multer documentation](https://expressjs.com/en/resources/middleware/multer/).
-Multer 2.4.0 is the installed minimum for this phase.
+- `backend/src/analyzers/email/` and `backend/src/analyzers/domain-indicators.js`
+- `backend/src/routes/email-analysis.js`
+- `frontend/src/features/email/`
+- Tests: `npm run test:email`, `npm run test:email:api`, `npm run test:email:ui`, `backend/tests/email-phishing-regression.test.js`

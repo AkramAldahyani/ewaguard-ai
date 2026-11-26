@@ -1,121 +1,100 @@
-# Monthly Cybersecurity Awareness Quizzes — November 2026 to October 2027
+# Monthly cybersecurity quizzes: November 2026 to October 2027
 
-> **Administrator and developer material.** This document contains every answer key. Do not publish it to employees.
+> **Administrators only.** This page contains every correct answer. Do not share it with employees.
 
-Twelve monthly quizzes reinforce the seven TC1–TC4 training courses. They use the existing Phase 11C monthly quiz system unchanged: authoring, approval, publication, server-side scoring, attempt limits, best-score history and Awareness Analytics. There is no new quiz engine, scheduler, schema or migration.
+## In short
 
-**Status (local development database):** all 12 exist as **DRAFT** monthly quizzes, created by `admin@ewa.bh`. None has been approved, published or attempted.
+There are **twelve monthly quizzes**, one per month, that reinforce the seven
+[training courses](training-courses.md). Each quiz has **15 one-point questions**
+(10 multiple choice with four options, 5 true/false), so 180 questions in total.
+They use the normal monthly quiz system described in
+[training and quizzes](training-and-quizzes.md).
 
 ## Calendar
 
-| Month | Period | Title | Based on | Questions |
-| --- | --- | --- | --- | --- |
-| November 2026 | `2026-11` | Spot the Phishing Attempt | Phishing Awareness | 10 MC + 5 T/F |
-| December 2026 | `2026-12` | Browse Safely Online | Safe Browsing | 10 MC + 5 T/F |
-| January 2027 | `2027-01` | Protecting Personal Information | Data Privacy | 10 MC + 5 T/F |
-| February 2027 | `2027-02` | Security Starts at the Workplace | Physical Security | 10 MC + 5 T/F |
-| March 2027 | `2027-03` | Recognize It, Report It | Reporting Security Incidents | 10 MC + 5 T/F |
-| April 2027 | `2027-04` | Working Securely Anywhere | Secure Remote Work | 10 MC + 5 T/F |
-| May 2027 | `2027-05` | Using AI Responsibly | Responsible AI | 10 MC + 5 T/F |
-| June 2027 | `2027-06` | Phishing, Links & Online Scams | Phishing Awareness + Safe Browsing | 10 MC + 5 T/F |
-| July 2027 | `2027-07` | Privacy in the Age of AI | Data Privacy + Responsible AI | 10 MC + 5 T/F |
-| August 2027 | `2027-08` | Keeping Work Secure Everywhere | Physical Security + Secure Remote Work | 10 MC + 5 T/F |
-| September 2027 | `2027-09` | Recognize and Respond to Threats | Phishing Awareness + Reporting Security Incidents | 10 MC + 5 T/F |
-| October 2027 | `2027-10` | Cybersecurity Awareness Challenge | All seven courses | 10 MC + 5 T/F |
+| Month | Period | Title | Based on |
+| --- | --- | --- | --- |
+| November 2026 | `2026-11` | Spot the Phishing Attempt | Phishing Awareness |
+| December 2026 | `2026-12` | Browse Safely Online | Safe Browsing |
+| January 2027 | `2027-01` | Protecting Personal Information | Data Privacy |
+| February 2027 | `2027-02` | Security Starts at the Workplace | Physical Security |
+| March 2027 | `2027-03` | Recognize It, Report It | Reporting Security Incidents |
+| April 2027 | `2027-04` | Working Securely Anywhere | Secure Remote Work |
+| May 2027 | `2027-05` | Using AI Responsibly | Responsible AI |
+| June 2027 | `2027-06` | Phishing, Links & Online Scams | Phishing Awareness + Safe Browsing |
+| July 2027 | `2027-07` | Privacy in the Age of AI | Data Privacy + Responsible AI |
+| August 2027 | `2027-08` | Keeping Work Secure Everywhere | Physical Security + Secure Remote Work |
+| September 2027 | `2027-09` | Recognize and Respond to Threats | Phishing Awareness + Reporting Security Incidents |
+| October 2027 | `2027-10` | Cybersecurity Awareness Challenge | All seven courses |
 
-Each quiz has 15 one-point questions (10 multiple choice with four options, 5 true/false), 180 in total.
+## Settings and design
 
-**Settings:**
-- **80% to pass and 3 attempts**, the existing authoring defaults.
-- **Availability window:** the whole UTC month, from 00:00 UTC on the 1st to 00:00 UTC on the 1st of the next month. That is 03:00 to 03:00 Bahrain time.
+- **80% to pass, 3 attempts.**
+- **Open for the whole UTC month**: from 00:00 UTC on the 1st to 00:00 UTC on the 1st of the next month (03:00 to 03:00 Bahrain time).
+- Each quiz has 4–5 practical "what would you do" questions; the rest are beginner level.
+- Correct answers appear in different positions, and every quiz uses both True and False.
+- No question is repeated across months or copied from a course quiz.
+- Each question has a topic tag (such as `PHISHING`, `MFA`, `USB_SECURITY`) for awareness analytics. Remote-work and AI questions use `OTHER`.
+- Explanations are shown to employees only after they submit.
 
-**Content design:**
-- **Difficulty:** each quiz has 4 or 5 practical-application questions; the rest are beginner level.
-- **Answer positions:** correct answers vary in position, and every quiz uses both True and False.
-- **No repetition:** no question repeats across months, and none copies a course-quiz question.
-- **Topics:** each question carries the closest existing topic value (such as `PHISHING`, `MFA`, `USB_SECURITY` or `SOCIAL_ENGINEERING`), which Awareness Analytics can use. Remote-work and AI questions without a closer fit use `OTHER`, because no dedicated topic exists.
+The questions live in `backend/src/training/content/monthly-quizzes-mq1.js`
+(November–April) and `monthly-quizzes-mq2.js` (May–October), combined in
+`monthly-quizzes.js`.
 
-**Source files:**
-- `backend/src/training/content/monthly-quizzes-mq1.js` (November–April)
-- `backend/src/training/content/monthly-quizzes-mq2.js` (May–October)
-- Combined in `monthly-quizzes.js`.
-
-The source also records each question's originating course and difficulty level. The engine does not store those fields. Explanations are stored and are shown to employees only after they submit.
-
-## Provisioning (development only)
+## Creating the drafts
 
 ```bash
 npm run monthly:provision -- --period all --admin-email <administrator email>
 npm run monthly:provision -- --period 2027-03 --admin-email <administrator email>
 ```
 
-`backend/scripts/provision-monthly-quizzes.js` calls `provisionMonthlyQuiz` (`backend/src/training/monthly-quiz-provisioning.js`), which uses the existing `createMonthlyQuizService().create` service. That means the same validation, one-quiz-per-month constraint and `MONTHLY_QUIZ_CREATED` audit records as the administrator API.
+The command refuses to run in production, needs an active administrator with MFA,
+skips any month that already has a quiz, and **only creates drafts**: it never
+approves, publishes or assigns.
 
-The command:
-- refuses `NODE_ENV=production`;
-- requires an active, MFA-enrolled `IT_SECURITY_ADMIN`, using the same check as course provisioning;
-- leaves any month that already has a quiz completely unchanged, whatever its state, and reports it;
-- never approves, publishes, assigns or creates attempts.
+## Publishing each month (manual)
 
-**Local result:** all 12 months were created once. A rerun reported every month as already existing and changed nothing.
+There is **no automatic publishing**. For each month:
 
-## Administrator review and publication
+1. Sign in with MFA and open **Monthly Quizzes** (`/admin/monthly-quizzes`).
+2. Open the month and check the questions, topics and answer-key preview. Drafts can still be edited.
+3. Click **Approve**, then **Publish**, **before the month ends** (ideally on or before the 1st). Publishing is refused after the closing time.
+4. Optionally **Archive** after the month to stop new attempts. Submitted results stay.
 
-**There is no automatic or scheduled publishing.** Each month must be handled manually:
+A future month can be published early; employees then see it as **Upcoming**
+until it opens.
 
-1. Sign in with MFA and open **Monthly Quizzes** (`/admin/monthly-quizzes`). Filter by month or status.
-2. Open the month and review its questions, topics and answer-key preview. A draft can still be edited. Approved or published content is read-only.
-3. Click **Approve**, then **Publish**. Publishing is refused once the closing time has passed. So publish a month before it ends, ideally on or before the 1st.
-4. Optionally, use **Archive** after the month to stop any new attempts. Submitted results remain.
+## What employees see
 
-A future month can be published early. It then appears to employees as **Upcoming** and only opens at its opening time. If you'd rather not show future quizzes, publish each month near its start.
+- Published quizzes are available to all active employees. **Upcoming** before the window, **Open** during it, **Closed** after.
+- Questions are shown without answers; the server scores the submission.
+- After submitting, employees see the correct options and explanations.
+- History shows their best score each month and the change from their previous recorded month.
+- Monthly quizzes never change course progress or issue certificates.
 
-## Employee availability
+## Check before publishing
 
-Published monthly quizzes are available to all active employees; there is no per-employee assignment step. An employee's monthly assignment is created automatically when they first start the quiz.
-- Before the window, the quiz is **Upcoming**. During it, it is **Open**. After it, it is **Closed**.
-- Questions are shown without answers. Answers are scored by the server on submission, with up to 3 attempts.
-- Results show the correct options and explanations after submission.
-- Draft and approved-but-unpublished quizzes are invisible to employees.
+The questions use general wording such as "approved channel", "approved tools"
+and "your organization's policy". Confirm that:
 
-## History and analytics
+- staff know the approved reporting channels;
+- answers about approved storage, collaboration, AI and remote-access tools match current policy;
+- any answer about Ask EWAGuard AI's external processing still matches its privacy notice.
 
-- **Employee history:** an employee's **history** shows, for each month, their best submitted score. It also shows the point change from their previous recorded month. No trend is shown for the oldest month.
-- **Admin monthly report:** participation (started versus submitted) and attempt scores.
-- **Awareness Analytics:** monthly participation, best-score averages, month-by-month trends and topic tags.
-- **Separate from courses:** monthly quizzes never change course progress or issue certificates.
+## Limitations
+
+- Publishing is manual and must happen before each month closes.
+- The availability window follows UTC.
+- The course and difficulty metadata in the source files is not stored in the database.
+- Because the drafts already occupy their months, a different quiz for one of those months means editing that draft (while it is still a draft).
 
 ## Tests
 
-- `backend/tests/monthly-quiz-content.integration.test.js` covers:
-  - the calendar, titles and course mapping;
-  - 15 questions per quiz (10 multiple choice, 5 true/false);
-  - a single correct answer per question, and varied answer positions;
-  - no duplicate questions across all 180, and no copies of course-quiz questions;
-  - no invented contacts, products, legal details or guarantees;
-  - admin-only, MFA-enforced and idempotent provisioning;
-  - draft-only creation, and published quizzes never being overwritten;
-  - answer secrecy before submission, and scoring (73.33% fails, 80% passes);
-  - history and analytics results;
-  - no course progress or certificate changes.
-
-  It runs on synthetic copies in unused 2094 months, with the application clock pinned inside March 2094, so it never touches the real drafts.
-- `backend/tests/monthly-quiz.integration.test.js` also pins its clock, to June 2093. It used to need the real current month to be free, so it would have failed every month once these real drafts existed. Its assertions are unchanged.
-
-## Organizational review before publication
-
-The questions use general wording such as "approved channel", "approved tools" and "your organization's policy". They do not state EWA contacts, procedures, approved AI products, remote-access technology or PDPL obligations. Before publishing, confirm that:
-- the approved reporting channels are known to staff;
-- answers about approved storage, collaboration tools, AI tools and remote access match current policy;
-- any monthly answer about Ask EWAGuard AI's external processing still matches its privacy notice at the time of publication.
-
-## Known limitations
-
-- Publication is manual, and each month must be published before its closing time.
-- The availability window follows UTC.
-- Browser visual verification has not been performed.
-- The source's course and difficulty metadata is not stored in the database.
-- The real drafts occupy their months, so a different quiz for one of those months would require editing that draft (while it is still a draft) rather than creating a new one.
+`backend/tests/monthly-quiz-content.integration.test.js` checks the calendar,
+question counts and types, single correct answers, varied answer positions, no
+duplicates, no invented contacts or legal details, administrator-only provisioning,
+answer secrecy, scoring (73.33% fails, 80% passes), history and analytics. It works
+on copies in unused 2094 months, so it never touches the real drafts.
 
 ## Questions and answer key
 

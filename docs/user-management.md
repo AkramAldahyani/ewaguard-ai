@@ -1,171 +1,127 @@
-# User Management A: secure account lifecycle
+# User management
 
-Phase A adds real PostgreSQL-backed administrator APIs. Phase B provides the
-directory and account-controls UI; see [Phase B recovery and validation](user-management-phase-b.md).
-Phase C adds the database-backed administrator profile experience; see
-[Phase C profiles and validation](user-management-phase-c.md).
-Phase D completes controlled demonstration onboarding; see
-[secure manual setup and activation](user-management-phase-d.md).
-No employee data or statistics are mocked by the APIs.
+## In short
 
-## Authorization and session policy
+Administrators manage accounts at **Users** (`/admin/users`). They can search the
+directory, view a person's profile, add employees, edit details, change status or
+role, delete (soft-delete) accounts, and share sign-up invite links. Everything is
+backed by real database records; nothing is mocked.
 
-All `/api/admin/users` endpoints require the existing authenticated administrator
-session with verified MFA and a trusted browser origin. Every mutation additionally
-requires a successful sign-in within the previous five minutes; sign out and sign
-in with MFA again when `USER_REAUTH_REQUIRED` is returned. Authority, account
-status, MFA proof, expiry, revocation, and session version are rechecked inside the
-mutation transaction. Reads are limited to 120 requests/minute per administrator,
-writes to 30/minute; setup submission is limited to 20 attempts/15 minutes per IP.
+## Who can do what
 
-Account mutations use a PostgreSQL transaction-level advisory lock and row locks.
-This serializes last-administrator checks across API workers. An administrator
-cannot disable, delete, or change their own role. Removing another active admin
-requires at least one other active, password-provisioned, MFA-enrolled admin.
-Concurrent administrators cannot disable each other using stale authorization.
+- Only an `IT_SECURITY_ADMIN` with completed MFA can use these features.
+- **Any change** (create, edit, status, role, delete) also requires that the administrator signed in **within the last 5 minutes**. If not, the API returns `USER_REAUTH_REQUIRED`; sign out and sign in again with MFA.
+- An administrator **cannot** disable, delete or change the role of their own account.
+- The last active, MFA-enrolled administrator cannot be removed or demoted, so the system can never be left without an administrator. A database lock makes this safe even if two administrators act at the same time.
 
-`sessionVersion` is embedded in signed access tokens and checked on every protected
-HTTP request and real-time validation. Status and role changes, email changes,
-setup completion, and soft deletion increment it. Reactivation never revives an
-old token. Old tokens without a version are accepted only while the account's
-version remains zero. Local sockets are disconnected after account mutations;
-other workers use the existing database revalidation before dispatch and polling.
+## Account lifecycle
 
-## API contract
+```text
+INVITED (setup pending) ──setup completed──► ACTIVE ◄──► SUSPENDED
+                                               │  ▲
+                                               ▼  │
+                                          DEACTIVATED
+Any state ──delete──► DELETED (soft delete, kept for history)
+```
 
-All responses use `Cache-Control: no-store`. Use JSON POST requests, consistent
-with the existing application's mutation routes and CORS policy.
+- New employees start as **INVITED**. Even if "Active" is chosen, the account stays INVITED until the person sets a password.
+- **Suspend / deactivate** blocks sign-in immediately and ends existing sessions.
+- **Delete** is a soft delete: sign-in is disabled; password, MFA and setup data are erased; but the person's identity and all their incidents, analyses, training, certificates, posts and audit records are **kept**. Deleted accounts cannot be reactivated, and their email/employee ID cannot be reused.
+- New accounts can only be created with the EMPLOYEE role. Promotion to administrator is a separate action, requires a fully set-up active account, ends the person's sessions and forces MFA enrollment at next sign-in. Role changes wipe old MFA material.
 
-| Method | Endpoint | Behavior |
+## Editing safely
+
+Every change must include `expectedUpdatedAt`, copied from the latest account data.
+If someone else changed the account in the meantime, the API returns **409
+`USER_CONFLICT`** and the interface offers to reload. This prevents two
+administrators from silently overwriting each other.
+
+## The directory and profiles
+
+- **Directory**: search by name, email, employee ID or exact user ID; filter by department, role and status; sort by name, created date or last login; 20 per page (max 100). Deleted accounts are hidden unless the `DELETED` status filter is chosen.
+- **Summary cards** count total, active, inactive, invited, suspended, deleted and administrator accounts (independent of the filters).
+- **Profile panel** (`GET /api/admin/users/:id/profile`) shows identity, status, last login, MFA/setup state, numbers of email/URL/file analyses, incident counts with the five latest, training progress, monthly quiz participation, certificates and recent sign-in events.
+- The profile **never** includes password hashes, tokens, MFA secrets, chat messages, analysis contents, incident descriptions, quiz answers or audit details.
+
+## Setting up a new employee's password
+
+There is no email delivery. Two ways exist to let a new person set their password:
+
+### 1. Setup link (demonstration mode only)
+
+1. In `.env` set `NODE_ENV=development` and `DEMO_ACCOUNT_SETUP_ENABLED=true`, then restart the backend. (Production refuses to start with this enabled.)
+2. As an MFA-signed-in administrator, add the user with status "Setup pending" and click **Copy Setup Link**.
+3. Verify the person's identity and hand them the link directly. Open it in a separate or private browser.
+4. The person chooses a strong password, then signs in normally.
+
+How the link is protected:
+
+- The token is 256 random bits, valid for **24 hours**, usable **once**. Only its SHA-256 hash is stored.
+- It travels in the URL **fragment** (`/account-setup#token=...`), which browsers do not send to servers, and the page removes it from the address bar immediately.
+- Generating a new link invalidates the old one. Changing the email, suspending, deactivating or deleting the account cancels it.
+- Validation and setup share a limit of 20 attempts per 15 minutes per IP and always give the same generic "invalid link" message.
+- Passwords must be 12+ characters, at most 72 bytes (bcrypt's limit) and score at least 3 ("Strong") in zxcvbn. Setup does **not** sign the person in; they sign in afterwards.
+
+### 2. Invite links (self-registration)
+
+From **User Management → Invite Link**, an administrator (recent MFA sign-in) can
+create a shareable link. Anyone holding it can create **one EMPLOYEE account** at
+`/register#token=...`.
+
+- Settings: expiry (1 hour to 7 days), use limit (1–200), department, optional email-domain restriction. Links can be revoked.
+- Only a hash of the token is stored and the link is shown once.
+- Registration uses the same password rules, does not sign the person in, is rate-limited and is audited (`REGISTRATION_INVITE_CREATED`, `REGISTRATION_INVITE_REVOKED`, `USER_SELF_REGISTERED`).
+- **Trade-off:** the link does not prove who the person is. Share it only with intended people and prefer short expiry, a low use limit and a domain restriction.
+- Set `REGISTRATION_INVITES_ENABLED=false` to turn the feature off.
+
+## Who did what (traceability)
+
+- Incidents show the **reporter** (employee) and the **assignee** (investigating administrator) separately. Timeline events and notes show their own actor.
+- Security analytics lists recent analyses with the owning user.
+- The **Audit Logs** page (`/admin/audit`) lists log IDs, actor names and roles, actions, times, outcomes and related record IDs. Raw audit metadata is never shown. A missing actor is shown as **System** only for known automated actions; otherwise **Unknown User**.
+- Names and departments shown are **current** values, not historical snapshots.
+
+## API summary
+
+| Method | Endpoint | Purpose |
 | --- | --- | --- |
-| GET | `/api/admin/users` | Paginated directory |
-| GET | `/api/admin/users/summary` | Database counts, independent of directory filters |
-| GET | `/api/admin/users/options` | Departments, supported roles and account states |
-| GET | `/api/admin/users/:id` | Safe account information, including retained deleted accounts |
-| GET | `/api/admin/users/:id/profile` | Safe account, security, incident, training, quiz, and certificate summary |
-| POST | `/api/admin/users` | Create an employee and optionally issue initial setup token |
-| POST | `/api/admin/users/:id/update` | Edit identity and department |
-| POST | `/api/admin/users/:id/status` | Activate, deactivate, or suspend |
-| POST | `/api/admin/users/:id/role` | Explicit privileged role change |
-| POST | `/api/admin/users/:id/setup` | Replace an unused initial setup token |
-| POST | `/api/admin/users/:id/delete` | Retention-preserving soft deletion |
-| POST | `/api/auth/setup` | Consume a setup token and set initial password; no session issued |
-| POST | `/api/auth/setup/validate` | Check link eligibility without consuming it or disclosing account identity |
+| GET | `/api/admin/users` | Directory (filters, sorting, pages) |
+| GET | `/api/admin/users/summary` | Counts |
+| GET | `/api/admin/users/options` | Departments, roles, statuses for forms |
+| GET | `/api/admin/users/:id` | Safe account details |
+| GET | `/api/admin/users/:id/profile` | Profile summary |
+| POST | `/api/admin/users` | Create employee |
+| POST | `/api/admin/users/:id/update` | Edit name, email, employee ID, department |
+| POST | `/api/admin/users/:id/status` | Activate, suspend, deactivate |
+| POST | `/api/admin/users/:id/role` | Change role |
+| POST | `/api/admin/users/:id/setup` | New setup link |
+| POST | `/api/admin/users/:id/delete` | Soft delete (requires typing the employee ID to confirm) |
+| GET/POST | `/api/admin/invites`, `/api/admin/invites/:id/revoke` | Invite links |
 
-Directory filters: `search`, `departmentId`, `role`, `status`, `sort`, `direction`,
-`page`, `pageSize`. Search matches case-insensitive partial first/last names,
-multiword full names, email, employee identifier, or an exact internal UUID.
-Sorting supports `name` (surname then first name), `createdAt`, and `lastLoginAt`,
-with `asc`/`desc` and an ID tiebreaker; missing last login sorts last. Default page
-size is 20, maximum 100. Unknown or repeated filters are rejected. Responses have
-`items`, `total`, `page`, `pageSize`, and `hasMore`.
+Limits: 120 reads and 30 writes per minute per administrator. All responses are `no-store`.
 
-Deleted accounts are excluded by default; use `status=DELETED` to retrieve them.
-Summary `total`, `active`, `inactive`, and `administrators` exclude deleted users.
-`inactive` counts DEACTIVATED accounts; separate `invited`, `suspended`, and
-`deleted` counts preserve the distinction between supported lifecycle states.
+## Audit events
 
-Create requires `firstName`, `lastName`, `email`, and an existing `departmentId`.
-Optional `employeeIdentifier` is distinct from the immutable database UUID;
-letters, digits, periods, hyphens, and underscores are accepted, normalized to
-uppercase, and unique when supplied. Email is normalized to lowercase. Identity
-uniqueness includes deleted accounts to preserve historical identity. `role` may
-only be EMPLOYEE on creation. `status` may be INVITED, ACTIVE, or DEACTIVATED;
-ACTIVE creation becomes INVITED until the employee completes password setup.
+`USER_CREATED`, `USER_UPDATED`, `USER_ACTIVATED`, `USER_DEACTIVATED`,
+`USER_SUSPENDED`, `USER_ROLE_CHANGED`, `USER_SETUP_ISSUED`, `USER_SETUP_COMPLETED`,
+`USER_DELETION_REQUESTED`, `USER_DELETED`. Each is saved in the same transaction
+as the change, so if the audit write fails, the change is cancelled too. Only
+IDs, field names and status/role values are recorded, never passwords, tokens or
+email addresses.
 
-Update accepts only identity fields and `expectedUpdatedAt`. Role and status
-require their respective separate operations. Every existing-account mutation
-requires `expectedUpdatedAt`, copied exactly from the latest account response;
-stale changes return `409 USER_CONFLICT`. Deletion also requires `confirmation`,
-the exact employee identifier or internal UUID when no employee identifier exists.
+## Code
 
-Promotion requires a provisioned active account, invalidates its sessions, and
-requires MFA enrollment through the existing sign-in flow. Role changes clear
-prior MFA material so a later promotion cannot reuse old privileged credentials.
+- Backend: `backend/src/users/`, `backend/src/routes/admin-users.js`, `backend/src/routes/auth.js`
+- Frontend: `frontend/src/features/users/`, `frontend/src/features/setup/`
 
-## Initial password setup
+## Tests
 
-With explicit non-production `DEMO_ACCOUNT_SETUP_ENABLED=true`, creation of an
-invited account or setup reissue returns `{ user, setup: { token, expiresAt } }`.
-The cryptographically random 256-bit token is shown only in that
-response. Storage contains only its SHA-256 digest and 24-hour expiration; no
-password is created or emailed by the administrator API. Reissue invalidates the
-previous token. Email changes, deactivation, suspension, and deletion clear it.
+```bash
+npm run test:users       # backend API and rules
+npm run test:users:ui    # User Management screens
+npm run test:setup:ui    # account setup page
+```
 
-There is no email delivery integration. In the controlled dummy-data demo, an
-MFA-authenticated administrator with a sign-in less than five minutes old can copy
-the link from the transient issuance panel and hand it directly to the verified
-participant. Only a digest is stored; old tokens cannot be retrieved. The link
-uses `/account-setup#token=...`; its fragment is removed before the setup page is
-initialized. Do not log it, use a URL query, persist it in browser storage, or expose
-it in analytics. Use a separate/private browser for the employee demonstration.
-
-The demo flag defaults to false and is rejected in production. When disabled,
-creation still provisions a pending employee but does not issue or disclose a
-token; the reissue endpoint denies disclosure. Organizational onboarding requires
-an approved, identity-verified delivery mechanism before enabling it.
-
-POST `{ "token": "<single-use-token>", "password": "<employee-chosen-password>" }`
-to `/api/auth/setup`. Passwords require at least 12 characters and at most 72 UTF-8
-bytes, avoiding bcrypt truncation, and a local zxcvbn score of at least 3 (Strong).
-The page submits `confirmPassword`; when present it must match on the backend.
-The existing bcrypt implementation hashes the
-password. Consumption rechecks eligibility and expiry under a database row lock;
-concurrent submissions cannot consume a token twice. The employee then signs in
-normally. This is initial setup only, not password reset for existing credentials.
-Validation and redemption share a 20-request/15-minute IP rate limit. Neither
-returns account identity or a session, and both use no-store/no-referrer headers.
-
-## Privacy, retention, audit, and migrations
-
-Soft deletion disables access, invalidates sessions, and clears credentials, MFA
-material, and setup tokens. It retains identity and all incident, analysis,
-training, certificate, community, and audit relationships. It cannot be reversed
-by the activation endpoint. Permanent deletion and identity reuse are unavailable
-because the existing retention policy does not authorize account disposal.
-
-Required audit records are committed in the same transaction as account writes;
-audit failure rolls back the change. Events include USER_CREATED, USER_UPDATED,
-USER_ACTIVATED, USER_DEACTIVATED, USER_SUSPENDED, USER_ROLE_CHANGED,
-USER_SETUP_ISSUED, USER_SETUP_COMPLETED, USER_DELETION_REQUESTED, and USER_DELETED.
-Only actor/target identifiers, timestamps, field names, and necessary status/role
-metadata are stored. No passwords, tokens, email values, private chats, or analysis
-contents appear in account audit metadata or directory/detail projections.
-
-Migration `20261020000200_user_management` adds lifecycle columns to `users`,
-indexes for lifecycle/sort fields, and case-insensitive identity uniqueness. It
-does not rewrite identities or drop relationships. Legacy case-only identity
-duplicates intentionally cause migration failure for review instead of silently
-merging users. Existing `employeeIdentifier` is reused. `lastLoginAt` is recorded
-on future successful employee sign-ins and administrator MFA completions; existing
-unknown login dates stay null. No new dependency is required.
-
-Run `npm run prisma:format`, `npm run prisma:validate`, `npm run prisma:generate`,
-then `npm run db:migrate` before starting the updated application. Directory
-substring search uses bounded pagination with Prisma; very large deployments may
-need a separately reviewed trigram index after measuring query performance.
-
-## Validation
-
-`npm run test:users`
-
-Integration tests use local PostgreSQL and HTTP, synthetic fixture accounts, and
-real session and socket validation. Last-admin edge cases also have an isolated
-unit fixture so tests never deactivate existing real administrators. Test account
-cleanup is scoped to fixture IDs. Authentication, MFA, notifications, incidents,
-training, quizzes, and certificates should be included in regression validation.
-
-## Invite links (self-registration)
-
-An administrator with a recent MFA sign-in can generate a shareable link from User Management → Invite Link. Anyone
-holding the link can create one **employee** account at `/register#token=…` and sign in afterwards.
-
-- Endpoints: `GET/POST /api/admin/invites`, `POST /api/admin/invites/:id/revoke`, and the public
-  `POST /api/auth/register/validate` and `POST /api/auth/register`.
-- Controls: only a SHA-256 digest of the token is stored and the link is shown once; links expire (1 hour to 7 days),
-  have a use limit (1–200), can be revoked, can be restricted to one email domain, and always create `EMPLOYEE`
-  accounts in the department chosen by the administrator. Registration uses the same password policy as account setup,
-  creates no session, is rate limited, and is audited (`REGISTRATION_INVITE_CREATED`, `REGISTRATION_INVITE_REVOKED`,
-  `USER_SELF_REGISTERED`).
-- Trade-off: the link does not verify identity. Share it only with intended people, prefer a short validity, a low use
-  limit and an email-domain restriction. Set `REGISTRATION_INVITES_ENABLED=false` to disable the feature.
+These suites run one test at a time with a 768 MB memory cap, because an earlier
+test assertion once used about 10 GB of memory. They use the real database; read
+[testing](testing-and-qa.md) first.

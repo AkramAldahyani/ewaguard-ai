@@ -1,57 +1,63 @@
-# Phase 5B — Sensitive-information disclaimer
+# Sensitive-information notice
 
-EWAGuard AI requires an explicit, context-specific acknowledgement before an
-employee reaches supported content-submission flows. Phase 5B activates this gate
-on the email and file analysis previews. It records awareness metadata only; the
-analyzers and uploads remain unavailable.
+## In short
 
-## Authoritative definition and version
+Before an employee shares certain content with EWAGuard AI, they must actively
+accept a short warning: do not submit confidential company information,
+passwords, credentials, secrets, restricted personal data, or material that must
+go through another reporting channel.
 
-`shared/disclaimer.js` is the single source of truth for version `1.0`, concise
-warning text, confirmation text, prohibited-content categories, and allowed context
-values. Both the browser component and backend import it. A material wording change
-must increment the version. The API never accepts a client-selected version.
+The checkbox always starts **unchecked**. The server records only who accepted
+which version, for what purpose and when. It never stores the content itself.
 
-The existing Prisma `DisclaimerContext` enum already covers email, URL, file, chat,
-community post, and community attachment flows, so Phase 5B requires no schema or
-migration. Screenshot-specific processing does not exist yet; its future phase must
-choose an existing equivalent context or add a reviewed migration before use.
+## Where it is required today
 
-## API and flow
+| Flow | Context | How long one acceptance is valid |
+| --- | --- | --- |
+| Email analysis (paste or `.eml`) | `EMAIL_ANALYSIS` | 15 minutes |
+| AI assistant (chat privacy notice) | `CHAT` (with the chat notice version) | For the browser session; a new notice version needs a new acceptance |
+| Community post submission | `COMMUNITY_POST` | 10 minutes |
+| Community image upload | `COMMUNITY_POST`, plus `COMMUNITY_ATTACHMENT` and `FILE_ANALYSIS` records | Same as the post |
+| Private analysis from chat | The analyzer's own context | 15 minutes |
 
-`POST /api/disclaimers/acknowledge` accepts exactly:
+URL and file analysis currently do **not** require an acknowledgement (the
+related database columns were made optional). Community comments are published
+directly without a separate acknowledgement; their text is screened by the server
+instead (see [community](community.md)).
 
-```json
-{ "context": "EMAIL_ANALYSIS" }
-```
+## How it works
 
-It requires the existing authenticated `EMPLOYEE` role and trusted browser origin.
-Anonymous requests receive 401 and administrators receive 403. Unknown contexts,
-extra content, and client-provided versions receive 400. Successful responses expose
-only acknowledgement ID, authoritative context/version, timestamp, and reuse state.
+1. The page shows the notice from `shared/disclaimer.js`, the single source of truth for the text and its version (currently `1.0`). Changing the wording means increasing the version.
+2. The employee ticks the box and continues. The page calls:
 
-The service reuses a matching user/context/version acknowledgement created in the
-previous five minutes. This limits accidental duplicate rows from repeated clicks
-without permanently granting one acknowledgement across every submission context.
-The endpoint is also limited to 30 requests per minute per client.
+   ```json
+   POST /api/disclaimers/acknowledge
+   { "context": "EMAIL_ANALYSIS" }
+   ```
 
-## Future submission enforcement
+3. The server saves `{ user, context, version, time }` and returns an ID. If the same person accepted the same notice in the last five minutes, that record is reused instead of creating duplicates.
+4. When the content is submitted, the backend looks up the acknowledgement itself and checks that it belongs to **this user**, has the **right context**, uses the **current version** and is **recent enough**. The browser's word is never trusted.
 
-`verifyAcknowledgement` accepts a specific acknowledgement ID and verifies its
-authenticated user, required context, current server version, and optional maximum
-age. Analyzer and attachment endpoints must call this helper before accepting
-protected content; frontend state alone never authorizes submission. An ID from
-another user, another context, an older version, or outside a configured validity
-window does not pass.
+The endpoint accepts only `context`. Extra fields, a client-chosen version, or any
+content are rejected. Only employees can acknowledge (administrators get 403). It
+is limited to 30 requests per minute.
 
-## Privacy boundary
+## Remembering acceptance in the browser
 
-The database row contains only UUID, user ID, context, version, and timestamp. The
-endpoint rejects extra request fields and never accepts filenames, email bodies,
-files, URLs, screenshots, credentials, or arbitrary text. Full audit integration is
-deferred to Phase 15. Existing operational security logs record authorization denial
-metadata only and never acknowledgement content.
+To avoid asking repeatedly during one sitting, the page remembers the
+acceptance in `sessionStorage` for the current signed-in session only. It stores
+just the notice version and a non-secret session marker, never content or tokens.
+Logout or session expiry clears it. Each real submission still needs its own
+fresh server-side acknowledgement.
 
-The reusable UI checkbox starts unchecked and Continue remains disabled until an
-employee selects it. A successful server response reveals the still-disabled feature
-preview. Navigating away remounts the gate in its unchecked state.
+## What it does not do
+
+- It cannot prove the person read the notice, only that they actively ticked it.
+- It cannot stop someone pasting secrets. Analyzers and chat add their own secret detectors and minimization, but those are not perfect either.
+
+## Code and tests
+
+- Text and version: `shared/disclaimer.js`
+- Backend: `backend/src/disclaimers/disclaimer-service.js`, `backend/src/routes/disclaimers.js`
+- Frontend: `frontend/src/features/disclaimer/`
+- Tests: `npm run test:disclaimer`

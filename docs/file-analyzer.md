@@ -1,264 +1,129 @@
-# Phase 6C — File Analyzer
+# File analyzer
 
-> Phase 7A integration: completed submissions now include server-computed
-> `result.risk` and persist score, severity, model version and confidence/reasons.
-> Analyzer-local findings below remain unchanged. See [Central Risk Engine](risk-engine.md).
-> References to excluded final risk describe the original Phase 6 scope.
+## In short
 
+**Analyze File** (`/analyze/file`) has two separate tools:
 
-`/analyze/file` is operational for authenticated employees. This phase adds secure
-file intake, validation, hashing, local scanners, hash reputation, minimized storage,
-and evidence presentation. It does not add the Phase 7A central risk engine, final
-severity, OpenAI, incidents, Socket.IO, RAG, or awareness functionality.
+1. **Upload a file.** The server validates it, computes its SHA-256 fingerprint, scans it locally with **ClamAV** and **YARA**, looks up the fingerprint on **VirusTotal**, and the [risk engine](risk-engine.md) scores everything.
+2. **Check a SHA-256 hash.** Paste a 64-character fingerprint. Only VirusTotal reputation is checked; nothing is uploaded or scanned.
 
-## Architecture and API
+**The file itself is never sent to VirusTotal or any other outside service.**
+Only its SHA-256 fingerprint is looked up. Uploaded content is never executed,
+opened or previewed.
 
-```text
-Authentication / EMPLOYEE RBAC / trusted origin / rate limit
-  -> current FILE_ANALYSIS acknowledgement
-  -> bounded single-file multipart parsing
-  -> extension / MIME / signature / archive metadata inspection
-  -> SHA-256
-  -> private random temporary copy
-  -> ClamAV -> YARA -> finally: delete temporary directory
-  -> VirusTotal SHA-256 GET lookup
-  -> deterministic provisional evidence
-  -> atomic minimized database insert -> employee response
-```
-
-`POST /api/analysis/file` accepts `multipart/form-data` with exactly one `file` part.
-Unknown text fields, additional files, and differently named file parts are rejected.
-No client-supplied user ID or acknowledgement ID is accepted. The backend queries
-the current-version FILE_ANALYSIS acknowledgement owned by the authenticated employee;
-it must be no more than 15 minutes old and not future-dated. Authentication, role,
-origin and acknowledgement checks precede multipart buffering. Administrators cannot
-use this route. All responses carry Cache-Control: no-store. There is no file
-download, preview, or analysis-history endpoint.
-
-The envelope is consistent with the email/URL analyzers:
+## Uploading a file, step by step
 
 ```text
-analysisId, createdAt, result:
-  analyzer: FILE, version: 6C.1,
-  file: displayName, extension, size, detectedType, mimeType, sha256,
-  validation, clamav, yara, threatIntelligence,
-  indicators, coverage, provisionalClassification, recommendations, limitations
+signed in / employee / trusted origin / rate limit
+  → receive one file (max 10 MiB)
+  → check extension, claimed type and real content signature; inspect ZIP structure
+  → compute SHA-256
+  → write a private temporary copy
+  → ClamAV scan → YARA scan → delete the temporary copy (always)
+  → VirusTotal lookup of the SHA-256 (GET only)
+  → risk engine → save minimized record → incident if HIGH/CRITICAL
 ```
 
-## Supported types and bounded validation
+## Allowed file types
 
-The shared policy in `shared/file-policy.js` sets the maximum to **10 MiB** and
-defines the frontend/backend extension list:
+Defined once in `shared/file-policy.js` (used by both frontend and backend):
 
-- PDF; legacy DOC/XLS/PPT (OLE container); DOCX/XLSX/PPTX (ZIP container).
-- TXT/CSV, PNG/JPG/JPEG/GIF/WEBP/BMP, ZIP.
-- EXE/DLL and PS1/JS/VBS/BAT/CMD/SH/PY, accepted for inspection only.
+- Documents: PDF, DOC/XLS/PPT, DOCX/XLSX/PPTX, TXT, CSV
+- Images: PNG, JPG/JPEG, GIF, WEBP, BMP
+- Archives: ZIP
+- Programs and scripts (inspection only): EXE, DLL, PS1, JS, VBS, BAT, CMD, SH, PY
 
-All other extensions are rejected, including disk images, unknown archives,
-HTML/SVG, shortcuts, and macro-specific Office extensions such as DOCM. No uploaded
-content is executed, passed to shell handlers, opened as a document, or previewed.
-
-Original extension and untrusted MIME are compared with byte signatures. Text must
-decode as UTF-8 or BOM-marked UTF-16 without binary controls. An octet-stream MIME
-is treated as unspecified rather than an automatic mismatch. MIME mismatch is
-evidence, not authority. Recognizable alternate content (for example, MZ/PE bytes
-named invoice.pdf) is accepted for scanning and produces mismatch evidence.
-Unknown binary formats and empty files are rejected. Double extensions and filename
-path/control patterns are recorded as booleans. Original filenames are omitted from
-server results and storage; display names are fixed `Submitted file.<extension>`.
-
-Type recognition is intentionally not a full structural validator. PDF-like and
-executable-like test headers can be recognized without being valid documents/programs.
-Polyglot files and disguised content remain limitations.
-
-ZIP metadata uses lazy central-directory inspection through `yauzl`, without
-extracting or decompressing entries. It is limited to 200 entries, 50 MiB declared
-expanded size, 100:1 per-entry declared compression ratio, and one second. It records
-counts and flags for encryption, unsafe paths, launcher/executable extensions,
-nested archives and macro-related entries. Raw entry names/comments are discarded.
-DOCX/XLSX/PPTX are approximated from content-type and expected document entry names.
-Invalid/over-limit metadata produces explicit incomplete-inspection evidence;
-local scanners can still examine the uploaded container within their own limits.
-Archive metadata is untrusted; declared sizes and names are not proof of actual content.
-
-## Temporary-file lifecycle
-
-Uploads are buffered only after authorization and acknowledgement, with two active
-upload/analysis slots and a 10 MiB Multer limit (bounded to roughly 20 MiB upload
-buffers, plus parser/scanner working memory). Disk copies are created only after
-upload validation and metadata inspection succeed.
-
-The dedicated root is `ewaguard-ai-file-analysis` under the operating system's
-temporary directory, outside the repository/frontend dev-server serving scope.
-Each analysis receives a UUID directory and separate UUID `.upload` filename.
-Directories use mode 0700 and exclusive file creation uses mode 0600 where supported.
-POSIX root ownership is checked. Windows inherits the service user's directory ACL;
-deployment must restrict that account's temp directory appropriately. Original names
-never influence paths, command arguments or directory choices.
-
-The temp store rejects symlink roots and verifies the canonical root. Cleanup can
-only remove direct UUID children of that root. ClamAV's own temporary output is
-directed into the same per-analysis directory. A finally block removes the entire
-job directory on success or failure, retrying transient filesystem errors. Buffers
-are zeroed where retained by application code; garbage-collected copies cannot be
-guaranteed erased. Copies are deleted before provider lookup and database insertion.
-
-Cleanup failure emits a fixed metadata-only operational event, returns a sanitized
-failure, and prevents persistence. It never silently claims cleanup succeeded.
-On application startup, a best-effort sweep removes matching directories older than
-24 hours; unrelated entries, fresh jobs and symlinks are left alone. Crashes/power
-loss cannot execute finally blocks, so startup cleanup is a fallback, not immediate
-secure erasure. Operational administrators must monitor cleanup failures. A disk
-filesystem deletion does not guarantee physical erasure from backups or storage media.
-
-## ClamAV
-
-`CLAMAV_PATH` is a backend-only absolute executable path. The application uses
-`execFile` with an argument array, shell disabled, hidden windows, a 60-second
-process deadline, SIGKILL on timeout and 64 KiB maximum output per stream. Scanner
-children receive a minimal environment, excluding API keys/JWT/database secrets.
-Relative executable paths and script wrappers are not accepted.
-
-The scan uses local signatures and limits container scanning to 10 MiB per file,
-50 MiB total, 200 files, eight recursion levels and 30 seconds of engine scanning.
-Symlink following is disabled. Limits/encryption alerts are enabled so skipped
-contents do not silently become a clean finding. These alerts are coverage errors,
-not malware names. A confirmed detection can coexist with limited coverage.
-
-Exit 0 without a scan error maps to CLEAN; exit 1 with detections maps to DETECTED;
-exit 2/invalid output maps to ERROR. Missing/inaccessible executables map to
-UNAVAILABLE; the process deadline maps to TIMEOUT. Only bounded, validated detection
-identifiers are returned. Raw stdout/stderr, command lines and system paths are
-discarded. CLEAN means no known detection by that scan, never that a file is safe.
-Signature installation, updates and freshness remain operator responsibilities.
-
-[Official ClamAV scanning documentation](https://docs.clamav.net/manual/Usage/Scanning.html)
-
-## YARA
-
-`YARA_PATH` and `YARA_RULES_PATH` remain backend-only. Development defaults an empty
-rules setting to the project-owned `backend/security/yara` directory; production
-requires an explicit absolute file/directory. The application never downloads rule
-packs. See [rules, ownership and review process](../backend/security/yara/README.md).
-
-YARA has a 15-second process deadline, a ten-second engine timeout and a per-rule
-string limit. It compiles configured source on every invocation. Invalid syntax
-returns ERROR without crashing the server. No matched strings or arbitrary rule
-metadata are printed: output consists only of names and the generated target path,
-which is removed during normalization. Descriptions/strength come from a project
-catalog. Statuses are NO_MATCH, MATCH, UNAVAILABLE, ERROR and TIMEOUT.
-
-The curated rules cover combined PowerShell encoding markers, credential-store /
-decryption / transfer markers, automatic macros with shell launch markers, archive
-expansion/launch combinations, and an explicit harmless demo signature. They can
-match legitimate scripts or discussions of techniques. YARA sees raw bytes only;
-compressed/encoded/macro content may not be visible.
-
-[Official YARA command-line documentation](https://yara.readthedocs.io/en/stable/commandline.html)
-
-## VirusTotal hash-only lookup
-
-**EWAGuard AI uses SHA-256 reputation lookup only. The uploaded file is not submitted
-to VirusTotal by this analyzer.**
-
-The Phase 6B adapter now exposes `lookupFileHash(sha256)`, validates exactly 64 hex
-characters, and issues GET `/api/v3/files/{sha256}` to the fixed VirusTotal host.
-There is no upload, submission, or rescan operation and no request body. A missing
-report returns NO_REPORT; it never triggers upload. The file hash itself discloses
-a fingerprint to the provider; the acknowledgement flow explains this.
-
-Normalized counts, reputation, last-analysis date, provider/scope/status and cache
-flag are retained. Names, file descriptions, raw provider JSON, analysis-engine
-strings and API keys are excluded. The URL and file routes share one adapter/cache
-and quota budget per application: two provider requests concurrently, four per
-minute, ten-minute report/no-report cache, 30-second failure cache, 256 entries,
-60-second 429 cooldown, 3.5-second request deadline and 512 KiB response limit.
-Daily/plan quotas still apply; multiple deployment processes would need coordinated
-quotas. NOT_CONFIGURED, NO_REPORT, RATE_LIMITED, TIMEOUT, UNAUTHORIZED, malformed
-responses and outages preserve useful local evidence.
-
-[Official VirusTotal file-report endpoint](https://docs.virustotal.com/reference/file-info)
-
-## Classification and coverage
-
-This is an analyzer-local rubric, not Phase 7A risk scoring:
-
-- HIGHLY_SUSPICIOUS: ClamAV detection, a project-catalog STRONG YARA match, or five
-  or more VirusTotal malicious detections.
-- SUSPICIOUS: a type/double-extension/filename/archive warning, any YARA match
-  (including explicitly labeled demo matches), or at least two combined provider
-  malicious/suspicious detections.
-- NO_STRONG_INDICATORS: otherwise. An executable/script type, unspecified or
-  mismatched MIME, or one weak provider vote alone does not establish maliciousness.
-
-Local scanner failures/coverage limits produce PARTIAL_EVIDENCE even if no strong
-indicators exist. Missing external reputation is displayed separately. Unavailable
-tools do not produce fabricated clean results. Recommendations are fixed application
-guidance; no OpenAI request or automatic incident creation occurs.
-
-## Persistence
-
-The existing FileAnalysis table is reused without a migration. A single atomic insert
-stores authenticated ownership, current acknowledgement relation, SHA-256, size,
-extension, normalized MIME, normalized scanner statuses, fixed metadata and minimized
-result JSON. `storageKey` is null and `deletedAt` records completed temporary cleanup.
-Original filename, file bytes, document text, matching strings, raw scanner/provider
-output and secrets are not stored. No content-extraction pipeline is introduced.
-
-Existing ScanStatus enums map CLEAN/NO_MATCH to NO_KNOWN_DETECTION, MATCH/DETECTED
-to DETECTED, TIMEOUT/ERROR to ERROR, and unavailable to UNAVAILABLE. Detailed states
-remain in result JSON. Phase 7A fills `riskScore`, `severity`, and `riskRuleVersion`; `evidence.risk` includes confidence and reasons.
-An expiresAt value defaults to 30 days for evidence. Phase 15A adds configurable
-periods for new records and opt-in, dependency-aware cleanup; see
-[privacy and retention](privacy-retention.md). The pgvector schema and HNSW index are unchanged.
-
-## Errors, concurrency, and UI
-
-Five submissions per employee per minute and two application analysis slots bound
-upload workload. Each scanner permits one active process and one waiter; slots
-remain held until work finishes, even after client disconnect. Uploads have a
-30-second deadline; expiry destroys the request connection. The frontend then shows
-a safe retry error. Scanner processes have their own timeouts and no unbounded
-waiting queue. Database and unexpected errors use the existing sanitized handler.
-
-The employee sees an unchecked acknowledgement before a labeled keyboard-accessible
-picker/drag-and-drop form, allowed extensions, 10 MiB guidance, selected name/size/
-extension, remove and Analyze controls. A general scanning state describes implemented
-work without inventing current-stage progress. Reset/unmount aborts the browser
-request and ignores late results; server cleanup continues independently.
-
-Nine result sections show summary, file information, validation, ClamAV, YARA,
-hash reputation, indicators, recommendations, and limitations. React escapes text;
-no object URL, document preview, iframe, image load or download action is created.
+Everything else is rejected, including disk images, other archive formats,
+HTML/SVG, shortcuts and macro-enabled Office formats like DOCM.
 
 ## Validation
 
-Normal tests mock local scanner/provider responses; they never call VirusTotal or
-require installed ClamAV/YARA. Small harmless Node child processes verify timeout
-termination and output limits. Fixtures are synthetic text, PDF/PE-like headers and
-small ZIP metadata structures; no malware or EICAR is used or committed.
+- The extension and the claimed type are compared with the file's actual **byte signature**. A mismatch (for example a Windows program renamed `invoice.pdf`) is accepted for scanning and recorded as strong evidence.
+- Text files must really be text. Empty files and unknown binary formats are rejected.
+- Double extensions and odd filename characters are recorded.
+- The original filename is **not** kept; results show "Submitted file.pdf".
+- ZIP files are inspected **without extracting**: up to 200 entries, 50 MiB declared size, 100:1 compression ratio, 1 second. It records encryption, unsafe paths, executables, nested archives and macro entries.
 
-```powershell
-npm.cmd run test:file
-npm.cmd run test:file:api
-npm.cmd run test:file:ui
-# Explicit live checks only:
-node backend/scripts/validate-file-local.js
-# Start npm run dev first; uses one benign hash lookup and disposable employee:
-node backend/scripts/validate-file-runtime.js
-```
+## The temporary copy
 
-On 2026-10-07, all requested regression suites, lint, build, backend checks, Prisma
-validation, migration status and dependency audit passed. The backend suite includes
-234 passing tests. Database/vector checks verify the HNSW index remains intact.
-Live ClamAV returned CLEAN, benign YARA NO_MATCH, demo YARA MATCH and invalid rules
-ERROR. Live employee login/acknowledgement/upload returned NO_REPORT for the harmless
-file hash without uploading the file to VirusTotal; oversized rejection, minimized
-storage, temporary cleanup and logout passed. Disposable records/files were removed.
-React rendering/state tests passed. No browser was connected for visual/console QA.
+- Stored under the system temp folder in `ewaguard-ai-file-analysis`, outside the project.
+- Each analysis gets its own random-named folder and file, with private permissions.
+- The folder is **always deleted** when scanning ends, successfully or not. If deletion fails, the result is not saved.
+- On startup, leftover folders older than 24 hours (for example after a crash) are removed.
 
-Known operational limits: minimal rules, no full document validation, no forced
-memory/process sandbox for native scanners, scanner signature freshness, encrypted
-or nested content coverage, single-process quotas, and a frontend bundle-size warning.
-Production should run patched scanners under a dedicated unprivileged account with
-OS/container resource limits and controlled writable storage.
+## ClamAV
+
+- Set `CLAMAV_PATH` to the full path of the ClamAV scanner program.
+- Run safely: no shell, a minimal environment (no secrets), 60-second limit, limited output.
+- Container limits: 10 MiB per file, 50 MiB total, 200 files, 8 levels deep, 30 seconds.
+- Results: `CLEAN` (no known detection, **not** "safe"), `DETECTED`, `ERROR`, `TIMEOUT`, `UNAVAILABLE`.
+- Keeping virus signatures up to date is the operator's job.
+
+## YARA
+
+- Set `YARA_PATH` (program) and optionally `YARA_RULES_PATH`. In development the rules default to the project's own folder `backend/security/yara/`.
+- The five project rules look for: encoded PowerShell chains, credential-theft markers, auto-run macros that launch programs, archive-then-launch patterns, and a **harmless demo rule** for safe demonstrations. See [`backend/security/yara/README.md`](../backend/security/yara/README.md).
+- 15-second limit. Matched strings are never printed. Descriptions and strength (STRONG / WARNING / DEMO) come from the project catalog.
+- Results: `MATCH`, `NO_MATCH`, `ERROR`, `TIMEOUT`, `UNAVAILABLE`. NO_MATCH only means the small rule set did not match.
+
+If ClamAV or YARA are not installed, they show `UNAVAILABLE`. A clean result is
+never invented. (Community image uploads, however, are **refused** unless both
+scanners are available; see [community](community.md).)
+
+## VirusTotal hash lookup
+
+- `GET /api/v3/files/{sha256}` only. No upload, no "rescan", no request body.
+- A missing report returns `NO_REPORT` and never triggers an upload.
+- Shares limits and cache with the URL analyzer (4 lookups per minute, 10-minute cache).
+- The hash itself is shared with VirusTotal; the page explains this.
+
+## Check a SHA-256 hash (no upload)
+
+`POST /api/analysis/file/hash` with `{ "sha256": "..." }` (uppercase and spaces are tidied).
+
+| Result | Meaning |
+| --- | --- |
+| `DETECTIONS_REPORTED` | One or more engines flagged the file. The risk engine decides how serious that is. |
+| `NO_KNOWN_DETECTION` | A report exists with no detections. This is **not** proof of safety. |
+| `UNKNOWN` | No usable report (not found, not configured, rate limited, ...). |
+
+Each lookup is saved in `file_analyses` with kind `HASH_LOOKUP` (size and type
+empty, ClamAV and YARA `NOT_SCANNED`). Hash checks **never create incidents**,
+because only reputation was checked. In analytics they appear as **"SHA-256 check"**.
+
+## Provisional finding
+
+- **Highly Suspicious**: ClamAV detection, a STRONG YARA match, or 5+ VirusTotal malicious votes.
+- **Suspicious**: type/extension/filename/archive warnings, any YARA match, or 2+ provider votes.
+- **No Strong Indicators**: otherwise.
+- Scanner failures add **Partial evidence**.
+
+The final level always comes from the risk engine.
+
+## What is saved
+
+Owner, SHA-256, size, extension, normalized type, scanner statuses, minimized
+evidence and the risk result. **Not saved:** filename, file bytes, document text,
+matched strings or raw scanner/provider output. Records expire after 30 days by default.
+
+## Limits and concurrency
+
+10 MiB per file, 5 submissions per employee per minute, 2 analyses at once per
+server, 30-second upload deadline, one active process per scanner.
+
+## Safe demonstration
+
+- **YARA:** upload a text file containing both markers of the `EWAGuard_Harmless_Demo` rule to show a live MATCH without real malware.
+- **ClamAV:** the standard harmless EICAR test file triggers a detection.
+
+## Code and tests
+
+- `backend/src/analyzers/file/`, `backend/src/routes/file-analysis.js`, `shared/file-policy.js`
+- `frontend/src/features/file/`
+- Tests (scanners and provider mocked; no malware used): `npm run test:file`, `npm run test:file:api`, `npm run test:file:ui`, `frontend/tests/hash.test.mjs`, `backend/tests/hash-analysis.test.js`
+- Optional live checks: `node backend/scripts/validate-file-local.js` (local scanners) and, with the app running, `node backend/scripts/validate-file-runtime.js`
+
+## Production advice
+
+Run patched scanners under a dedicated low-privilege account with operating-system
+resource limits, and protect the temporary folder.
