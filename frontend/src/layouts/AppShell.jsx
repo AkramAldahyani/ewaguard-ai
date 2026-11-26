@@ -262,7 +262,6 @@ function Shell() {
     const other = {
       '/admin': 'Administrator dashboard',
       '/unauthorized': 'Access restricted',
-      '/design-system/chat': 'Chat design',
     }[pathname];
     document.title = `${page ?? incidentPage ?? other ?? 'Page not found'} | EWAGuard AI`;
     if (previousPath.current !== pathname) {

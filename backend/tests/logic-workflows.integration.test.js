@@ -194,8 +194,6 @@ test('complete application workflows', async (t) => {
     ['GET', '/api/admin/analytics/security'],
     ['GET', '/api/admin/analytics/security/analyses'],
     ['GET', '/api/admin/analytics/awareness'],
-    ['GET', '/api/admin/incident-awareness'],
-    ['POST', '/api/admin/incident-awareness/warnings'],
     ['GET', '/api/admin/workspace'],
   ];
   const employeeRoutes = [

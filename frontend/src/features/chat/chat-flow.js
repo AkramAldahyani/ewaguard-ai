@@ -2,12 +2,6 @@ import { chatApi } from './chat-api.js';
 import { hasSessionConsent, rememberSessionConsent } from '../disclaimer/session-consent.js';
 
 export const CHAT_MAX_LENGTH = 2000;
-export const CHAT_SUGGESTIONS = [
-  'I received a suspicious email. What should I do?',
-  'How does MFA protect my account?',
-  'What are the warning signs of phishing?',
-  'How should I report a security concern?',
-];
 export function chatError(error) {
   if (error.status === 401) return 'Your session has expired. Sign in again to continue.';
   if (error.status === 410) return 'This approval has expired. Retrieve its saved status; no new analysis can start.';

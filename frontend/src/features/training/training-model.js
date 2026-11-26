@@ -13,7 +13,6 @@ export const topics = [
   'OTHER',
 ];
 export const statuses = ['DRAFT', 'PUBLISHED', 'ARCHIVED'];
-export const progressStatuses = ['NOT_STARTED', 'IN_PROGRESS', 'COMPLETED'];
 export const label = (value) => displayLabel(value, { titleCase: true }) || 'Unavailable';
 export function formatDate(value) {
   return value ? new Intl.DateTimeFormat(undefined, { dateStyle: 'medium' }).format(new Date(value)) : 'Not yet';

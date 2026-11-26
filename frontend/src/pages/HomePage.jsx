@@ -25,7 +25,7 @@ import myTrainingImage from '../assets/illustrations/my_training.png';
 import passwordSecurityImage from '../assets/illustrations/password_security.png';
 import securityCommunityImage from '../assets/illustrations/security_community.png';
 import { Badge, Button, Card } from '../components/ui/index.jsx';
-import { PortalLinkCard } from '../components/employee/PortalPreview.jsx';
+import { PortalLinkCard } from '../components/employee/PortalLinkCard.jsx';
 import { SecurityTips } from '../components/employee/SecurityTips.jsx';
 import { useAuth } from '../context/auth-context.js';
 

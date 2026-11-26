@@ -10,7 +10,6 @@ import { createDashboardRouter } from './routes/dashboard.js';
 import { createAuditRouter } from './routes/audit.js';
 import { createSecurityAnalyticsRouter } from './routes/security-analytics.js';
 import { createAwarenessAnalyticsRouter } from './routes/awareness-analytics.js';
-import { createIncidentAwarenessRouter } from './routes/incident-awareness.js';
 import { createNotificationRouter } from './routes/notifications.js';
 import { createIncidentRouter } from './routes/incidents.js';
 import { createAnalysisEscalationRouter } from './routes/analysis-escalations.js';
@@ -77,7 +76,6 @@ export function createApp(config, dependencies = {}) {
   app.use('/api/admin/audit', createAuditRouter({ database, config }));
   app.use('/api/admin/analytics', createSecurityAnalyticsRouter({ database, config }));
   app.use('/api/admin/analytics', createAwarenessAnalyticsRouter({ database, config }));
-  app.use('/api/admin/incident-awareness', createIncidentAwarenessRouter({ database, config }));
   app.use('/api/notifications', createNotificationRouter({ database, config }));
   app.use('/api/admin/incidents', createIncidentRouter({ database, config, admin: true }));
   app.use('/api/incidents', createIncidentRouter({ database, config }));

@@ -35,7 +35,6 @@ import { EmployeeCommunityPage } from './features/community/EmployeeCommunityPag
 import { IncidentListPage, IncidentDetailPage } from './features/incidents/IncidentPages.jsx';
 import { PasswordSecurityPage } from './features/password/PasswordSecurityPage.jsx';
 import { AssistantPage } from './features/chat/AssistantPage.jsx';
-import { ChatShowcase } from './features/chat/ChatShowcase.jsx';
 import { EmailAnalyzerPage } from './features/email/EmailAnalyzerPage.jsx';
 import { UserManagementPage } from './features/users/UserManagementPage.jsx';
 
@@ -67,7 +66,6 @@ export function AppRoutes() {
             <Route index element={<HomePage />} />
             <Route path="home" element={<Navigate to="/" replace />} />
             <Route path="assistant" element={<AssistantPage />} />
-            <Route path="design-system/chat" element={<ChatShowcase />} />
             <Route path="analyze/email" element={<EmailAnalyzerPage />} />
             <Route path="analyze/url" element={<UrlAnalyzerPage />} />
             <Route path="analyze/file" element={<FileAnalyzerPage />} />

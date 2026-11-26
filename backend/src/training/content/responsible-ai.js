@@ -3,7 +3,7 @@
 // All people are fictional. No organization-approved AI tool list, data-classification rule or
 // reporting contact is assumed. Lesson 5 describes EWAGuard AI as implemented and as stated in its
 // own notices (backend/src/ai/chat-policy.js, shared/file-policy.js, docs/url-analyzer.md,
-// docs/password-security.md, docs/incident-engine.md). It deliberately claims no PDPL or
+// docs/password-security.md, docs/incidents.md). It deliberately claims no PDPL or
 // company-policy document retrieval and no confidentiality guarantee.
 
 export const responsibleAiCourse = {

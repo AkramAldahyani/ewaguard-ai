@@ -104,7 +104,7 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
     assert.match(html, /no backend endpoint/i);
     assert.doesNotMatch(html, /Preview only|coming later/);
   });
-  await t.test('assistant initially shows only privacy entry and keeps its showcase employee-only', () => {
+  await t.test('assistant initially shows only privacy entry', () => {
     const html = render('/assistant');
     assert.match(html, /Before you chat/);
     assert.match(html, /class="assistant-consent-page"/);
@@ -115,17 +115,13 @@ test('employee portal routes, preview boundaries and safe profile rendering', as
     assert.match(html, /Loading the current privacy notice/);
     assert.doesNotMatch(html, /OpenAI and security tools are not connected|Preview response/);
     assert.match(html, /class="assistant-main"/);
-    assert.match(render('/design-system/chat'), /Chat component previews/);
-    assert.doesNotMatch(render('/design-system/chat', { user: null, loading: false }), /Chat component previews/);
-    assert.doesNotMatch(
-      render('/design-system/chat', { user: { ...user, role: 'IT_SECURITY_ADMIN' }, loading: false }),
-      /Chat component previews/,
-    );
   });
-  await t.test('removed interface system is absent from navigation and routing', () => {
+  await t.test('removed interface system and chat showcase are absent from navigation and routing', () => {
     assert.doesNotMatch(render('/'), /Interface system/);
     assert.match(render('/design-system'), /Page not found/);
     assert.doesNotMatch(render('/design-system'), /EWAGuard design system/);
+    assert.match(render('/design-system/chat'), /Page not found/);
+    assert.doesNotMatch(render('/design-system/chat'), /Chat component previews/);
   });
   await t.test('profile uses session fields and does not serialize internal fields', () => {
     const html = render('/profile');

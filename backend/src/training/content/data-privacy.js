@@ -2,7 +2,7 @@
 // Plain text using the lesson conventions described in phishing-awareness.js.
 // All people, accounts and domains are fictional. Lesson 4 is deliberately high-level awareness:
 // it states no PDPL obligations, deadlines, penalties, consent rules or exceptions, and no
-// EWA data-classification scheme or procedure. See docs/training-safe-browsing-data-privacy.md.
+// EWA data-classification scheme or procedure. See docs/training-courses.md.
 
 export const dataPrivacyCourse = {
   title: 'Data Privacy',

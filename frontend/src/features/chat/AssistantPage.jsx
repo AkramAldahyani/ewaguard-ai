@@ -339,15 +339,15 @@ export function AssistantPage() {
                 {state.messages.map((message) => (
                   <div key={message.id}>
                     {message.role === 'USER' ? (
-                      <EmployeeMessage preview={false} content={message.content} />
+                      <EmployeeMessage content={message.content} />
                     ) : (
-                      <AIMessage preview={false} content={message.content} />
+                      <AIMessage content={message.content} />
                     )}
                   </div>
                 ))}
                 {state.pendingMessage && (
                   <div>
-                    <EmployeeMessage preview={false} content={state.pendingMessage.content} />
+                    <EmployeeMessage content={state.pendingMessage.content} />
                     <p className="text-right text-xs text-slate-500">Awaiting backend confirmation</p>
                   </div>
                 )}
@@ -363,7 +363,7 @@ export function AssistantPage() {
                   onExplain={(id) => flow.explain(request.requestId, id)}
                 />
               ))}
-              {activities[state.status] && <ToolRunningState preview={false} label={activities[state.status]} />}
+              {activities[state.status] && <ToolRunningState label={activities[state.status]} />}
             </div>
           </div>
           {away && (state.messages.length > 0 || state.pendingMessage || state.requests.length > 0) && (

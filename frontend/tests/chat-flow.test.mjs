@@ -4,7 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { createElement } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createServer } from 'vite';
-import { createChatFlow, CHAT_SUGGESTIONS, chatError } from '../src/features/chat/chat-flow.js';
+import { createChatFlow, chatError } from '../src/features/chat/chat-flow.js';
 import { chatApi } from '../src/features/chat/chat-api.js';
 
 const notice = { version: 'synthetic-v1', text: 'Synthetic provider privacy notice.' };
@@ -107,7 +107,7 @@ test('new conversation creation, history list, retrieval and switching use backe
 });
 test('suggestions populate drafts without submitting; length and empty validation block calls', async () => {
   const { flow, calls } = await ready();
-  flow.edit(CHAT_SUGGESTIONS[0]);
+  flow.edit('I received a suspicious email. What should I do?');
   assert.match(flow.getSnapshot().draft, /suspicious email/);
   assert.equal(count(calls, 'send'), 0);
   for (const draft of [' ', 'x'.repeat(2001)]) {
@@ -448,7 +448,6 @@ test('operational components render real evidence, escaped text, nonclickable UR
     /unavailable/,
   );
   const unsafe = render(chat.AIMessage, {
-    preview: false,
     content: '<script>bad()</script> https://suspicious.invalid/',
   });
   assert.match(unsafe, /&lt;script&gt;/);

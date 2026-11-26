@@ -27,7 +27,6 @@ export function ChatEvidence({ result }) {
         {(data.matches ?? []).map((match) => (
           <CitationCard
             key={match.chunkId}
-            preview={false}
             title={`[${match.citationId}] ${match.source.sourceTitle ?? match.source.title}`}
             sourceType="DEMONSTRATION / NOT OFFICIALLY APPROVED"
             reference={`${match.source.filename ?? 'Filename unavailable'} · ${match.source.policyId ?? 'Policy ID unavailable'} · Source version/date ${match.source.sourceVersionDate ?? 'unavailable'} · Revision ${match.source.version} · ${match.source.section ?? 'Section unavailable'} · Page ${match.source.page ?? 'unavailable'}`}
@@ -53,7 +52,6 @@ export function ChatEvidence({ result }) {
         {(data.matches ?? []).map((match) => (
           <CitationCard
             key={match.chunkId}
-            preview={false}
             title={`[${match.citationId}] ${match.source.title}`}
             sourceType="Unofficial English translation"
             reference={`${match.source.filename ?? 'Filename unavailable'} · Version ${match.source.version} · ${match.source.section ?? 'Section unavailable'} · PDF page ${match.source.page ?? 'unavailable'}`}
