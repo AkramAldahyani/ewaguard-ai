@@ -15,8 +15,8 @@ const filters = Object.freeze({
   approvalStatus: 'NOT_OFFICIALLY_APPROVED',
 });
 const restriction = Object.freeze({ companyContext: true });
-const enabled = (config) =>
-  ['development', 'test'].includes(config?.nodeEnv) && config.ragDemonstrationEnabled === true;
+// Answers always carry DEMO_POLICY_NOTICE, so enabling this never presents samples as official policy.
+const enabled = (config) => config?.ragDemonstrationEnabled === true;
 function result(matches, status = matches.length ? 'MATCHES' : 'NO_MATCHES', ids = matches.map((m) => m.chunkId)) {
   return {
     key: 'company-policy',

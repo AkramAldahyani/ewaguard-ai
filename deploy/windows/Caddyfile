@@ -1,0 +1,44 @@
+# EWAGuard AI public web server (https://ewaguard-ai.com).
+# cloudflared forwards visitors to 127.0.0.1:8080. Caddy serves the React build
+# and forwards /api (including the /api/realtime WebSocket) to the backend.
+{
+	admin off
+	servers {
+		# Only cloudflared on this machine may supply the visitor's address.
+		trusted_proxies static 127.0.0.1/32 ::1/128
+	}
+}
+
+http://:8080 {
+	bind 127.0.0.1
+	encode zstd gzip
+
+	# Cloudflare also accepts plain HTTP and says so in X-Forwarded-Proto; send those visitors to HTTPS.
+	@plainHttp header X-Forwarded-Proto http
+	redir @plainHttp https://ewaguard-ai.com{uri} permanent
+	@www host www.ewaguard-ai.com
+	redir @www https://ewaguard-ai.com{uri} permanent
+
+	handle /api/* {
+		reverse_proxy 127.0.0.1:5100
+	}
+
+	handle {
+		root * {$EWAGUARD_DIST}
+		header {
+			Content-Security-Policy "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'"
+			Strict-Transport-Security "max-age=15552000"
+			X-Content-Type-Options nosniff
+			X-Frame-Options DENY
+			Referrer-Policy no-referrer
+			Permissions-Policy "camera=(), microphone=(), geolocation=()"
+		}
+		# Built assets have content hashes in their names; the page itself must always be revalidated.
+		@assets path /assets/*
+		header @assets Cache-Control "public, max-age=31536000, immutable"
+		@page not path /assets/*
+		header @page Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}

@@ -60,7 +60,7 @@ include the latest amendments and is not legal advice.
 | Collection | How it becomes searchable |
 | --- | --- |
 | PDPL | Operator approves it with the exact SHA-256 → `APPROVED`, active, `INDEXED` |
-| Company samples | Stay DRAFT and inactive. A separate "demo activation" (bound to a reviewed content hash) makes them eligible **only** when `RAG_DEMONSTRATION_ENABLED=true` in a development/test environment. This flag is refused in production. |
+| Company samples | Stay DRAFT and inactive. A separate "demo activation" (bound to a reviewed content hash) makes them eligible, and they are searched **only** when `RAG_DEMONSTRATION_ENABLED=true`. The public site turns this on so the prototype can answer policy questions; every answer still starts with the demonstration warning. Activation itself works only in development/test. |
 
 Search always filters on category, classification, approval, active state,
 indexing state and matching embedding model, so drafts, failed indexes or

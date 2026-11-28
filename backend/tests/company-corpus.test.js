@@ -41,7 +41,7 @@ test('source parsing never invents absent metadata or treats an unmarked documen
   assert.deepEqual(result.blocks, extraction.blocks);
 });
 
-test('demo mode is explicit, disabled by default, and cannot be enabled in production', () => {
+test('demo retrieval is explicit and off by default; demo activation stays development-only', () => {
   const env = { NODE_ENV: 'test', JWT_SECRET: 'synthetic-demo-test-secret-32-characters' };
   assert.equal(parseConfig(env).ragDemonstrationEnabled, false);
   const config = parseConfig({ ...env, RAG_DEMONSTRATION_ENABLED: 'true' });
@@ -53,6 +53,14 @@ test('demo mode is explicit, disabled by default, and cannot be enabled in produ
     { nodeEnv: 'development', ragDemonstrationEnabled: false },
   ])
     assert.throws(() => requireDemoMode(config), { code: 'DEMONSTRATION_MODE_REQUIRED' });
-  assert.throws(() => parseConfig({ NODE_ENV: 'production', RAG_DEMONSTRATION_ENABLED: 'true' }));
+  const production = {
+    NODE_ENV: 'production',
+    FRONTEND_URL: 'https://ewaguard.example',
+    JWT_SECRET: 'synthetic-demo-test-secret-32-characters',
+  };
+  assert.equal(parseConfig(production).ragDemonstrationEnabled, false);
+  const productionDemo = parseConfig({ ...production, RAG_DEMONSTRATION_ENABLED: 'true' });
+  assert.equal(productionDemo.ragDemonstrationEnabled, true);
+  assert.throws(() => requireDemoMode(productionDemo), { code: 'DEMONSTRATION_MODE_REQUIRED' });
   assert.throws(() => parseConfig({ NODE_ENV: 'test', RAG_DEMONSTRATION_ENABLED: 'yes' }));
 });

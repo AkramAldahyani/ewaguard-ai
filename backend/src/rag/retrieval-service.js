@@ -77,7 +77,7 @@ export function createRetrievalService({ database, config, provider, sourceRestr
       await requireRetrievalAccess(database, auth);
       const request = { ...validateRetrieval(body), ...sourceRestriction };
       if (request.category === 'COMPANY_POLICY') {
-        if (!['development', 'test'].includes(config.nodeEnv) || config.ragDemonstrationEnabled !== true)
+        if (config.ragDemonstrationEnabled !== true)
           throw new RetrievalError(403, 'DEMONSTRATION_MODE_REQUIRED', 'Demonstration policy retrieval is disabled.');
         request.demoEligible = true;
       }

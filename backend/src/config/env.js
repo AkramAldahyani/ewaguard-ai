@@ -5,8 +5,9 @@ import { retentionPolicy } from '../privacy/retention-policy.js';
 import { mediaPolicy } from '../community/media-policy.js';
 
 // Resolve from this module so workspace and root commands load the same file.
+// A deployment sets EWAGUARD_ENV_FILE to its own file so development values never mix in.
 // Node preserves injected environment variables over values in this file.
-const envPath = fileURLToPath(new URL('../../../.env', import.meta.url));
+const envPath = process.env.EWAGUARD_ENV_FILE || fileURLToPath(new URL('../../../.env', import.meta.url));
 if (existsSync(envPath)) process.loadEnvFile(envPath);
 
 export function parseConfig(env = process.env) {
@@ -14,9 +15,9 @@ export function parseConfig(env = process.env) {
   const policyDemoSetting = env.RAG_DEMONSTRATION_ENABLED ?? 'false';
   if (!['true', 'false'].includes(policyDemoSetting))
     throw new Error('RAG_DEMONSTRATION_ENABLED must be true or false.');
-  if (nodeEnv === 'production' && policyDemoSetting === 'true')
-    throw new Error('Demonstration policy retrieval is prohibited in production.');
-  const ragDemonstrationEnabled = policyDemoSetting === 'true' && nodeEnv !== 'production';
+  // Opt-in in every environment so the public prototype can answer from the labeled sample policies.
+  // Activating or changing which samples are eligible remains development-only (requireDemoMode).
+  const ragDemonstrationEnabled = policyDemoSetting === 'true';
   const demoSetting = env.DEMO_ACCOUNT_SETUP_ENABLED ?? 'false';
   if (!['true', 'false'].includes(demoSetting)) throw new Error('DEMO_ACCOUNT_SETUP_ENABLED must be true or false.');
   if (nodeEnv === 'production' && demoSetting === 'true')

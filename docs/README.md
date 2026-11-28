@@ -39,6 +39,7 @@ level, and the AI only explains the result in simple words.
 | 21 | [Analytics](analytics.md) | Security and awareness statistics for administrators |
 | 22 | [Privacy, retention and audit](privacy-and-retention.md) | What is kept, for how long, and what is logged |
 | 23 | [Testing and QA](testing-and-qa.md) | How to run the tests safely and the manual browser checklist |
+| 24 | [Public hosting](deployment.md) | How ewaguard-ai.com is served from this PC through a Cloudflare tunnel |
 
 ## Glossary
 
